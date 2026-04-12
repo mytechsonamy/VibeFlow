@@ -972,6 +972,82 @@ if [[ -f "$SR" ]]; then
   fi
 fi
 
+# cross-run-consistency (S3-10) sidecar + gate/taxonomy/mode guards.
+CRC_SKILL="$SKILLS_DIR/cross-run-consistency"
+[[ -f "$CRC_SKILL/SKILL.md" ]] && pass "cross-run-consistency SKILL.md present" \
+  || fail "cross-run-consistency SKILL.md present"
+[[ -f "$CRC_SKILL/references/non-determinism-taxonomy.md" ]] \
+  && pass "cross-run-consistency non-determinism-taxonomy.md present" \
+  || fail "cross-run-consistency non-determinism-taxonomy.md present"
+[[ -f "$CRC_SKILL/references/tolerance-modes.md" ]] \
+  && pass "cross-run-consistency tolerance-modes.md present" \
+  || fail "cross-run-consistency tolerance-modes.md present"
+
+# Gate contract sentinel — P0 must be strict-consistent, no override.
+if grep -q "P0 scenarios must be strict-consistent" "$CRC_SKILL/SKILL.md"; then
+  pass "cross-run-consistency gate: P0 strict-consistent"
+else
+  fail "cross-run-consistency gate: P0 strict-consistent"
+fi
+
+# Domain threshold sentinel — financial/healthcare 0.98, general 0.90
+# floors. Sliding this weakens non-P0 signals silently.
+if grep -qE "financial.*0\.98" "$CRC_SKILL/references/tolerance-modes.md" \
+   && grep -qE "general.*0\.90" "$CRC_SKILL/references/tolerance-modes.md"; then
+  pass "tolerance-modes declares domain thresholds"
+else
+  fail "tolerance-modes declares domain thresholds"
+fi
+
+# Non-determinism taxonomy — 6 classes form a closed set. Dropping one
+# means a whole root-cause family gets silently re-bucketed into UNKNOWN.
+NDT="$CRC_SKILL/references/non-determinism-taxonomy.md"
+if [[ -f "$NDT" ]]; then
+  for class in "TIMING" "ORDERING" "SEED-DRIFT" "EXTERNAL-STATE" "RESOURCE-CONTENTION" "UNKNOWN"; do
+    if grep -qE "^## [0-9]\. \`${class}\`" "$NDT"; then
+      pass "non-determinism-taxonomy declares '${class}' class"
+    else
+      fail "non-determinism-taxonomy declares '${class}' class"
+    fi
+  done
+  # Walk order sentinel — classification is deterministic because the
+  # walk order is fixed. Silent reorder is how "probably TIMING" starts
+  # getting classified as EXTERNAL-STATE.
+  if grep -q "Walk order" "$NDT" || grep -q "walk order" "$NDT"; then
+    pass "non-determinism-taxonomy declares walk order"
+  else
+    fail "non-determinism-taxonomy declares walk order"
+  fi
+fi
+
+# Tolerance modes — strict vs tolerant, runtime override rule.
+TM="$CRC_SKILL/references/tolerance-modes.md"
+if [[ -f "$TM" ]]; then
+  if grep -qE "^### \`strict\`" "$TM"; then
+    pass "tolerance-modes declares 'strict' mode"
+  else
+    fail "tolerance-modes declares 'strict' mode"
+  fi
+  if grep -qE "^### \`tolerant\`" "$TM"; then
+    pass "tolerance-modes declares 'tolerant' mode"
+  else
+    fail "tolerance-modes declares 'tolerant' mode"
+  fi
+  # P0 never in tolerant — structural rule for the whole skill.
+  # Match the "P0 test is a config error" phrasing in §1 of the file.
+  if grep -q "P0 test is a config error the skill refuses to execute" "$TM"; then
+    pass "tolerance-modes: P0 never accepts tolerant mode"
+  else
+    fail "tolerance-modes: P0 never accepts tolerant mode"
+  fi
+  # --mode tolerant runtime flag REJECTED — operator mistake guard.
+  if grep -qE "\`--mode tolerant\` runtime flag is REJECTED|--mode tolerant\` runtime flag is REJECTED" "$TM"; then
+    pass "tolerance-modes rejects --mode tolerant runtime flag"
+  else
+    fail "tolerance-modes rejects --mode tolerant runtime flag"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [2] hooks.json references =="
 

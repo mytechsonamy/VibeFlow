@@ -262,16 +262,39 @@ Every abort writes `abort-<reason>.json` to the run dir and triggers the last-re
 
 **Integration harness guards (17 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (split grep calls), no-override production rule sentinel, 5 chaos category sentinels, chaos-catalog entry count ≥ 10, `No parallel chaos` rule sentinel, 3 profile declaration sentinels, `gentle` 85/100 threshold sentinel, `w_r >= 0.25` floor sentinel.
 
-### S3-10: cross-run-consistency skill ⬜ TODO
-**Location:** skills/cross-run-consistency/SKILL.md
-**Layer:** L2 Truth Execution
-**Inputs:** Test scenario (required), run count (optional), tolerance (optional)
-**Outputs:** consistency-report.md
-**Key features:**
-- Run same test N times, detect non-determinism
-- Strict vs tolerant mode (UI pixel diff tolerance)
-- Flaky test identification with root cause hints
-**Pipeline:** PIPELINE-5 step 3
+### S3-10: cross-run-consistency skill ✅ DONE
+L2 skill that runs the same test N times in one session and checks the runs agree with each other. Answers "is this test non-deterministic right now?" — the **session-local complement** to `ob_track_flaky`'s historical-flake detection.
+**Files:**
+- `skills/cross-run-consistency/SKILL.md` — 8-step algorithm (resolve mode per test → capture baseline (first run) → run remaining N-1 serially → per-mode diff → classify via taxonomy → compute per-test + overall score → apply gate → write outputs)
+- `skills/cross-run-consistency/references/non-determinism-taxonomy.md` — 6 classification classes (`TIMING` / `ORDERING` / `SEED-DRIFT` / `EXTERNAL-STATE` / `RESOURCE-CONTENTION` / `UNKNOWN`) with fixed walk order; each class declares signature + confidence hints + typical causes + concrete remediation
+- `skills/cross-run-consistency/references/tolerance-modes.md` — `strict` vs `tolerant` semantics, per-type tolerance declarations (numeric abs+rel with tighter-of-two rule, pixel diff capped at 0.1, string ignore-rules, duration separate from numeric, exit code ALWAYS strict), 4 domain thresholds (financial/healthcare 0.98, e-commerce 0.93, general 0.90)
+
+**Gate contract (three invariants):**
+1. **P0 tests ALWAYS evaluate in `strict` mode** — no `--mode tolerant` override, no `test-strategy.md` tolerant-for-P0 config. The skill ignores any attempt and records a WARNING
+2. **A P0 test scoring < 1.0 is BLOCKED** — independent of the overall aggregate. Partial consistency on a P0 is as bad as full inconsistency ("I can't tell you what this test will do next time")
+3. **Fully inconsistent non-P0 tests (score 0.0) → at least NEEDS_REVISION** — even if the aggregate meets the threshold. Burying silently-broken tests under aggregate math is exactly what this skill exists to prevent
+
+**Session-local complement to historical flake tracking:** cross-run consistency looks forward in ONE session against an unchanged codebase — any disagreement is pure non-determinism, because nothing else could have caused it. `ob_track_flaky` looks backward across time (separated by code changes + env drift + noise). Both signals compose: a test that's flaky historically AND cross-run-inconsistent is a stronger signal than either alone.
+
+**Serial-only execution:** runs are always sequential, never parallel. Parallel execution introduces confounds (shared state via workers, file handle races, port collisions) that would make the consistency signal meaningless. "Cross-run runs are slow on purpose."
+
+**No averaging — overall consistency = N-tests-fully-consistent / total.** We deliberately reject averaging per-test scores: "9 out of 10 tests fully agreed and 1 was 50% consistent" means 9/10, not 9.5/10. Partial consistency is as dangerous as full inconsistency from a gate standpoint.
+
+**No retries:** a test that exceeds tolerance on the second run fails immediately. The skill doesn't retry hoping for a green reading. Retries hide non-determinism; the whole skill exists to expose it.
+
+**`--mode tolerant` runtime flag REJECTED:** you can loosen via `test-strategy.md` config (which is review-auditable), but you cannot loosen the whole run from the command line — that's the operator mistake the config-side overrides are designed to catch at review time. `--mode strict` is allowed and is additive (everyone goes strict).
+
+**Taxonomy walk order is fixed:** classification is deterministic because the walk picks the first matching class. TIMING → ORDERING → SEED-DRIFT → EXTERNAL-STATE → RESOURCE-CONTENTION → UNKNOWN. A single finding may fit multiple classes (e.g. system clock could be TIMING or EXTERNAL-STATE), and the walk decides which lens is primary.
+
+**UNKNOWN is a taxonomy-gap signal, not a failure:** a report where most findings are UNKNOWN blocks the run with remediation "taxonomy needs updating before this report can be trusted". A few UNKNOWNs in an otherwise-classified report are flagged for human triage but don't block.
+
+**Per-type tolerance rules in `tolerant` mode:**
+- Numeric: TIGHTER of `numericAbsolute` and `numericRelative` applies (intersection, not union — loosening additively is a common mistake)
+- Pixel: capped at 0.1 (> 0.1 rejected as "tolerance too loose — the test isn't testing the image anymore")
+- Exit code: ALWAYS strict, even in tolerant mode (no per-test override for this — an exit-code flip is never "close enough")
+- Duration: separate field from numeric (mixing them means a 2% number tolerance becomes a 2% timing tolerance = absurd on 100ms assertions)
+
+**Integration harness guards (16 new checks):** SKILL.md + both references present, P0 strict-consistent gate sentinel, financial 0.98 + general 0.90 domain threshold sentinels, all 6 taxonomy class sentinels, walk-order declaration sentinel, strict + tolerant mode sentinels, P0-never-tolerant config-error sentinel, `--mode tolerant` runtime-flag-rejected sentinel.
 
 ### S3-11: test-result-analyzer skill ⬜ TODO
 **Location:** skills/test-result-analyzer/SKILL.md
@@ -365,18 +388,18 @@ Every abort writes `abort-<reason>.json` to the run dir and triggers the last-re
 ---
 
 ## Next Ticket to Work On
-**S3-10: cross-run-consistency skill (L2)** — detects drift between test runs across different environments / dimensions (same scenario → different outcomes), surfaces inconsistency as a quality signal.
+**S3-11: test-result-analyzer skill (L2)** — classifies test failures into categories (flake / regression / infra / assertion) and produces actionable failure reports for triage.
 
-## Test inventory (after S3-09)
+## Test inventory (after S3-10)
 - mcp-servers/sdlc-engine: **104 vitest tests**
 - mcp-servers/codebase-intel: **46 vitest tests**
 - mcp-servers/design-bridge: **54 vitest tests**
 - mcp-servers/dev-ops: **37 vitest tests**
 - mcp-servers/observability: **55 vitest tests**
 - hooks/tests/run.sh: **26 bash assertions**
-- tests/integration/run.sh: **252 bash assertions** (+17 for chaos-injector catalog + scoring + safety guards)
+- tests/integration/run.sh: **268 bash assertions** (+16 for cross-run-consistency taxonomy + tolerance modes + gate)
 - tests/integration/sprint-2.sh: **92 bash assertions**
-- Total: **666 passing checks** across 8 test layers
+- Total: **682 passing checks** across 8 test layers
 
 ## Execution Order
 S3-01 (dev-ops) → S3-02 (observability) → S3-03..S3-17 (skills, parallel where possible) → S3-18 (integration)
