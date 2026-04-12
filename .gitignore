@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Runtime state (per-project, not source)
+.vibeflow/state.db
+.vibeflow/state.db-shm
+.vibeflow/state.db-wal
+.vibeflow/artifacts/
+.vibeflow/reports/
+.vibeflow/traces/
+.vibeflow/state/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local environment
+.env
+.env.local
+
+# Claude local settings (per-user, not source)
+.claude/settings.local.json

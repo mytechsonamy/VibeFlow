@@ -1,0 +1,59 @@
+#!/bin/bash
+# VibeFlow Commit Guard (PreToolUse / Bash / git commit).
+#
+# Blocks commits when the project is in a pre-DEVELOPMENT phase (work should
+# not land while requirements/design/architecture/planning are still in flight)
+# and enforces conventional-commit message format. Either failure blocks the
+# commit by exiting 2 with a stderr reason — Claude Code surfaces that to the
+# model and the user.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+
+INPUT="$(cat)"
+COMMAND=""
+if vf_have_jq; then
+  COMMAND="$(echo "$INPUT" | jq -r '.tool_input.command // ""')"
+fi
+
+# Defensive: if the matcher misrouted a non-git command here, pass through.
+if [[ ! "$COMMAND" =~ ^git[[:space:]]+commit ]]; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+PHASE="$(vf_current_phase)"
+PHASE_IDX="$(vf_phase_index "$PHASE" 2>/dev/null || echo "0")"
+DEV_IDX="$(vf_phase_index DEVELOPMENT)"
+
+if (( PHASE_IDX < DEV_IDX )); then
+  echo "VibeFlow commit-guard: commits are blocked in phase $PHASE. " \
+       "Advance to DEVELOPMENT via /vibeflow:advance before committing code." >&2
+  exit 2
+fi
+
+# Extract the commit message from the command. Supports -m "msg", -m'msg',
+# and --message="msg". If none is found (e.g., $EDITOR flow), we don't have a
+# message to validate — let it through rather than blocking blindly.
+MSG=""
+if [[ "$COMMAND" =~ -m[[:space:]]*\"([^\"]+)\" ]]; then
+  MSG="${BASH_REMATCH[1]}"
+elif [[ "$COMMAND" =~ -m[[:space:]]*\'([^\']+)\' ]]; then
+  MSG="${BASH_REMATCH[1]}"
+elif [[ "$COMMAND" =~ --message[[:space:]]*=?[[:space:]]*\"([^\"]+)\" ]]; then
+  MSG="${BASH_REMATCH[1]}"
+fi
+
+if [[ -n "$MSG" ]]; then
+  # Conventional commits: type(scope)?!?: subject
+  if [[ ! "$MSG" =~ ^(feat|fix|chore|docs|test|refactor|style|perf|build|ci|revert)(\([^\)]+\))?!?:[[:space:]]+.+ ]]; then
+    echo "VibeFlow commit-guard: commit message must follow conventional commits. " \
+         "Got: \"$MSG\". Expected prefix: feat|fix|chore|docs|test|refactor|style|perf|build|ci|revert." >&2
+    exit 2
+  fi
+fi
+
+echo '{"continue": true}'
+exit 0

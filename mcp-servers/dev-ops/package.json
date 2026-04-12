@@ -1,0 +1,31 @@
+{
+  "name": "@vibeflow/dev-ops",
+  "version": "0.1.0",
+  "description": "VibeFlow dev-ops MCP server — CI/CD integration (GitHub Actions / GitLab CI), pipeline trigger, status polling, artifact listing, deploy + rollback wrappers.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "vibeflow-dev-ops": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.2"
+  }
+}

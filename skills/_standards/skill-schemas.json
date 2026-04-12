@@ -1,0 +1,1274 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "TruthLayer Platform — 26 skill için machine-readable input/output contract",
+    "fileNamingConvention": "Dosya adları sabittir. Konum (klasör) esnektir.",
+    "inputTypes": {
+      "PRD": "Ürün gereksinim dokümanı — metin veya dosya yolu",
+      "SOURCE_FILES": "Kaynak kod dosyaları veya klasör yolu",
+      "TEST_FILES": "Test dosyaları veya klasör yolu",
+      "SCENARIO_SET": "scenario-set.md — test-strategy-planner çıktısı",
+      "BASELINE": "regression-baseline.json — önceki koşum sonucu",
+      "SCREENSHOT": "PNG veya JPG dosya yolu / URL",
+      "OPENAPI": "OpenAPI/Swagger YAML veya JSON dosyası / URL",
+      "CONFIG": "Parametre veya konfigürasyon — inline değer"
+    }
+  },
+  "skills": {
+    "prd-quality-analyzer": {
+      "layer": 0,
+      "question": "Bu PRD implement edilebilir mi?",
+      "inputs": [
+        {
+          "name": "prd",
+          "type": "PRD",
+          "required": true,
+          "description": "PRD içeriği — metin veya dosya yolu",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prd-quality-report.md",
+          "description": "Ambiguity, conflict, missing flow bulguları + testability skoru",
+          "consumedBy": [
+            "test-strategy-planner",
+            "architecture-validator",
+            "traceability-engine"
+          ],
+          "producedBy": "prd-quality-analyzer"
+        },
+        {
+          "name": "prd-cost-avoidance.md",
+          "description": "CFO view — maliyet önleme ve ROI raporu",
+          "consumedBy": [],
+          "producedBy": "prd-quality-analyzer"
+        }
+      ]
+    },
+    "architecture-validator": {
+      "layer": 0,
+      "question": "Bu mimari doğru seçim mi?",
+      "inputs": [
+        {
+          "name": "architectureDescription",
+          "type": "PRD",
+          "required": true,
+          "description": "Mimari kararlar metin açıklaması",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "prd",
+          "type": "PRD",
+          "required": true,
+          "description": "PRD içeriği veya prd-quality-report.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "domain",
+          "type": "CONFIG",
+          "required": true,
+          "description": "financial | e-commerce | healthcare | general",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "architecture-report.md",
+          "description": "Policy engine sonuçları, consistency analizi, scaling riskleri",
+          "consumedBy": [
+            "decision-recommender"
+          ],
+          "producedBy": "architecture-validator"
+        }
+      ]
+    },
+    "traceability-engine": {
+      "layer": 0,
+      "question": "PRD == Code == Test sağlanıyor mu?",
+      "inputs": [
+        {
+          "name": "prd",
+          "type": "PRD",
+          "required": true,
+          "description": "PRD içeriği",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "sourceFiles",
+          "type": "SOURCE_FILES",
+          "required": false,
+          "description": "src/ klasörü",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "testFiles",
+          "type": "TEST_FILES",
+          "required": false,
+          "description": "Test dosyaları",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "traceability-report.md",
+          "description": "Gap listesi (UNTESTED_REQ, PARTIAL_COVERAGE, vb.) + risk skorları",
+          "consumedBy": [
+            "release-decision-engine",
+            "decision-recommender"
+          ],
+          "producedBy": "traceability-engine"
+        },
+        {
+          "name": "rtm-updated.md",
+          "description": "Güncel gereksinim izlenebilirlik matrisi",
+          "consumedBy": [
+            "coverage-analyzer"
+          ],
+          "producedBy": "traceability-engine"
+        }
+      ]
+    },
+    "test-strategy-planner": {
+      "layer": 1,
+      "question": "Ne test edilmeli, hangi öncelikte?",
+      "note": "scenario-set.md üreten tek skill. Scenario-based skill'lerden önce çalışmalı.",
+      "inputs": [
+        {
+          "name": "prd",
+          "type": "PRD",
+          "required": true,
+          "description": "PRD içeriği",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "platform",
+          "type": "CONFIG",
+          "required": true,
+          "description": "web | ios | android | all",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "prdQualityReport",
+          "type": "PRD",
+          "required": false,
+          "description": "prd-quality-report.md",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "test-strategy.md",
+          "description": "Test stratejisi ve kapsamı",
+          "consumedBy": [
+            "uat-executor",
+            "checklist-generator"
+          ],
+          "producedBy": "test-strategy-planner"
+        },
+        {
+          "name": "scenario-set.md",
+          "description": "Tüm test senaryoları — downstream skill'lerin ortak girdisi",
+          "consumedBy": [
+            "component-test-writer",
+            "contract-test-writer",
+            "e2e-test-writer",
+            "uat-executor",
+            "chaos-injector",
+            "coverage-analyzer",
+            "test-priority-engine",
+            "checklist-generator",
+            "reconciliation-simulator",
+            "cross-run-consistency"
+          ],
+          "producedBy": "test-strategy-planner"
+        },
+        {
+          "name": "rtm.md",
+          "description": "Gereksinim izlenebilirlik matrisi (ilk versiyon)",
+          "consumedBy": [
+            "traceability-engine",
+            "coverage-analyzer",
+            "test-result-analyzer"
+          ],
+          "producedBy": "test-strategy-planner"
+        }
+      ]
+    },
+    "component-test-writer": {
+      "layer": 1,
+      "question": "Component unit/integration testleri yazılmış mı?",
+      "inputs": [
+        {
+          "name": "sourceCode",
+          "type": "SOURCE_FILES",
+          "required": true,
+          "description": "Test yazılacak dosya veya klasör",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "framework",
+          "type": "CONFIG",
+          "required": false,
+          "description": "vitest | jest — varsayılan: vitest",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "[component-name].test.ts",
+          "description": "Üretilen test dosyası",
+          "consumedBy": [],
+          "producedBy": "component-test-writer"
+        }
+      ]
+    },
+    "contract-test-writer": {
+      "layer": 1,
+      "question": "API contract bozuldu mu?",
+      "inputs": [
+        {
+          "name": "apiSchema",
+          "type": "OPENAPI",
+          "required": true,
+          "description": "openapi.yaml | swagger.json | tip dosyaları",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "contract.test.ts",
+          "description": "Zod şema testleri",
+          "consumedBy": [],
+          "producedBy": "contract-test-writer"
+        },
+        {
+          "name": "contract-report.md",
+          "description": "Breaking change tespiti",
+          "consumedBy": [],
+          "producedBy": "contract-test-writer"
+        }
+      ]
+    },
+    "business-rule-validator": {
+      "layer": 1,
+      "question": "İş kuralları semantik olarak doğru mu?",
+      "inputs": [
+        {
+          "name": "prd",
+          "type": "PRD",
+          "required": true,
+          "description": "PRD içeriği",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "testFiles",
+          "type": "TEST_FILES",
+          "required": false,
+          "description": "Mevcut test dosyaları",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "business-rules.md",
+          "description": "Çıkarılan kural listesi (TRIGGER, INVARIANT, vb.)",
+          "consumedBy": [
+            "invariant-formalizer",
+            "decision-recommender"
+          ],
+          "producedBy": "business-rule-validator"
+        },
+        {
+          "name": "br-test-suite.test.ts",
+          "description": "Business rule assertion'ları",
+          "consumedBy": [],
+          "producedBy": "business-rule-validator"
+        },
+        {
+          "name": "semantic-gaps.md",
+          "description": "Format, sign, null, race gap analizi",
+          "consumedBy": [
+            "decision-recommender"
+          ],
+          "producedBy": "business-rule-validator"
+        }
+      ]
+    },
+    "test-data-manager": {
+      "layer": 1,
+      "question": "Test verisi deterministik ve izole mi?",
+      "inputs": [
+        {
+          "name": "domainModel",
+          "type": "SOURCE_FILES",
+          "required": true,
+          "description": "TypeScript tip dosyaları veya metin açıklaması",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "target",
+          "type": "CONFIG",
+          "required": false,
+          "description": "fixture | seed | factory — varsayılan: factory",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "[domain].factory.ts",
+          "description": "Faker.js factory fonksiyonu",
+          "consumedBy": [],
+          "producedBy": "test-data-manager"
+        },
+        {
+          "name": "fixtures/[domain].json",
+          "description": "Statik fixture verisi",
+          "consumedBy": [],
+          "producedBy": "test-data-manager"
+        }
+      ]
+    },
+    "e2e-test-writer": {
+      "layer": 1,
+      "question": "Uçtan uca akışlar çalışıyor mu?",
+      "inputs": [
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": true,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "platform",
+          "type": "CONFIG",
+          "required": true,
+          "description": "web | ios | android",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "appUrl",
+          "type": "CONFIG",
+          "required": true,
+          "description": "https://... veya bundle ID",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "authMethod",
+          "type": "CONFIG",
+          "required": false,
+          "description": "credentials | token | storage-state",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "[feature].spec.ts",
+          "description": "Playwright veya Detox E2E test dosyası",
+          "consumedBy": [],
+          "producedBy": "e2e-test-writer"
+        }
+      ]
+    },
+    "uat-executor": {
+      "layer": 1,
+      "question": "Kullanıcı senaryoları geçiyor mu?",
+      "inputs": [
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": true,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "appUrl",
+          "type": "CONFIG",
+          "required": true,
+          "description": "Uygulama URL veya ortam adı",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "testStrategy",
+          "type": "PRD",
+          "required": false,
+          "description": "test-strategy.md",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "uat-raw-report.md",
+          "description": "Ham UAT sonuçları — test-result-analyzer ve observability-analyzer için girdi",
+          "consumedBy": [
+            "test-result-analyzer",
+            "observability-analyzer"
+          ],
+          "producedBy": "uat-executor"
+        }
+      ]
+    },
+    "test-result-analyzer": {
+      "layer": 1,
+      "question": "Hatalar nasıl sınıflandırılır?",
+      "inputs": [
+        {
+          "name": "testOutput",
+          "type": "PRD",
+          "required": true,
+          "description": "uat-raw-report.md veya test runner log/JSON",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "rtm",
+          "type": "PRD",
+          "required": false,
+          "description": "rtm.md",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "test-results.md",
+          "description": "Sınıflandırılmış hata analizi",
+          "consumedBy": [
+            "release-decision-engine"
+          ],
+          "producedBy": "test-result-analyzer"
+        },
+        {
+          "name": "bug-tickets.md",
+          "description": "Backlog biletleri — learning-loop için girdi",
+          "consumedBy": [
+            "learning-loop-engine"
+          ],
+          "producedBy": "test-result-analyzer"
+        }
+      ]
+    },
+    "regression-test-runner": {
+      "layer": 1,
+      "question": "Yeni değişiklik eskiyi kırdı mı?",
+      "note": "regression-baseline.json hem girdi hem çıktıdır. İlk koşumda girdi olmaz.",
+      "inputs": [
+        {
+          "name": "trigger",
+          "type": "CONFIG",
+          "required": true,
+          "description": "commit hash | PR numarası | 'UAT tamamlandı'",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "baseline",
+          "type": "BASELINE",
+          "required": false,
+          "description": "regression-baseline.json — ilk koşumda yoktur",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scope",
+          "type": "CONFIG",
+          "required": false,
+          "description": "smoke | full — varsayılan: smart",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "platform",
+          "type": "CONFIG",
+          "required": false,
+          "description": "web | ios | android | all",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "regression-report.md",
+          "description": "Yeni hatalar, gerileme tespiti, flaky listesi",
+          "consumedBy": [],
+          "producedBy": "regression-test-runner"
+        },
+        {
+          "name": "regression-baseline.json",
+          "description": "Yeni baseline — sonraki koşum için girdi",
+          "consumedBy": [
+            "regression-test-runner",
+            "test-priority-engine",
+            "learning-loop-engine"
+          ],
+          "producedBy": "regression-test-runner"
+        }
+      ]
+    },
+    "checklist-generator": {
+      "layer": 1,
+      "question": "PR / release öncesi kontrol listesi hazır mı?",
+      "inputs": [
+        {
+          "name": "context",
+          "type": "CONFIG",
+          "required": true,
+          "description": "pr | release | feature | accessibility",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "platform",
+          "type": "CONFIG",
+          "required": true,
+          "description": "web | mobile | all",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "testStrategy",
+          "type": "PRD",
+          "required": false,
+          "description": "test-strategy.md",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "checklist.md",
+          "description": "Bağlama göre özelleştirilmiş kontrol listesi",
+          "consumedBy": [],
+          "producedBy": "checklist-generator"
+        }
+      ]
+    },
+    "coverage-analyzer": {
+      "layer": 1,
+      "question": "Kod + gereksinim + risk kapsamı yeterli mi?",
+      "inputs": [
+        {
+          "name": "coverageSummary",
+          "type": "CONFIG",
+          "required": true,
+          "description": "coverage-summary.json — Vitest/Jest --coverage çıktısı",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "rtm",
+          "type": "PRD",
+          "required": false,
+          "description": "rtm.md veya rtm-updated.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "coverage-report.md",
+          "description": "Üç boyutlu kapsam analizi (kod, gereksinim, risk)",
+          "consumedBy": [
+            "release-decision-engine"
+          ],
+          "producedBy": "coverage-analyzer"
+        }
+      ]
+    },
+    "environment-orchestrator": {
+      "layer": 1,
+      "question": "Test ortamı izole ve tekrarlanabilir mi?",
+      "inputs": [
+        {
+          "name": "testType",
+          "type": "CONFIG",
+          "required": true,
+          "description": "unit | integration | e2e",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "platform",
+          "type": "CONFIG",
+          "required": true,
+          "description": "web | ios | android",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "envConfig",
+          "type": "CONFIG",
+          "required": false,
+          "description": ".env içeriği veya feature flag listesi",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "env-setup.md",
+          "description": "Ortam kurulum ve sıfırlama rehberi",
+          "consumedBy": [],
+          "producedBy": "environment-orchestrator"
+        }
+      ]
+    },
+    "mutation-test-runner": {
+      "layer": 1,
+      "question": "Assertion kalitesi yeterli mi?",
+      "inputs": [
+        {
+          "name": "sourceFiles",
+          "type": "SOURCE_FILES",
+          "required": true,
+          "description": "Kaynak dosyalar veya klasör",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "testFiles",
+          "type": "TEST_FILES",
+          "required": true,
+          "description": "Test dosyaları veya klasör",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scope",
+          "type": "CONFIG",
+          "required": false,
+          "description": "critical | standard | full — varsayılan: critical",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mutation-report.md",
+          "description": "Mutation skoru, kaçan mutant analizi, iyileştirme önerileri",
+          "consumedBy": [],
+          "producedBy": "mutation-test-runner"
+        }
+      ]
+    },
+    "cross-run-consistency": {
+      "layer": 1,
+      "question": "Aynı input N koşumda aynı sonucu veriyor mu?",
+      "inputs": [
+        {
+          "name": "scenario",
+          "type": "SCENARIO_SET",
+          "required": true,
+          "description": "scenario-set.md veya akış açıklaması",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "runCount",
+          "type": "CONFIG",
+          "required": false,
+          "description": "Koşum sayısı — varsayılan: 3",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "tolerance",
+          "type": "CONFIG",
+          "required": false,
+          "description": "strict | tolerant — varsayılan: strict",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "consistency-report.md",
+          "description": "Tutarsızlık tespiti ve kök neden analizi",
+          "consumedBy": [],
+          "producedBy": "cross-run-consistency"
+        }
+      ]
+    },
+    "visual-ai-analyzer": {
+      "layer": 1,
+      "question": "UI anlam bazlı doğru görünüyor mu?",
+      "inputs": [
+        {
+          "name": "screenshot",
+          "type": "SCREENSHOT",
+          "required": true,
+          "description": "PNG/JPG dosya yolu veya URL",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "uiRequirements",
+          "type": "PRD",
+          "required": false,
+          "description": "PRD UI bölümü veya metin",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "baselineShot",
+          "type": "SCREENSHOT",
+          "required": false,
+          "description": "Karşılaştırma için önceki screenshot",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "visual-report.md",
+          "description": "Layout, typography, alignment hataları + PRD uyum skoru",
+          "consumedBy": [],
+          "producedBy": "visual-ai-analyzer"
+        }
+      ]
+    },
+    "test-priority-engine": {
+      "layer": 1,
+      "question": "Risk × değişiklik bazında optimal koşum sırası nedir?",
+      "inputs": [
+        {
+          "name": "changedFiles",
+          "type": "SOURCE_FILES",
+          "required": true,
+          "description": "git diff --name-only çıktısı veya PR dosya listesi",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "baseline",
+          "type": "BASELINE",
+          "required": false,
+          "description": "regression-baseline.json",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "mode",
+          "type": "CONFIG",
+          "required": false,
+          "description": "quick | smart | full — varsayılan: smart",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "priority-plan.md",
+          "description": "Risk sıralı test koşum planı + tahmini süre",
+          "consumedBy": [],
+          "producedBy": "test-priority-engine"
+        }
+      ]
+    },
+    "observability-analyzer": {
+      "layer": 1,
+      "question": "Sistem nerede ve neden başarısız oluyor?",
+      "inputs": [
+        {
+          "name": "testOutput",
+          "type": "PRD",
+          "required": true,
+          "description": "uat-raw-report.md veya Playwright trace/HAR/log",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "observability-report.md",
+          "description": "Network, console, UI timeline birleşik analizi",
+          "consumedBy": [],
+          "producedBy": "observability-analyzer"
+        }
+      ]
+    },
+    "invariant-formalizer": {
+      "layer": 1,
+      "question": "Matematiksel invariant garantisi var mı?",
+      "inputs": [
+        {
+          "name": "prdOrRules",
+          "type": "PRD",
+          "required": true,
+          "description": "PRD içeriği veya business-rules.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "domain",
+          "type": "CONFIG",
+          "required": true,
+          "description": "financial | trading | portfolio | general",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "targetFormat",
+          "type": "CONFIG",
+          "required": false,
+          "description": "typescript | zod | z3 | all — varsayılan: zod",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "invariant-matrix.md",
+          "description": "Formal invariant listesi + çelişki tespiti",
+          "consumedBy": [
+            "release-decision-engine",
+            "decision-recommender"
+          ],
+          "producedBy": "invariant-formalizer"
+        },
+        {
+          "name": "invariants.ts",
+          "description": "TypeScript/Zod implementasyonu",
+          "consumedBy": [],
+          "producedBy": "invariant-formalizer"
+        }
+      ]
+    },
+    "reconciliation-simulator": {
+      "layer": 1,
+      "question": "Ledger/portfolio drift tespit oranı yeterli mi?",
+      "inputs": [
+        {
+          "name": "scenario",
+          "type": "SCENARIO_SET",
+          "required": true,
+          "description": "scenario-set.md veya drift senaryosu açıklaması",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "simConfig",
+          "type": "CONFIG",
+          "required": false,
+          "description": "işlem sayısı, drift oranı, drift türleri",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "reconciliation-report.md",
+          "description": "Tespit oranı, kaçan drift analizi, öneriler",
+          "consumedBy": [
+            "release-decision-engine"
+          ],
+          "producedBy": "reconciliation-simulator"
+        }
+      ]
+    },
+    "chaos-injector": {
+      "layer": 1,
+      "question": "Sistem arıza altında doğru davranıyor mu?",
+      "inputs": [
+        {
+          "name": "systemTarget",
+          "type": "CONFIG",
+          "required": true,
+          "description": "Endpoint URL veya UI akışı açıklaması",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "profile",
+          "type": "CONFIG",
+          "required": true,
+          "description": "gentle | moderate | brutal",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "scenarioSet",
+          "type": "SCENARIO_SET",
+          "required": false,
+          "description": "scenario-set.md",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "chaos-report.md",
+          "description": "Delay, duplicate, out-of-order, partial failure test sonuçları",
+          "consumedBy": [
+            "release-decision-engine",
+            "decision-recommender"
+          ],
+          "producedBy": "chaos-injector"
+        }
+      ]
+    },
+    "decision-recommender": {
+      "layer": 2,
+      "question": "Çelişkiyi nasıl çözelim?",
+      "inputs": [
+        {
+          "name": "findings",
+          "type": "PRD",
+          "required": true,
+          "description": "prd-quality-report.md | business-rules.md | invariant-matrix.md | chaos-report.md | serbest metin (en az biri)",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "context",
+          "type": "CONFIG",
+          "required": false,
+          "description": "Ekip büyüklüğü, zaman kısıtı, risk toleransı",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "decision-package.md",
+          "description": "Alternatifler, trade-off matrisi, gerekçeli tavsiye, uygulama yol haritası",
+          "consumedBy": [],
+          "producedBy": "decision-recommender"
+        }
+      ]
+    },
+    "release-decision-engine": {
+      "layer": 2,
+      "question": "Deploy edilebilir mi?",
+      "inputs": [
+        {
+          "name": "coverageReport",
+          "type": "PRD",
+          "required": true,
+          "description": "coverage-report.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "uatReport",
+          "type": "PRD",
+          "required": true,
+          "description": "uat-raw-report.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "testResults",
+          "type": "PRD",
+          "required": true,
+          "description": "test-results.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "domain",
+          "type": "CONFIG",
+          "required": true,
+          "description": "financial | e-commerce | healthcare | general",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "riskTolerance",
+          "type": "CONFIG",
+          "required": true,
+          "description": "low | medium | high",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "invariantMatrix",
+          "type": "PRD",
+          "required": false,
+          "description": "invariant-matrix.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "chaosReport",
+          "type": "PRD",
+          "required": false,
+          "description": "chaos-report.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "traceabilityReport",
+          "type": "PRD",
+          "required": false,
+          "description": "traceability-report.md",
+          "producedBy": [
+            "user"
+          ]
+        },
+        {
+          "name": "reconciliationReport",
+          "type": "PRD",
+          "required": false,
+          "description": "reconciliation-report.md — financial domain",
+          "producedBy": [
+            "user"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "release-decision.md",
+          "description": "GO | CONDITIONAL | BLOCKED kararı + blocker listesi + confidence skorları + audit log",
+          "consumedBy": [],
+          "producedBy": "release-decision-engine"
+        }
+      ]
+    },
+    "learning-loop-engine": {
+      "layer": 3,
+      "question": "Sistem öğreniyor mu?",
+      "modes": {
+        "test-history": {
+          "inputs": [
+            {
+              "name": "baseline",
+              "type": "BASELINE",
+              "required": true,
+              "description": "regression-baseline.json — en az 5 koşum",
+              "producedBy": [
+                "user"
+              ]
+            },
+            {
+              "name": "bugTickets",
+              "type": "PRD",
+              "required": false,
+              "description": "bug-tickets.md",
+              "producedBy": [
+                "user"
+              ]
+            },
+            {
+              "name": "scenarioSet",
+              "type": "SCENARIO_SET",
+              "required": false,
+              "description": "scenario-set.md",
+              "producedBy": [
+                "user"
+              ]
+            }
+          ]
+        },
+        "production-feedback": {
+          "inputs": [
+            {
+              "name": "bugReport",
+              "type": "PRD",
+              "required": true,
+              "description": "Production bug açıklaması veya ticket içeriği",
+              "producedBy": [
+                "user"
+              ]
+            }
+          ]
+        },
+        "drift-analysis": {
+          "inputs": [
+            {
+              "name": "baselines",
+              "type": "BASELINE",
+              "required": true,
+              "description": "Birden fazla dönemin regression-baseline.json'ları",
+              "producedBy": [
+                "user"
+              ]
+            }
+          ]
+        }
+      },
+      "outputs": [
+        {
+          "name": "learning-report.md",
+          "description": "Fail type dağılımı, maturity stage, öncelikli aksiyon listesi",
+          "consumedBy": [],
+          "producedBy": "learning-loop-engine"
+        }
+      ]
+    }
+  }
+}

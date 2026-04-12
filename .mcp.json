@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "sdlc-engine": {
+      "command": "node",
+      "args": ["./mcp-servers/sdlc-engine/dist/index.js"],
+      "env": {
+        "VIBEFLOW_MODE": "solo"
+      }
+    },
+    "codebase-intel": {
+      "command": "node",
+      "args": ["./mcp-servers/codebase-intel/dist/index.js"]
+    },
+    "design-bridge": {
+      "command": "node",
+      "args": ["./mcp-servers/design-bridge/dist/index.js"],
+      "env": {
+        "FIGMA_TOKEN": "${userConfig.figma_token}"
+      }
+    },
+    "dev-ops": {
+      "command": "node",
+      "args": ["./mcp-servers/dev-ops/dist/index.js"],
+      "env": {
+        "GITHUB_TOKEN": "${userConfig.github_token}"
+      }
+    },
+    "observability": {
+      "command": "node",
+      "args": ["./mcp-servers/observability/dist/index.js"]
+    }
+  }
+}

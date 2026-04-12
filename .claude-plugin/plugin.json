@@ -1,0 +1,66 @@
+{
+  "name": "vibeflow",
+  "version": "1.0.0",
+  "description": "AI-Orchestrated Vibe Coding Framework with Multi-AI Consensus and Truth Validation. Combines SDLC orchestration with requirements-first quality assurance.",
+  "author": {
+    "name": "Musti",
+    "email": "mustafa.yildirim@dgpays.com"
+  },
+  "repository": "https://github.com/mustiyildirim/vibeflow",
+  "license": "MIT",
+  "keywords": [
+    "sdlc",
+    "ai-orchestration",
+    "vibe-coding",
+    "truth-validation",
+    "multi-ai",
+    "consensus",
+    "requirements-first",
+    "quality-assurance"
+  ],
+  "skills": "./skills/",
+  "userConfig": {
+    "mode": {
+      "title": "Workflow Mode",
+      "description": "Workflow mode: 'solo' (single developer, SQLite, lighter hooks) or 'team' (multi-dev, PostgreSQL, full consensus)",
+      "type": "string",
+      "sensitive": false
+    },
+    "domain": {
+      "title": "Project Domain",
+      "description": "Project domain: 'financial', 'e-commerce', 'healthcare', or 'general'. Affects quality thresholds and release decision weights.",
+      "type": "string",
+      "sensitive": false
+    },
+    "db_connection": {
+      "title": "Database Connection",
+      "description": "PostgreSQL connection string for project state (team mode only). Leave empty for solo mode (uses SQLite).",
+      "type": "string",
+      "sensitive": true
+    },
+    "openai_model": {
+      "title": "OpenAI Model",
+      "description": "OpenAI model for ChatGPT reviews via codex CLI (default: gpt-4o). Leave empty to skip ChatGPT reviews.",
+      "type": "string",
+      "sensitive": false
+    },
+    "gemini_model": {
+      "title": "Gemini Model",
+      "description": "Google model for Gemini reviews via gemini CLI (default: gemini-2.0-flash). Leave empty to skip Gemini reviews.",
+      "type": "string",
+      "sensitive": false
+    },
+    "figma_token": {
+      "title": "Figma Personal Access Token",
+      "description": "Personal access token for the Figma REST API (used by design-bridge MCP). Create at figma.com → Settings → Personal access tokens. Leave empty to disable Figma-dependent skills.",
+      "type": "string",
+      "sensitive": true
+    },
+    "github_token": {
+      "title": "GitHub Personal Access Token",
+      "description": "Personal access token for the GitHub REST API (used by dev-ops MCP to trigger workflows, check runs, list artifacts). Needs `actions:write` + `contents:read` at minimum. Leave empty to disable CI-dependent skills.",
+      "type": "string",
+      "sensitive": true
+    }
+  }
+}

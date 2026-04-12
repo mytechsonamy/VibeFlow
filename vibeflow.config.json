@@ -1,0 +1,18 @@
+{
+  "project": "vibeflow",
+  "version": "1.0.0",
+  "mode": "solo",
+  "domain": "general",
+  "platform": "all",
+  "riskTolerance": "medium",
+  "currentPhase": "REQUIREMENTS",
+  "models": {
+    "claude": "claude-sonnet-4-6",
+    "openai": "gpt-4o",
+    "gemini": "gemini-2.0-flash"
+  },
+  "sourceDir": "src/",
+  "testDir": "src/",
+  "outputDir": ".vibeflow/",
+  "defaultPipeline": "new-feature"
+}

@@ -1,0 +1,72 @@
+# VibeFlow - AI-Orchestrated Vibe Coding Framework
+
+## Project Overview
+VibeFlow is a Claude Code plugin that orchestrates the full SDLC through multi-AI consensus and truth validation. It combines MyVibe Framework's orchestration with TruthLayer's requirements-first quality assurance.
+
+## Architecture Principles
+- **Plugin-First**: All components are Claude Code native (skills, hooks, subagents, MCP servers)
+- **Truth-Driven**: Requirements are the source of truth. Testability score < 60 blocks development
+- **Consensus-Based**: Multi-AI review (Claude + ChatGPT + Gemini) with graceful degradation
+- **Dual Mode**: Solo (SQLite, light hooks, single-AI) and Team (PostgreSQL, full hooks, 3-AI consensus)
+
+## SDLC Phases (7)
+1. REQUIREMENTS - PRD analysis, testability scoring, ambiguity detection
+2. DESIGN - Figma integration, wireframes, design tokens, accessibility
+3. ARCHITECTURE - ADR generation, tech decisions, 3-AI voting, formal verification
+4. PLANNING - Epic breakdown, task dependency graph, test strategy, sprint planning
+5. DEVELOPMENT - Code with auto quality gates (hooks), brownfield context management
+6. TESTING - Full TruthLayer validation (20 skills), mutation testing, chaos injection
+7. DEPLOYMENT - Release decision (GO/CONDITIONAL/BLOCKED), rollback, health checks
+
+## Consensus Thresholds
+- APPROVED: >= 90% agreement + 0 critical issues
+- NEEDS_REVISION: 50-89% agreement
+- REJECTED: < 50% or 2+ critical issues
+- Always use enum values (ConsensusStatus.REJECTED), never string literals
+
+## Domain-Specific Quality Thresholds
+- Financial: GO >= 90, CONDITIONAL >= 75 (invariants weighted 25%)
+- E-commerce: GO >= 85, CONDITIONAL >= 70 (UAT weighted 25%)
+- Healthcare: GO >= 95, CONDITIONAL >= 85 (coverage weighted 30%)
+- General: GO >= 80, CONDITIONAL >= 65
+
+## Key Commands
+- `/vibeflow:init` - Initialize project (mode, domain, tech stack)
+- `/vibeflow:status` - Current SDLC phase, pending tasks, quality metrics
+- `/vibeflow:review` - Trigger multi-AI review cycle
+- `/vibeflow:advance` - Advance to next SDLC phase (with gate checks)
+- `/vibeflow:prd-quality-analyzer` - Analyze PRD quality
+- `/vibeflow:test-strategy-planner` - Generate test strategy from PRD
+- `/vibeflow:release-decision-engine` - Produce release decision
+
+## Build & Test
+- MCP servers: `cd mcp-servers/<server> && npm install && npm run build`
+- Plugin dev mode: `claude --plugin-dir ./` from VibeFlow root
+
+### Three test layers — run all three before declaring a sprint ticket done
+- **Unit (vitest):** `cd mcp-servers/sdlc-engine && npm test` — 90 tests covering engine, consensus, validation, phases, state store, tools, server dispatch
+- **Hook scripts (bash):** `bash hooks/tests/run.sh` — 26 assertions covering every hook + shared `_lib.sh`
+- **Integration (bash + node):** `bash tests/integration/run.sh` — 21 assertions covering plugin manifest, `hooks.json` references, `.mcp.json` dist path, sdlc-engine stdio JSON-RPC smoke, engine+hook e2e flow
+- Total baseline: 137 passing checks. Any regression that drops this number blocks the ticket.
+
+## Coding Conventions
+- TypeScript for all MCP servers and scripts
+- Zod schemas for all MCP tool input validation
+- Enum-safe comparisons (never string literals for status values)
+- All skill outputs follow the explainability contract: { finding, why, impact, confidence }
+
+## Sprint Tracking
+- Full roadmap: `ROADMAP.md` (4 sprints, skill inventory, bug tracker)
+- Active sprint: the highest-numbered file in `docs/SPRINT-*.md` that is not yet marked ✅ COMPLETE
+- When starting a new session, read the active sprint file to find the next ticket (look for "Next Ticket to Work On")
+- When completing a ticket, tick its checkbox in the active sprint file
+- When all Sprint N tickets are done, mark that file ✅ COMPLETE and create `docs/SPRINT-{N+1}.md` seeded from ROADMAP.md. Do not leave the previous sprint file as the active pointer.
+
+## File Naming Conventions
+- Skills: `skills/<name>/SKILL.md` (YAML frontmatter with `name:` + `description:` is mandatory — the integration harness will fail if either is missing)
+- Subagents: `agents/<name>.md`
+- Hook scripts: `hooks/scripts/<name>.sh` — all hooks source `hooks/scripts/_lib.sh` for shared helpers (`vf_current_phase`, `vf_mode`, `vf_phase_index`, …). Never duplicate config/state reads; extend the lib instead.
+- Hook tests: `hooks/tests/run.sh` — bash 3.2 compatible (no associative arrays; default macOS shell is the lowest common denominator)
+- MCP servers: `mcp-servers/<name>/src/index.ts`, tests in `mcp-servers/<name>/tests/*.test.ts`
+- Integration harness: `tests/integration/run.sh` — covers anything that crosses process boundaries or validates static manifests
+- Sprint plans: `docs/SPRINT-{N}.md`
