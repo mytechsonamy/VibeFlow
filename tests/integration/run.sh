@@ -1125,6 +1125,499 @@ if [[ -f "$TT" ]]; then
   fi
 fi
 
+# coverage-analyzer (S3-12) sidecar + gate/metrics/gap guards.
+COV_SKILL="$SKILLS_DIR/coverage-analyzer"
+[[ -f "$COV_SKILL/SKILL.md" ]] && pass "coverage-analyzer SKILL.md present" \
+  || fail "coverage-analyzer SKILL.md present"
+[[ -f "$COV_SKILL/references/coverage-metrics.md" ]] \
+  && pass "coverage-analyzer coverage-metrics.md present" \
+  || fail "coverage-analyzer coverage-metrics.md present"
+[[ -f "$COV_SKILL/references/gap-prioritization.md" ]] \
+  && pass "coverage-analyzer gap-prioritization.md present" \
+  || fail "coverage-analyzer gap-prioritization.md present"
+
+# Gate contract — P0 zero-uncovered + domain threshold + no critical-
+# path exclusions. Three-rule compose.
+if grep -q "Zero uncovered lines or branches in P0 code" "$COV_SKILL/SKILL.md" \
+   && grep -q "overall coverage" "$COV_SKILL/SKILL.md" \
+   && grep -q "no exclusions on critical paths" "$COV_SKILL/SKILL.md"; then
+  pass "coverage-analyzer gate: P0 + threshold + no critical exclusions"
+else
+  fail "coverage-analyzer gate: P0 + threshold + no critical exclusions"
+fi
+
+# Coverage metrics — 4 domain threshold rows. Sliding any of these
+# silently weakens the whole gate.
+CM="$COV_SKILL/references/coverage-metrics.md"
+if [[ -f "$CM" ]]; then
+  for domain in "financial" "healthcare" "e-commerce" "general"; do
+    if grep -qE "^\| \`${domain}\` \|" "$CM"; then
+      pass "coverage-metrics declares '${domain}' domain row"
+    else
+      fail "coverage-metrics declares '${domain}' domain row"
+    fi
+  done
+  # Summation-not-averaging rule — the load-bearing rollup decision.
+  if grep -q "NOT average of per-file" "$CM" || grep -q "sum numerators and denominators" "$CM"; then
+    pass "coverage-metrics enforces sum-over-average rollup"
+  else
+    fail "coverage-metrics enforces sum-over-average rollup"
+  fi
+  # Critical-path exclusion forbidden rule — structural, non-negotiable.
+  if grep -q "criticalPaths file excluded ANYWHERE" "$CM" || grep -q "critical-path exclusion" "$CM"; then
+    pass "coverage-metrics forbids critical-path exclusions"
+  else
+    fail "coverage-metrics forbids critical-path exclusions"
+  fi
+  # null ≠ 0 rule — a file with no branches isn't "perfect branch coverage".
+  if grep -qE "NOT zero|\`null\`, NOT zero" "$CM"; then
+    pass "coverage-metrics: null != zero for empty denominators"
+  else
+    fail "coverage-metrics: null != zero for empty denominators"
+  fi
+fi
+
+# Gap prioritization — 4 components form a closed set + w_p floor.
+GP="$COV_SKILL/references/gap-prioritization.md"
+if [[ -f "$GP" ]]; then
+  for component in "priorityComponent" "criticalityComponent" "churnComponent" "requirementLinkComponent"; do
+    if grep -qE "^### 2\.[1-4] \`${component}\`" "$GP"; then
+      pass "gap-prioritization declares '${component}' component"
+    else
+      fail "gap-prioritization declares '${component}' component"
+    fi
+  done
+  # w_p floor — priority must dominate gap ranking.
+  if grep -q "w_p >= 0.3" "$GP"; then
+    pass "gap-prioritization enforces w_p >= 0.3 floor"
+  else
+    fail "gap-prioritization enforces w_p >= 0.3 floor"
+  fi
+fi
+
+# observability-analyzer (S3-13) sidecar + parsers + anomaly catalog.
+OBA_SKILL="$SKILLS_DIR/observability-analyzer"
+[[ -f "$OBA_SKILL/SKILL.md" ]] && pass "observability-analyzer SKILL.md present" \
+  || fail "observability-analyzer SKILL.md present"
+[[ -f "$OBA_SKILL/references/source-parsers.md" ]] \
+  && pass "observability-analyzer source-parsers.md present" \
+  || fail "observability-analyzer source-parsers.md present"
+[[ -f "$OBA_SKILL/references/anomaly-rules.md" ]] \
+  && pass "observability-analyzer anomaly-rules.md present" \
+  || fail "observability-analyzer anomaly-rules.md present"
+
+# Gate contract — zero critical anomalies in P0, console errors,
+# web vitals within budget. Three-rule compose.
+if grep -q "Zero critical anomalies in P0 scenarios" "$OBA_SKILL/SKILL.md" \
+   && grep -q "console errors above the severity threshold" "$OBA_SKILL/SKILL.md" \
+   && grep -q "web vitals meet the domain budget" "$OBA_SKILL/SKILL.md"; then
+  pass "observability-analyzer gate: critical + console + web vitals"
+else
+  fail "observability-analyzer gate: critical + console + web vitals"
+fi
+
+# Source parsers — 4 formats form a closed set.
+SP="$OBA_SKILL/references/source-parsers.md"
+if [[ -f "$SP" ]]; then
+  for format in "HAR 1.2" "Playwright trace" "Browser console" "Chrome DevTools Protocol"; do
+    if grep -qE "^## [0-9]\. ${format}" "$SP"; then
+      pass "source-parsers declares '${format}' format"
+    else
+      fail "source-parsers declares '${format}' format"
+    fi
+  done
+  # Normalized TraceEvent shape — the cross-parser interface must be
+  # declared so the parser layer stays stateless.
+  if grep -q "Normalized \`TraceEvent\` shape" "$SP"; then
+    pass "source-parsers declares normalized TraceEvent shape"
+  else
+    fail "source-parsers declares normalized TraceEvent shape"
+  fi
+fi
+
+# Anomaly catalog — 5 categories form a closed set. Dropping one means
+# a whole class of signals silently stops being measured.
+AR="$OBA_SKILL/references/anomaly-rules.md"
+if [[ -f "$AR" ]]; then
+  for category in "Network anomalies" "Console anomalies" "Performance anomalies" "Security anomalies" "Third-party anomalies"; do
+    if grep -qE "^## [0-9]\. ${category}" "$AR"; then
+      pass "anomaly-rules has '${category}' category"
+    else
+      fail "anomaly-rules has '${category}' category"
+    fi
+  done
+  # Rule count floor — below 10 means someone deleted a section.
+  RULE_COUNT="$(grep -cE '^### [A-Z][A-Z0-9_-]+$' "$AR")"
+  if (( RULE_COUNT >= 10 )); then
+    pass "anomaly-rules has at least 10 rules (got $RULE_COUNT)"
+  else
+    fail "anomaly-rules has at least 10 rules (got $RULE_COUNT)"
+  fi
+  # Domain overrides table — promotes warnings to critical in specific
+  # domains. Silent edit = wrong severity in production.
+  if grep -q "Domain overrides" "$AR"; then
+    pass "anomaly-rules declares domain overrides table"
+  else
+    fail "anomaly-rules declares domain overrides table"
+  fi
+  # Override-can-only-tighten rule — same discipline as every other
+  # VibeFlow gate.
+  if grep -q "rule MORE strict, never less" "$AR"; then
+    pass "anomaly-rules: domain overrides can only tighten"
+  else
+    fail "anomaly-rules: domain overrides can only tighten"
+  fi
+fi
+
+# visual-ai-analyzer (S3-14) sidecar + confidence/mode/catalog guards.
+VAI_SKILL="$SKILLS_DIR/visual-ai-analyzer"
+[[ -f "$VAI_SKILL/SKILL.md" ]] && pass "visual-ai-analyzer SKILL.md present" \
+  || fail "visual-ai-analyzer SKILL.md present"
+[[ -f "$VAI_SKILL/references/inspection-modes.md" ]] \
+  && pass "visual-ai-analyzer inspection-modes.md present" \
+  || fail "visual-ai-analyzer inspection-modes.md present"
+[[ -f "$VAI_SKILL/references/finding-catalog.md" ]] \
+  && pass "visual-ai-analyzer finding-catalog.md present" \
+  || fail "visual-ai-analyzer finding-catalog.md present"
+
+# Gate contract — zero critical P0 regressions + accessibility + design
+# drift. Same three-rule compose shape as coverage/observability.
+if grep -q "Zero critical visual regressions in P0 scenarios" "$VAI_SKILL/SKILL.md" \
+   && grep -q "accessibility findings require remediation" "$VAI_SKILL/SKILL.md" \
+   && grep -q "design-diff above tolerance needs human review" "$VAI_SKILL/SKILL.md"; then
+  pass "visual-ai-analyzer gate: P0 critical + a11y + design drift"
+else
+  fail "visual-ai-analyzer gate: P0 critical + a11y + design drift"
+fi
+
+# Three inspection modes form a closed set. Dropping one silently
+# removes a whole mode of vision analysis.
+IM="$VAI_SKILL/references/inspection-modes.md"
+if [[ -f "$IM" ]]; then
+  for mode in "baseline-diff" "standalone" "design-comparison"; do
+    if grep -qE "^## [0-9]\. \`${mode}\`" "$IM"; then
+      pass "inspection-modes declares '${mode}' mode"
+    else
+      fail "inspection-modes declares '${mode}' mode"
+    fi
+  done
+  # Modes are additive not exclusive — the key design decision that
+  # lets a single run engage multiple modes.
+  if grep -q "additive, not" "$IM" && grep -q "exclusive" "$IM"; then
+    pass "inspection-modes are additive, not exclusive"
+  else
+    fail "inspection-modes are additive, not exclusive"
+  fi
+fi
+
+# Finding catalog — 7 categories form a closed set.
+FC="$VAI_SKILL/references/finding-catalog.md"
+if [[ -f "$FC" ]]; then
+  for category in "Layout findings" "Typography findings" "Color \+ contrast findings" "Alignment findings" "Overflow findings" "Broken-state findings"; do
+    if grep -qE "^## [0-9]\. ${category}" "$FC"; then
+      pass "finding-catalog has '${category}' category"
+    else
+      fail "finding-catalog has '${category}' category"
+    fi
+  done
+  # Confidence-filter thresholds — structural rule that keeps the
+  # vision model's hallucinations off the critical path.
+  if grep -q "0.6 / 0.8" "$FC" || grep -q "confidence >= 0.8" "$FC"; then
+    pass "finding-catalog declares confidence filter thresholds"
+  else
+    fail "finding-catalog declares confidence filter thresholds"
+  fi
+  # Finding count floor — below 12 means someone deleted entries.
+  FIND_COUNT="$(grep -cE "^### [A-Z][A-Z0-9-]+$" "$FC")"
+  if (( FIND_COUNT >= 12 )); then
+    pass "finding-catalog has at least 12 finding entries (got $FIND_COUNT)"
+  else
+    fail "finding-catalog has at least 12 finding entries (got $FIND_COUNT)"
+  fi
+  # UNCLASSIFIED fallback must exist — same rule as every other
+  # VibeFlow taxonomy.
+  if grep -q "UNCLASSIFIED-VISUAL" "$FC"; then
+    pass "finding-catalog declares UNCLASSIFIED-VISUAL fallback"
+  else
+    fail "finding-catalog declares UNCLASSIFIED-VISUAL fallback"
+  fi
+fi
+
+# learning-loop-engine (S3-15) — first L3 skill. Sidecar + modes +
+# pattern catalog + maturity stages guards.
+LLE_SKILL="$SKILLS_DIR/learning-loop-engine"
+[[ -f "$LLE_SKILL/SKILL.md" ]] && pass "learning-loop-engine SKILL.md present" \
+  || fail "learning-loop-engine SKILL.md present"
+[[ -f "$LLE_SKILL/references/pattern-detection.md" ]] \
+  && pass "learning-loop-engine pattern-detection.md present" \
+  || fail "learning-loop-engine pattern-detection.md present"
+[[ -f "$LLE_SKILL/references/maturity-stages.md" ]] \
+  && pass "learning-loop-engine maturity-stages.md present" \
+  || fail "learning-loop-engine maturity-stages.md present"
+
+# Gate contract — 3 invariants: every pattern ≥ 3 observations,
+# every production bug traces, every recommendation actionable.
+if grep -q "Every pattern must have ≥ 3 supporting observations" "$LLE_SKILL/SKILL.md" \
+   && grep -q "Every production bug must trace to a specific test gap" "$LLE_SKILL/SKILL.md" \
+   && grep -q "Every recommendation must be actionable" "$LLE_SKILL/SKILL.md"; then
+  pass "learning-loop-engine gate: 3 observations + production trace + actionable"
+else
+  fail "learning-loop-engine gate: 3 observations + production trace + actionable"
+fi
+
+# 3 modes form a closed set — dropping one removes a whole analysis
+# flow from the skill.
+if grep -q "Mode 1: \`test-history\`" "$LLE_SKILL/SKILL.md" \
+   && grep -q "Mode 2: \`production-feedback\`" "$LLE_SKILL/SKILL.md" \
+   && grep -q "Mode 3: \`drift-analysis\`" "$LLE_SKILL/SKILL.md"; then
+  pass "learning-loop-engine declares 3 modes (test-history/production-feedback/drift-analysis)"
+else
+  fail "learning-loop-engine declares 3 modes (test-history/production-feedback/drift-analysis)"
+fi
+
+# Pattern catalog — 3 mode-scoped sections. Dropping a section silently
+# removes a mode's analysis capability.
+PD="$LLE_SKILL/references/pattern-detection.md"
+if [[ -f "$PD" ]]; then
+  for section in "\`test-history\` mode patterns" "\`production-feedback\` mode patterns" "\`drift-analysis\` mode patterns"; do
+    if grep -qE "^## [0-9]\. ${section}" "$PD"; then
+      pass "pattern-detection has '${section}' section"
+    else
+      fail "pattern-detection has '${section}' section"
+    fi
+  done
+  # Pattern count floor — below 10 means someone deleted entries.
+  PATTERN_COUNT="$(grep -cE '^### LEARNING-' "$PD")"
+  if (( PATTERN_COUNT >= 10 )); then
+    pass "pattern-detection has at least 10 patterns (got $PATTERN_COUNT)"
+  else
+    fail "pattern-detection has at least 10 patterns (got $PATTERN_COUNT)"
+  fi
+  # Minimum-evidence non-negotiable rule — patterns need ≥ 3 observations.
+  if grep -q "≥ 3, always" "$PD" || grep -q "at least.*3.*observations" "$PD"; then
+    pass "pattern-detection enforces ≥ 3 observation floor"
+  else
+    fail "pattern-detection enforces ≥ 3 observation floor"
+  fi
+fi
+
+# Maturity stages — 5 stages form a closed set.
+MS="$LLE_SKILL/references/maturity-stages.md"
+if [[ -f "$MS" ]]; then
+  for stage in "Ad hoc" "Baseline" "Coverage" "Learning" "Self-improving"; do
+    if grep -qE "^## Stage [1-5] — ${stage}" "$MS"; then
+      pass "maturity-stages declares 'Stage ${stage}'"
+    else
+      fail "maturity-stages declares 'Stage ${stage}'"
+    fi
+  done
+  # No Stage 6 — terminal stage rule. Silent addition of a Stage 6
+  # would let teams chase gates indefinitely.
+  if grep -q "There's no Stage 6" "$MS" || grep -q "terminal state by design" "$MS"; then
+    pass "maturity-stages declares Stage 5 as terminal"
+  else
+    fail "maturity-stages declares Stage 5 as terminal"
+  fi
+  # Single-unmet-criterion blocks promotion — structural rule.
+  if grep -q "single unmet criterion blocks promotion" "$MS" || grep -q "no partial credit" "$MS"; then
+    pass "maturity-stages: single unmet criterion blocks promotion"
+  else
+    fail "maturity-stages: single unmet criterion blocks promotion"
+  fi
+fi
+
+# decision-recommender (S3-16) — second L3 skill. Sidecar + gate
+# + decision types + option generators + structural guards.
+DR_SKILL="$SKILLS_DIR/decision-recommender"
+[[ -f "$DR_SKILL/SKILL.md" ]] && pass "decision-recommender SKILL.md present" \
+  || fail "decision-recommender SKILL.md present"
+[[ -f "$DR_SKILL/references/decision-types.md" ]] \
+  && pass "decision-recommender decision-types.md present" \
+  || fail "decision-recommender decision-types.md present"
+[[ -f "$DR_SKILL/references/option-generators.md" ]] \
+  && pass "decision-recommender option-generators.md present" \
+  || fail "decision-recommender option-generators.md present"
+
+# Gate contract — 4 invariants. Every recommendation cites findings,
+# every option has both-direction trade-offs, Option 0 always included,
+# confidence < 0.7 escapes to human-judgment-needed.
+if grep -q "Every option has at least one positive AND one" "$DR_SKILL/SKILL.md" \
+   && grep -q "Option 0 is ALWAYS \"do nothing\"" "$DR_SKILL/SKILL.md" \
+   && grep -q "Every recommendation cites at least one finding by" "$DR_SKILL/SKILL.md" \
+   && grep -q "human-judgment-needed" "$DR_SKILL/SKILL.md"; then
+  pass "decision-recommender gate: 4 invariants (tradeoffs + OPT-0 + cite + confidence)"
+else
+  fail "decision-recommender gate: 4 invariants (tradeoffs + OPT-0 + cite + confidence)"
+fi
+
+# Anti-AI-confidence rule — the skill explicitly refuses to ship a
+# single weighted composite score.
+if grep -q "NEVER computes a single weighted composite score" "$DR_SKILL/SKILL.md" \
+   || grep -q "single-score framing" "$DR_SKILL/SKILL.md" \
+   || grep -q "single weighted score that \"solves\"" "$DR_SKILL/SKILL.md"; then
+  pass "decision-recommender rejects single-score framing"
+else
+  fail "decision-recommender rejects single-score framing"
+fi
+
+# Decision types — 5 canonical types + 1 UNCLASSIFIED fallback.
+DT="$DR_SKILL/references/decision-types.md"
+if [[ -f "$DT" ]]; then
+  for dtype in "release-go-no-go" "gate-adjustment" "priority-change" "risk-acceptance" "scope-change"; do
+    if grep -qE "^## [0-9]\. \`${dtype}\`" "$DT"; then
+      pass "decision-types declares '${dtype}'"
+    else
+      fail "decision-types declares '${dtype}'"
+    fi
+  done
+  # UNCLASSIFIED-DECISION fallback
+  if grep -q "UNCLASSIFIED-DECISION" "$DT"; then
+    pass "decision-types declares UNCLASSIFIED-DECISION fallback"
+  else
+    fail "decision-types declares UNCLASSIFIED-DECISION fallback"
+  fi
+  # Walk order declared (specific to general)
+  if grep -q "Walk order" "$DT" || grep -q "walk order" "$DT"; then
+    pass "decision-types declares walk order"
+  else
+    fail "decision-types declares walk order"
+  fi
+fi
+
+# Option generators — 5 generators (one per type) + shared validation.
+OG="$DR_SKILL/references/option-generators.md"
+if [[ -f "$OG" ]]; then
+  for gen in "release-options" "gate-options" "priority-options" "risk-options" "scope-options"; do
+    if grep -qE "^## [0-9]\. \`${gen}\`" "$OG"; then
+      pass "option-generators declares '${gen}' generator"
+    else
+      fail "option-generators declares '${gen}' generator"
+    fi
+  done
+  # Structural rule: OPT-0 always Do Nothing — the load-bearing rule.
+  if grep -q "OPT-0 — Do nothing" "$OG" || grep -q "OPT-0 is ALWAYS" "$OG"; then
+    pass "option-generators enforces 'OPT-0 always Do Nothing'"
+  else
+    fail "option-generators enforces 'OPT-0 always Do Nothing'"
+  fi
+  # Validation rules for positive/negative/unknown trade-offs
+  if grep -q "positive.length >= 1" "$OG" && grep -q "negative.length >= 1" "$OG"; then
+    pass "option-generators enforces positive + negative tradeoff validation"
+  else
+    fail "option-generators enforces positive + negative tradeoff validation"
+  fi
+fi
+
+# reconciliation-simulator (S3-17) — L1 financial-domain-only simulator.
+# Sidecars + gate contract + canonical invariants + concurrency patterns
+# + structural guards (financial-only, deterministic, severity critical).
+RS_SKILL="$SKILLS_DIR/reconciliation-simulator"
+[[ -f "$RS_SKILL/SKILL.md" ]] && pass "reconciliation-simulator SKILL.md present" \
+  || fail "reconciliation-simulator SKILL.md present"
+[[ -f "$RS_SKILL/references/ledger-invariants.md" ]] \
+  && pass "reconciliation-simulator ledger-invariants.md present" \
+  || fail "reconciliation-simulator ledger-invariants.md present"
+[[ -f "$RS_SKILL/references/concurrency-scenarios.md" ]] \
+  && pass "reconciliation-simulator concurrency-scenarios.md present" \
+  || fail "reconciliation-simulator concurrency-scenarios.md present"
+
+# Gate contract — zero invariant violations, deterministic simulation,
+# every violation traces to a specific operation sequence.
+if grep -q "zero invariant violations across every" "$RS_SKILL/SKILL.md" \
+   && grep -q "deterministic simulation" "$RS_SKILL/SKILL.md" \
+   && grep -q "every violation traces to a specific" "$RS_SKILL/SKILL.md"; then
+  pass "reconciliation-simulator gate contract (zero violations + deterministic + traces)"
+else
+  fail "reconciliation-simulator gate contract (zero violations + deterministic + traces)"
+fi
+
+# Financial-domain-only rule — no override flag, block on any other domain.
+if grep -q "financial-only" "$RS_SKILL/SKILL.md" \
+   && grep -q "No .*override" "$RS_SKILL/SKILL.md"; then
+  pass "reconciliation-simulator: financial-only + no override"
+else
+  fail "reconciliation-simulator: financial-only + no override"
+fi
+
+# Every-step invariant check rule — the torn-state detection.
+if grep -q "Every step is checked, not just the endpoints" "$RS_SKILL/SKILL.md"; then
+  pass "reconciliation-simulator: every step checked, not just endpoints"
+else
+  fail "reconciliation-simulator: every step checked, not just endpoints"
+fi
+
+# All violations are severity: critical (no warning band).
+if grep -q "Every violation is .severity: critical" "$RS_SKILL/SKILL.md"; then
+  pass "reconciliation-simulator: every violation severity critical"
+else
+  fail "reconciliation-simulator: every violation severity critical"
+fi
+
+# Determinism is a structural contract, not best-effort.
+if grep -q "structural contract" "$RS_SKILL/SKILL.md" \
+   && grep -q "best-effort property" "$RS_SKILL/SKILL.md"; then
+  pass "reconciliation-simulator: determinism is a structural contract"
+else
+  fail "reconciliation-simulator: determinism is a structural contract"
+fi
+
+# Canonical ledger invariants — all 6 present in the sidecar.
+LI="$RS_SKILL/references/ledger-invariants.md"
+if [[ -f "$LI" ]]; then
+  for inv in "LEDGER-DOUBLE-ENTRY" "LEDGER-CONSERVATION" "LEDGER-SIGN-CONVENTION" \
+             "LEDGER-MONETARY-PRECISION" "LEDGER-NON-NEGATIVE-BALANCE" \
+             "LEDGER-AUTHORITATIVE-TIME"; do
+    if grep -qE "^## [0-9]\. ${inv}" "$LI"; then
+      pass "ledger-invariants declares '${inv}'"
+    else
+      fail "ledger-invariants declares '${inv}'"
+    fi
+  done
+  # No-contradiction composition rule for per-project invariants.
+  if grep -q "No contradiction" "$LI" && grep -q "Strengthening is allowed" "$LI"; then
+    pass "ledger-invariants: composition (no-contradiction + strengthening-allowed)"
+  else
+    fail "ledger-invariants: composition (no-contradiction + strengthening-allowed)"
+  fi
+  # Frozen set — additions require retrospective + version bump.
+  if grep -q "ledgerInvariantsVersion" "$LI"; then
+    pass "ledger-invariants declares ledgerInvariantsVersion"
+  else
+    fail "ledger-invariants declares ledgerInvariantsVersion"
+  fi
+fi
+
+# Canonical concurrency patterns — all 6 present in the sidecar.
+CS="$RS_SKILL/references/concurrency-scenarios.md"
+if [[ -f "$CS" ]]; then
+  for pat in "CONCURRENT-DEBITS-SAME-ACCOUNT" "CONCURRENT-TRANSFERS-RING" \
+             "RETRY-ON-FAILURE" "PARTIAL-REVERSAL" "TIMEOUT-DURING-COMMIT" \
+             "DEAD-LEG"; do
+    if grep -qE "^## [0-9]\. ${pat}" "$CS"; then
+      pass "concurrency-scenarios declares '${pat}'"
+    else
+      fail "concurrency-scenarios declares '${pat}'"
+    fi
+  done
+  # Cooperative scheduler + seed-deterministic rule.
+  if grep -q "cooperative scheduler" "$CS" && grep -q "seed-deterministic" "$CS"; then
+    pass "concurrency-scenarios: cooperative scheduler + seed-deterministic"
+  else
+    fail "concurrency-scenarios: cooperative scheduler + seed-deterministic"
+  fi
+  # Pattern removal explicitly forbidden — anti-drift guard.
+  if grep -q "Removing a canonical pattern is not allowed" "$CS"; then
+    pass "concurrency-scenarios: removing patterns forbidden"
+  else
+    fail "concurrency-scenarios: removing patterns forbidden"
+  fi
+  if grep -q "concurrencyScenariosVersion" "$CS"; then
+    pass "concurrency-scenarios declares concurrencyScenariosVersion"
+  else
+    fail "concurrency-scenarios declares concurrencyScenariosVersion"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [2] hooks.json references =="
 

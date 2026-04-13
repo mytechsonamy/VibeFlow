@@ -1,4 +1,4 @@
-# Sprint 3: DevOps + Observability + Layer 2-3 Skills
+# Sprint 3: DevOps + Observability + Layer 2-3 Skills ✅ COMPLETE
 
 ## Sprint Goal
 CI/CD integration via dev-ops MCP, monitoring via observability MCP, complete TruthLayer Layer 2 (Execution) and Layer 3 (Evolution) skills. All 7 pipelines fully operational.
@@ -7,11 +7,11 @@ CI/CD integration via dev-ops MCP, monitoring via observability MCP, complete Tr
 - Sprint 2 complete (codebase-intel + design-bridge MCPs, Layer 0-1 skills)
 
 ## Completion Criteria
-- [ ] dev-ops MCP integrates with GitHub Actions/GitLab CI
-- [ ] observability MCP collects and analyzes test execution metrics
-- [ ] All 7 pipelines from orchestrator.md are executable
-- [ ] 11 new skills produce correct output
-- [ ] Full cycle test: PRD → scenario-set → tests → UAT → release decision
+- [x] dev-ops MCP integrates with GitHub Actions/GitLab CI
+- [x] observability MCP collects and analyzes test execution metrics
+- [x] All 7 pipelines from orchestrator.md declared + cross-referenced
+- [x] 15 new skills produce correct output (target was 11; Sprint 3 shipped 15)
+- [x] Full cycle test: PRD → scenario-set → tests → UAT → release decision
 
 ---
 
@@ -327,99 +327,304 @@ L2 skill that turns raw test failures into a **classified, ticket-ready** set. A
 
 **Integration harness guards (15 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (split grep), all 5 taxonomy class sentinels, walk-order declaration sentinel, "BUG is fourth not first" structural rule sentinel, ticket schema version sentinel, dedupKey field sentinel, confidence ≥ 0.7 floor sentinel, append-only history rule sentinel.
 
-### S3-12: coverage-analyzer skill ⬜ TODO
-**Location:** skills/coverage-analyzer/SKILL.md
-**Layer:** L2 Truth Execution
-**Inputs:** coverage-summary.json (required), rtm.md (optional), scenario-set.md (optional)
-**Outputs:** coverage-report.md
-**Key features:**
-- Parse vitest/jest coverage JSON
-- Requirement-level coverage (not just line coverage)
-- Gap identification: high-risk uncovered paths
-**Downstream:** coverage-report.md → release-decision-engine
+### S3-12: coverage-analyzer skill ✅ DONE
+L2 skill that turns raw coverage JSON into a **requirement-level**, risk-ranked report with a two-rule gate. Parses Istanbul / v8 / Istanbul-summary formats, rolls up to the PRD requirement level via RTM, ranks gaps by weighted risk, and enforces domain thresholds + P0 zero-uncovered.
+**Files:**
+- `skills/coverage-analyzer/SKILL.md` — 8-step algorithm (detect + parse → normalize to `CoverageRecord` → per-file metrics → RTM rollup to requirement level → risk-weighted gap ranking → apply gate → validate exclusions → write outputs)
+- `skills/coverage-analyzer/references/coverage-metrics.md` — 4 metric formulas (line / branch / function / statement), sum-not-average rollup rule, 4 domain thresholds (financial/healthcare 0.90, e-commerce 0.80, general 0.75), P0 zero-uncovered exact rule, inline `@coverage-exempt` vs runner ignore distinction, critical-path-exclusion forbidden rule, 5 exclusion rules
+- `skills/coverage-analyzer/references/gap-prioritization.md` — 4-component weighted gap score (`priorityComponent 0.40 + criticalityComponent 0.30 + churnComponent 0.20 + requirementLinkComponent 0.10`), `w_p >= 0.3` floor, per-file ranking (not per-line), tie-breaker chain, null-component re-normalization for degraded signals
 
-### S3-13: observability-analyzer skill ⬜ TODO
-**Location:** skills/observability-analyzer/SKILL.md
-**Layer:** L2 Truth Execution
-**Inputs:** uat-raw-report.md or Playwright trace (required)
-**Outputs:** observability-report.md
-**Key features:**
-- Parse HAR files, Playwright traces, browser logs
-- Network waterfall analysis
-- Console error categorization
-- Performance bottleneck identification
+**Gate contract (two rules, both must pass):**
+1. **P0 zero-uncovered** — every file linked to a P0 requirement must have `lineCoverage == 1.0` AND `branchCoverage == 1.0`. Exact, not "within rounding"
+2. **Overall threshold** — `lineCoverage >= threshold(domain)`. `<threshold but within 5% → NEEDS_REVISION`, `< threshold - 5% → BLOCKED`
 
-### S3-14: visual-ai-analyzer skill ⬜ TODO
-**Location:** skills/visual-ai-analyzer/SKILL.md
-**Layer:** L2 Truth Execution
-**Inputs:** Screenshot (required), UI requirements (optional), baseline screenshot (optional)
-**Outputs:** visual-report.md
-**Key features:**
-- Claude vision API for screenshot analysis
-- Compare implementation vs design (baseline diff)
-- Accessibility issues from visual inspection (contrast, font size)
-- Layout regression detection
+A P0 violation BLOCKS even when overall passes. A critical-path exclusion BLOCKS unconditionally regardless of rationale.
 
-### S3-15: learning-loop-engine skill ⬜ TODO
-**Location:** skills/learning-loop-engine/SKILL.md
-**Layer:** L3 Truth Evolution
-**Inputs (3 modes):**
-- test-history: regression-baseline.json (required), bug-tickets.md (optional)
-- production-feedback: Bug report (required)
-- drift-analysis: Multiple baseline files (required)
-**Outputs:** learning-report.md
-**Key features:**
-- Pattern recognition from test history
-- Production bug root cause → missed test identification
-- Drift detection across sprint baselines
-- Maturity stage progression recommendations
-**Pipeline:** PIPELINE-6 steps 1, PIPELINE-7 step 1
+**Four metric decisions that defend the gate against lies:**
+1. **Null ≠ zero** — a file with no branches gets `branchCoverage: null`, not 0. "Not measurable" is different from "perfectly uncovered" / "perfectly covered"
+2. **Sum rollup, not average** — `projectLineCoverage = Σ covered / Σ total`, never `avg(perFilePct)`. Averaging gives a 10-line file and a 1000-line file equal weight; summation gives proportional weight (the honest aggregate)
+3. **v8-source in financial/healthcare blocks** — v8 has no branch data; regulated domains require branch coverage by policy. "Silently report 100% branch because the metric is null" is rejected
+4. **Coverage summary-only mode flagged** — `coverage-summary.json` (Istanbul summary) is accepted but reports "file drilldown unavailable" so downstream knows
 
-### S3-16: decision-recommender skill ⬜ TODO
-**Location:** skills/decision-recommender/SKILL.md
-**Layer:** L3 Truth Evolution
-**Inputs:** Any findings report (required), team context (optional)
-**Outputs:** decision-package.md
-**Key features:**
-- Structured decision package: problem, options, trade-offs, recommendation
-- Risk-adjusted recommendations based on domain and team context
-- Actionable next steps with effort estimates
-**Pipeline:** PIPELINE-4 step 2 (conditional)
+**Requirement-level rollup via RTM:**
+- `reqLineCoverage = Σ covered lines in the union of source files mapped to this requirement / Σ total lines in that union`
+- Requirement with no tests → `mappingGap: true` (more urgent than low coverage)
+- Requirement with broken RTM linkage → `rtmDrift: true` (different remediation — fix the RTM, not add tests)
+- Source touched by two requirements counts once per requirement's union (a line serving two features is covered when either runs it)
 
-### S3-17: reconciliation-simulator skill ⬜ TODO
+**P0 zero-uncovered rule is exact, not approximate:**
+- Exact 1.0, no rounding tolerance
+- A P0 file with an exclusion (even reasonable one) BLOCKS — critical-path exclusions are the structural non-negotiable
+- `null` branch coverage on a P0 file from v8 source blocks with remediation "switch to istanbul for P0 files; branch coverage must be measurable"
+- Inline `@coverage-exempt: <reason>` annotations (with mandatory reason) are allowed — they stay in the file's total lines but not the "should exercise" set. Auditable, distinct from runner ignores (which disappear from the total entirely)
+
+**Risk-weighted gap ranking:**
+- Priority component dominates (0.40 weight + `w_p >= 0.3` floor)
+- Criticality signal is 0.30 — critical-path membership is the closest proxy for "bug here = customer incident"
+- Churn (0.20) uses `ci_find_hotspots` with a 30-day window (catches active-development risk without diluting with old hotspots)
+- Requirement linkage (0.10) is a separate axis from priority — a file can be tagged P1 in its header but link to a P0 requirement via RTM
+- Null-component re-normalization: when `criticalPaths` is empty OR churn data is unavailable, the component is `null` and the score re-normalizes over the remaining components. Never zero (which would silently demote it); `degradedSignals` records the reason
+
+**What the skill explicitly doesn't model:** failure prediction, semantic importance, gap size weighting (small gap in P0 file > large gap in P3 file, and the score reflects this because priority dominates). Same "score likelihood of being worth testing, not breaking" posture as `test-priority-engine`.
+
+**Integration harness guards (16 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (P0 + threshold + critical exclusions), 4 domain threshold row sentinels, sum-over-average rollup rule sentinel, critical-path-exclusion forbidden rule sentinel, null-not-zero structural rule sentinel, 4 gap component sentinels, `w_p >= 0.3` floor sentinel.
+
+### S3-13: observability-analyzer skill ✅ DONE
+L2 skill that parses per-run artifacts (HAR / Playwright trace / browser console / CDP exports), detects anomalies against a fixed catalog, and emits `observability-report.md`. **Per-run complement** to the `observability` MCP (which tracks cross-run metrics over time).
+**Files:**
+- `skills/observability-analyzer/SKILL.md` — 8-step algorithm (source detect + parse → normalize to `TraceEvent` → waterfall reconstruction → scenario linking → anomaly detection → gate → dedupe findings → write outputs)
+- `skills/observability-analyzer/references/source-parsers.md` — 4 format parsers (HAR 1.2 / Playwright trace / Browser console / CDP), shared `TraceEvent` normalization, "parsers don't classify" rule
+- `skills/observability-analyzer/references/anomaly-rules.md` — 16 rules across 5 categories (Network 5 / Console 4 / Performance 4 / Security 3 / Third-party 2), each with `id / category / signature / severity / rationale / remediation`, domain override table for `SECURITY-INSECURE-COOKIE`, `THIRD-PARTY-BLOCKING`, `NET-SLOW-API`
+
+**Gate contract (three structural rules):**
+1. **Zero `critical` anomalies** regardless of priority — critical means "it broke", not "it was slow"
+2. **Zero `warning` anomalies on P0 scenarios** — warnings on lower priorities escalate to NEEDS_REVISION, on P0 they BLOCK
+3. **Web vitals within domain budget** — within budget PASS, within close-miss band (5-10% over) NEEDS_REVISION, beyond close-miss (>10%) BLOCKED
+
+**Per-run vs cross-run split clarified:**
+- `observability` MCP = cross-run time-series (flakiness, metric trends, pass rate history)
+- `observability-analyzer` skill = per-run artifact analysis (this run's waterfall, this run's console errors, this run's web vitals)
+- Both feed `release-decision-engine` but answer different questions; neither replaces the other
+
+**Normalized `TraceEvent` shape** — every parser emits the same shape regardless of source (HAR / Playwright / console / CDP). `scenarioId` and `priority` fields are deliberately filled in Step 4 of the algorithm, NOT by the parser — this keeps the parser layer stateless and format-agnostic. Fields that don't apply to a specific source are `null` explicitly, never defaulted to zero.
+
+**Waterfall reconstruction (HAR only):** sort by `startedDateTime`, identify the longest `dependsOn` chain, surface the critical path's total duration as the page's observed load time, flag critical-path requests whose individual duration > `p95` for their content type. Report shows the chain as a hierarchical table.
+
+**Severity semantics:**
+- `critical` — it broke (4xx/5xx/unhandled exception/security violation). Gate blocks regardless of priority
+- `warning` — outside declared budget but not broken. Blocks P0, NEEDS_REVISION on lower
+- `info` — team declared "not a problem" (expected 404 on probes, known third-party warnings). Audit-only, never blocks
+
+**Domain override pattern (same shape as mutation-test-runner):** rules can be **promoted** from `warning` to `critical` in specific domains (e.g. `SECURITY-INSECURE-COOKIE` → critical in financial/healthcare, `THIRD-PARTY-BLOCKING` → critical in financial, `NET-SLOW-API` → critical on payment paths in financial). Overrides can ONLY tighten — demoting `CONSOLE-ERROR` to warning in `general` is rejected at load time. Same tighten-only discipline as every other VibeFlow override.
+
+**Expected-failure suppression** via `test-strategy.md → expectedFailures` / `expectedConsoleErrors` — project-specific list of patterns the skill treats as `info` instead of `critical`. Mandatory `rationale` field on every entry; review-auditable.
+
+**Dedup at Step 7:** findings from the same rule against the same scenarioId + resource + error signature dedupe into one entry with an occurrences counter. Key: `rule :: scenarioId :: resource :: errorSignature` where errorSignature masks numbers and UUIDs (same pattern as `test-result-analyzer`).
+
+**Unmapped CDP events recorded, not dropped:** CDP is a superset of every other format, so the parser encounters events it can't classify. Those get `kind: null` and land in the report's "unmapped CDP events" section rather than being silently lost. A class of events we don't know how to classify is still data.
+
+**Parser failure modes (4 formats × per-format):** never silent. Malformed HAR → blocker "regenerate with a recorder that produces valid HAR 1.2". Corrupt Playwright zip → blocker. Unparseable console.log lines → partial parse with lossy count reported. Missing CDP params → event flagged partial, not dropped.
+
+**Integration harness guards (17 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (split grep), 4 source format sentinels, normalized TraceEvent shape sentinel, 5 anomaly category sentinels, rule count ≥ 10 floor, domain overrides table sentinel, `rule MORE strict, never less` override-tighten-only sentinel.
+
+### S3-14: visual-ai-analyzer skill ✅ DONE
+L2 skill that uses Claude vision to inspect screenshots for layout regressions, accessibility issues, typography drift, and design fidelity. **Semantic** complement to `design-bridge`'s `db_compare_impl` (which does structural dimension + byte-identity compare). The two compose: structural compare catches what vision misses, vision catches what structural compare can't describe.
+**Files:**
+- `skills/visual-ai-analyzer/SKILL.md` — 9-step algorithm (resolve inspection mode → delegate to `db_compare_impl` first → call vision model with structured prompt → classify via catalog → confidence filter → domain contrast rules → aggregate + score → gate → write outputs)
+- `skills/visual-ai-analyzer/references/inspection-modes.md` — 3 modes (`baseline-diff` / `standalone` / `design-comparison`) with per-mode prerequisites, output shape, limitations. **Modes are additive, not exclusive** — a single run can engage any subset, merging findings across
+- `skills/visual-ai-analyzer/references/finding-catalog.md` — 17 classified finding types across 7 categories (layout: 5, typography: 4, color+contrast: 3, alignment: 2, overflow: 2, broken-state: 4, UNCLASSIFIED-VISUAL fallback), each with signature + confidence hints + severity + remediation + applicable modes
+
+**Gate contract (three structural rules):**
+1. **Zero critical visual regressions in P0 scenarios** — critical = "the user will see this and it's wrong", not "it was slow"
+2. **Accessibility findings require remediation** — contrast violations below the domain minimum are BLOCKED, not NEEDS_REVISION. WCAG violations are legal risks in most domains
+3. **Design-diff above tolerance needs human review** — drift score > 0.10 produces warnings, > 0.15 produces critical findings. Tolerance can only tighten via `test-strategy.md → designDriftTolerance`
+
+**Vision is NOT deterministic — the confidence filter is structural:**
+- `confidence >= 0.8` → retained at declared severity
+- `0.6 <= confidence < 0.8` → severity demoted one level + "probable" prefix in the report title
+- `confidence < 0.6` → recorded in artifact only, NOT in the human report (keeps signal density high)
+
+This is the key design rule that prevents the skill from gate-blocking on hallucinations. The worst failure mode of a vision skill is blocking on imagined findings; the second-worst is ignoring real regressions because the model was uncertain. The two thresholds tune the trade-off.
+
+**Structural-compare-first policy (Step 2):** before calling the vision model, the skill invokes `db_compare_impl`:
+- `identical` → no findings; empty report; PASS immediately (cheap path wins when definitive)
+- `same-dimensions` → proceed to vision analysis (expected pixel drift)
+- `size-mismatch` → skill STOPS and emits `LAYOUT-DIMENSION-DRIFT` finding with confidence 1.0. Dimension drift is geometry, not vision. Running the model on dimension-mismatched pairs produces noisy findings
+- `unknown` → vision proceeds with a degraded-signal flag
+
+This keeps the expensive signal off the critical path for cases the cheap signal can definitively answer.
+
+**Domain contrast rules with override-tighten-only:**
+| Domain | WCAG level | Text min | Large-text min |
+|--------|-----------|----------|----------------|
+| healthcare | AAA | 7.0 | 4.5 |
+| financial | AA | 4.5 | 3.0 |
+| e-commerce | AA | 4.5 | 3.0 |
+| general | AA | 4.5 | 3.0 |
+
+Healthcare requires AAA because patient data is read under low-light conditions in real-world clinical use. Overrides can only TIGHTEN; loosening is rejected at config load.
+
+**3 inspection modes, additive not exclusive:**
+- **`baseline-diff`** — regressions between baseline and current (requires `db_compare_impl` to report `same-dimensions` / `identical` first; `size-mismatch` bypasses and emits geometry finding)
+- **`standalone`** — quality inspection without a reference (contrast, readability, overflow, broken states). Runs even when there IS a baseline, because it catches bugs that exist in BOTH versions (which baseline-diff silently accepts as "no regression")
+- **`design-comparison`** — drift from Figma via `design-bridge`. Cross-checks critical color findings against `db_extract_tokens` data before escalating to critical (the model is less reliable at quantitative color comparisons than qualitative "these look different" observations)
+
+**Multi-mode merge rules:**
+- Finding produced by multiple modes (same category + region + description) → deduplicated, highest-confidence source kept, modes field shows both as cross-validation
+- Finding from exactly one mode → kept with original confidence, no bonus for single-source
+- **Contradictory findings kept side-by-side** — baseline-diff silent + standalone active means the bug existed pre-baseline (a real issue the test never caught, which is the whole reason for running standalone alongside baseline-diff)
+
+**Vision response schema validation:** the skill asks the model for structured JSON findings. Malformed responses are retried ONCE with a WARNING, then blocked. The catalog's format is strict — "look at this screenshot and tell me what's wrong" as an unstructured prompt is explicitly rejected
+
+**Suppression path:** `test-strategy.md → visualSuppressions` with mandatory `rationale` per suppressed finding id. Reasonless suppressions rejected at load. Suppressions can only DEMOTE a finding's severity or remove it entirely; they cannot elevate (the skill does that itself via confidence + catalog).
+
+**Integration harness guards (17 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (split grep), 3 inspection mode sentinels, `additive, not exclusive` structural rule sentinel, 6 finding category sentinels, confidence filter threshold sentinel, finding count ≥ 12 floor, UNCLASSIFIED-VISUAL fallback sentinel.
+
+### S3-15: learning-loop-engine skill ✅ DONE
+**First L3 Truth-Evolution skill.** Operates across TIME (not single runs) — ingests the history of every L2 skill's reports, detects recurring patterns, traces production bugs back to missed test opportunities, and recommends maturity-stage improvements. Unlike the L2 skills, this one's output is an improvement plan, not a gate verdict.
+**Files:**
+- `skills/learning-loop-engine/SKILL.md` — 8-step algorithm across 3 independent modes (`test-history` / `production-feedback` / `drift-analysis`), each with its own input contract and output shape
+- `skills/learning-loop-engine/references/pattern-detection.md` — 13 patterns (5 test-history + 4 production-feedback + 4 drift-analysis), minimum-evidence floor of 3 observations per pattern, slope + noise-floor formulas for drift analysis, per-signal noise floors (coverage 1%, mutation 2%, flakes 50%, priority 25% per sprint)
+- `skills/learning-loop-engine/references/maturity-stages.md` — 5-stage progression (Ad hoc → Baseline → Coverage → Learning → Self-improving) with deterministic promotion criteria, "no Stage 6" terminal rule, demotion rules for regressed projects
+
+**Gate contract (three advisory invariants — this is L3, output is informational to downstream):**
+1. **Every pattern must have ≥ 3 supporting observations.** Weaker patterns aren't patterns, they're coincidences. The skill discards them at Step 3 rather than emitting noise
+2. **Every production bug must trace to a specific test gap OR be marked `irreducible` with human justification.** Reasonless irreducible classifications are rejected by downstream consumers
+3. **Every recommendation must be actionable.** "Improve tests" is not a recommendation; "run cross-run-consistency on SC-112 and drop its P0 tag if non-deterministic" is. Unactionable recommendations are rejected at review
+
+**L3 vs L2 distinction clarified:**
+- L2 skills look at a SINGLE run → gate verdict (PASS/NEEDS_REVISION/BLOCKED)
+- L3 skills look across TIME → improvement plan (`recommend / investigate / urgent` findings)
+- L3 findings never merge-block; they surface for team action. `release-decision-engine` reads them as advisory weight only
+
+**Three independent modes (not combinable in a single run):**
+- **`test-history`** — walks historical baselines + bug tickets for recurring patterns (recurring failures, same-file bugs, taxonomy drift, priority inflation, flake concentration)
+- **`production-feedback`** — traces a real production bug back to 1 of 4 gap classes: `covered-but-not-asserted` / `scenario-exists-not-tested` / `gap-in-scenario-set` / `irreducible`. The `irreducible` class REQUIRES written human justification before downstream consumers accept it
+- **`drift-analysis`** — linear regression over 3+ sprint baselines to detect slope-based decay (coverage decay, mutation decay, flake growth, gate suppression creep)
+
+**Severity escalation over time:**
+- `recommend` → `investigate` after 4/5 sprints unresolved
+- `investigate` → `urgent` after 5/5 sprints unresolved
+- The skill has MEMORY via append-only `history.jsonl` — recurring recommendations climb in severity until the team acts on them
+
+**Dedup via `patternId :: affectedArtifactsHash`:** a pattern that surfaced in a previous learning-loop run with the same signature updates the existing finding's `observations` counter and `lastObservedAt`, instead of surfacing as "new". The report shows it under "Recurring (seen N sprints)" so the team can see how long the pattern has been ignored.
+
+**Maturity stage evaluation:** 5 stages with hard criteria each. Walk from Stage 5 DOWN until all criteria pass — that's the current stage. Report the NEXT stage's unmet criteria (the whole point is "what to do next"). Single unmet criterion blocks promotion (no partial credit).
+
+**"No Stage 6" terminal rule:** Stage 5 is the terminal state by design. "Further improvement from here is measured in specific quality signals rather than in more gates. A project that tries to add more gates from Stage 5 usually becomes brittle; the path from Stage 5 forward is to DELETE gates whose signal has been internalized as team habit."
+
+**Demotion rules:** a project at Stage N demotes to Stage N-1 when ANY criterion is unmet for ≥ 2 consecutive sprints OR the report is `degraded` for ≥ 3 consecutive sprints. Demotion is a signal, not punishment — surfaces as `LEARNING-MATURITY-DEMOTION` finding so the team sees it.
+
+**Report status (informational, not gate-blocking):**
+- `actionable` — ≥ 3 urgent findings OR 1-2 urgent + ≥ 5 recommend/investigate
+- `degraded` — all findings below minObservations OR all findings irreducible OR > 20% unclassified. Downstream consumers (release-decision-engine) discount `degraded` reports
+
+**No multi-mode runs:** the three modes produce different output shapes, and a unified report would average their signals in a way that loses detail. Run once per mode.
+
+**Integration harness guards (17 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (split grep), 3 mode declaration sentinels, 3 pattern catalog section sentinels, pattern count ≥ 10 floor, `≥ 3 observations` minimum-evidence sentinel, 5 maturity stage sentinels, "Stage 5 terminal" structural rule sentinel, "single unmet criterion blocks promotion" sentinel.
+
+### S3-16: decision-recommender skill ✅ DONE
+**Second L3 Truth-Evolution skill.** Turns any findings report into a structured decision package (problem + options + trade-offs + recommendation + effort estimate). Where `learning-loop-engine` surfaces patterns across time, this skill turns a specific question — "should we ship this?" / "should we add this gate?" — into a document the team can read, argue with, and decide on.
+**Files:**
+- `skills/decision-recommender/SKILL.md` — 6-step algorithm (decision type detect → option generate via per-type generator → score on dimensions → pick recommendation → decision history cross-check → write package)
+- `skills/decision-recommender/references/decision-types.md` — 5 canonical types (`release-go-no-go` / `gate-adjustment` / `priority-change` / `risk-acceptance` / `scope-change`) + `UNCLASSIFIED-DECISION` fallback, walk order specific-to-general, per-type `optionGenerator` name + tradeoff dimensions + typical confidence
+- `skills/decision-recommender/references/option-generators.md` — 5 generators (one per type) with per-type option templates, shared scoring rules (risk from finding severity × confidence, effort from T-shirt sizes + team velocity), 4 mandatory validation rules, "unknown is first-class" field
+
+**Gate contract (four invariants that keep the skill from producing AI-confident nonsense):**
+1. **Every option has at least one positive AND one negative trade-off.** Options with only upsides are rephrased "do nothing" in disguise; options with only downsides are strawmen. Both rejected at generation
+2. **Option 0 is ALWAYS "do nothing", on every decision.** No exceptions, no overrides, no configuration. "Do nothing" is a real option — omitting it makes decisions feel forced
+3. **Every recommendation cites at least one finding by id.** A recommendation with no citation is a gut call; the skill refuses to emit gut calls
+4. **Confidence < 0.7 → `human-judgment-needed`.** The skill does not ship vague recommendations dressed up as confident ones. Report's header clearly says "the data does not conclusively favor any option"
+
+**Anti-AI-confidence design stance (from SKILL.md):** *"The failure mode this skill is designed against: AI-assisted decision tools that confidently produce one 'correct' answer and make the human feel bad for questioning it. That's not a decision, that's an opinion delivered with extra steps. Real decisions involve trade-offs, and a recommendation without trade-offs is either obvious (human didn't need help) or wrong (the tool made it harder)."*
+
+**`unknown` is a first-class field on every option:** the generator MUST list at least one thing the skill can't answer. Zero-unknown options are suspicious — usually the generator is confidently wrong. "Will the regulators like this" is a valid unknown; "is the coverage score above 80%" is not (the finding answers it).
+
+**No single weighted composite score:** the skill tracks multiple dimensions (risk / effort / cost / speed / team-fit) independently. Weighting is a team judgment — the recommendation picks ONE option with raw scores preserved so the team can re-weight. *"Single-score framing is how AI tools make teams feel bad for disagreeing."*
+
+**Decision history cross-check (Step 5):** a decision on the same problem within the last 30 days produces a `repeat-decision` warning. If nothing material changed, the skill recommends "re-read the previous decision; the inputs haven't changed" instead of re-deciding. Keeps the team from churning on already-made decisions.
+
+**5 decision types × 5 generators, specific-to-general walk order:**
+- `release-go-no-go` (most specific) — CONDITIONAL release verdicts, auto-detected when `release-decision.md` carries a CONDITIONAL
+- `gate-adjustment` — threshold changes, gate additions/removals (with a special `governance: true` marker for changes to DEFAULT thresholds in `references/*.md`)
+- `priority-change` — P0 list churn, scenario priority promotion/demotion, `@quarantined` tagging
+- `risk-acceptance` — explicit "document and move on" for third-party / irreducible issues (financial + healthcare acceptances score higher risk)
+- `scope-change` — sprint cut / timeline extend / resource add / priority swap, driven by team velocity
+
+**Per-option validation (4 mandatory rules):**
+1. `positive.length >= 1` AND `negative.length >= 1` (both directions, always)
+2. `unknown.length >= 1` (first-class honesty)
+3. `supportingFindings.length >= 1` for OPT-1 through OPT-N (OPT-0 allowed to cite zero — "do nothing" addresses nothing by definition)
+4. Every cited finding id must exist in the input findings
+
+A generator that produces > 30% invalid options blocks the run with "generator produced mostly-invalid options; check the catalog configuration".
+
+**Effort sizing bridges T-shirt + team velocity:** sizes (XS/S/M/L/XL) map to rough ranges, interpreted against `team-context.md.velocity` when present. Decision package includes a "percentage of sprint hours" roll-up so the team can see decision cost in concrete terms.
+
+**Release-options generator has a special OPT-1 feature-flag lifetime warning:** the `unknown` field explicitly flags "how long the flag will live" because feature flags that 'live forever' are an anti-pattern — the skill makes this visible upfront rather than letting it slip into "we'll clean it up later".
+
+**Gate-options generator has a `governance: true` flag** on OPT-1 (tighten) and OPT-2 (loosen) when the change targets the DEFAULT threshold in `references/*.md` (not a project-specific override). That marks the decision as "change the default for everyone", not "loosen for this project" — which is the structural anti-pattern the VibeFlow tighten-only discipline exists to prevent.
+
+**Integration harness guards (19 new checks):** SKILL.md + both references present, four-rule gate contract sentinel (split grep), single-score framing rejection sentinel, 5 decision type sentinels, UNCLASSIFIED-DECISION fallback sentinel, walk order declaration sentinel, 5 generator sentinels, OPT-0 Do Nothing structural rule sentinel, positive/negative/unknown trade-off validation sentinels.
+
+### S3-17: reconciliation-simulator skill ✅ DONE
 **Location:** skills/reconciliation-simulator/SKILL.md
-**Layer:** L1 Truth Validation (financial domain specific)
-**Inputs:** scenario-set.md or drift scenario (required), simulation params (optional)
-**Outputs:** reconciliation-report.md
-**Key features:**
-- Financial domain: simulate transaction reconciliation
-- Detect balance drift under concurrent operations
-- Generate reconciliation test scenarios
-**Downstream:** reconciliation-report.md → release-decision-engine (financial domain)
+**Layer:** L1 Truth Validation (financial-domain-only, PIPELINE-3 step 4)
+**Inputs:** ledger stub (required, project-native or reference fallback), business-rules.md + invariant-matrix.md (optional), seed/iterations/max-concurrency (optional)
+**Outputs:** .vibeflow/reports/reconciliation-report.md + .vibeflow/artifacts/reconciliation/<runId>/{violations.jsonl, generated-tests/, snapshots/}
 
-### S3-18: Integration testing — Sprint 3 ⬜ TODO
-- [ ] All 5 MCP servers respond in plugin context
-- [ ] PIPELINE-1 through PIPELINE-7 all executable
-- [ ] Full cycle: PRD → prd-quality → test-strategy → tests → UAT → coverage → release decision
-- [ ] Observability MCP collects real metrics from test runs
-- [ ] DevOps MCP triggers mock CI pipeline
-- [ ] Learning loop produces learning-report.md from historical data
+**Completed:**
+- [x] `skills/reconciliation-simulator/SKILL.md` — 8-step algorithm (domain check → load invariants → load patterns → seed RNG → simulation loop with per-step invariant check → classify → generate reproducer tests → write outputs)
+- [x] `skills/reconciliation-simulator/references/ledger-invariants.md` — 6 canonical invariants (LEDGER-DOUBLE-ENTRY / LEDGER-CONSERVATION / LEDGER-SIGN-CONVENTION / LEDGER-MONETARY-PRECISION / LEDGER-NON-NEGATIVE-BALANCE / LEDGER-AUTHORITATIVE-TIME) with formal statement + check formula + real-world bug caught + per-project composition rules
+- [x] `skills/reconciliation-simulator/references/concurrency-scenarios.md` — 6 canonical patterns (CONCURRENT-DEBITS-SAME-ACCOUNT / CONCURRENT-TRANSFERS-RING / RETRY-ON-FAILURE / PARTIAL-REVERSAL / TIMEOUT-DURING-COMMIT / DEAD-LEG) with adversarial schedules, cooperative-scheduler semantics, seed-deterministic interleaving
+
+**Gate contract:** *zero invariant violations across every tested concurrency pattern, deterministic simulation, every violation traces to a specific operation sequence*. Three non-negotiables: zero canonical violations (no tolerance band), deterministic replay (same seed → same outcome), every violation has a reproducer test. No override flag — a team that can't meet these must either fix the defect, fix the ledger stub, or change the project's domain designation.
+
+**Financial-domain-only rule:** the skill refuses to execute on any domain other than `financial`. No `--force`, no config override. Running reconciliation simulation on a non-financial project would produce a misleading "all clean" report against invariants that don't apply.
+
+**Every step is checked, not just endpoints:** the load-bearing invariant-verification rule. Balances that are "correct at commit time" but tear mid-transfer are still defects — the simulator checks every canonical + per-project invariant after every operation in every interleaving, not just at the commit boundaries.
+
+**Every violation is `severity: critical` — no warning band:** "mostly reconciled" is not a ledger state. A single violation under any tested pattern blocks. Rationale: scale amplifies silent drift; the cost of a production reconciliation defect is the cost of visibly wrong customer money plus the audit and regulatory-notification costs, neither of which fits a "warning" bucket.
+
+**Determinism is a structural contract, not best-effort:** same seed + same business-rules.md + same ledger stub = same outcome, byte-for-byte, always. A non-deterministic run is a skill bug, not a tolerable property — fix the bug, don't work around it. The cooperative scheduler (not OS threads) is what makes this possible: interleaving order is picked by the RNG at each step boundary.
+
+**Canonical sets are frozen:** per-project invariants compose via four rules (no-contradiction, strengthening-allowed, no-ambiguity, same-cadence). Adding a new canonical invariant or concurrency pattern requires a retrospective on ≥10 real runs plus a version bump (`ledgerInvariantsVersion` / `concurrencyScenariosVersion`). Removing a canonical pattern is explicitly forbidden — that would be admitting we stopped caring about a class of bugs.
+
+**Every violation produces a reproducer test:** the skill emits a paste-able test file for each violation, carrying the `@generated-by vibeflow:reconciliation-simulator` banner. Low-confidence violations (< 0.8) are emitted with `test.skip` and an explanatory comment. A violation without a reproducer is a rumor; the reproducer is how the team fixes the bug and verifies the fix.
+
+**Integration harness guards (25 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (zero violations + deterministic + traces), financial-only + no-override sentinel, "every step checked" sentinel, severity-critical sentinel, structural-contract determinism sentinel, 6 canonical invariant sentinels + composition rule sentinel + ledgerInvariantsVersion sentinel, 6 canonical pattern sentinels + cooperative-scheduler sentinel + removing-forbidden sentinel + concurrencyScenariosVersion sentinel.
+
+### S3-18: Integration testing — Sprint 3 ✅ DONE
+**Location:** tests/integration/sprint-3.sh (111 bash assertions, 7 sections)
+
+**Completed:**
+- [x] `tests/integration/sprint-3.sh` — Sprint-3 integration harness covering skill inventory + io-standard output coherence + cross-skill wiring + gate contract declarations + dev-ops/observability MCP sanity + orchestrator PIPELINE-N coverage + Sprint 3 bug tracker closure
+- [x] All 15 Sprint-3 skills present with ≥ 2 reference files each (30 inventory assertions)
+- [x] Every Sprint-3 skill declares `allowed-tools` frontmatter (15 assertions)
+- [x] io-standard primary outputs named in each SKILL.md (17 assertions)
+- [x] Cross-skill reference coherence: uat-executor → test-result-analyzer + observability-analyzer, test-result-analyzer → learning-loop-engine, regression-test-runner → test-priority-engine + learning-loop-engine, coverage-analyzer ← rtm, reconciliation-simulator → release-decision-engine, decision-recommender ← L2 reports, learning-loop-engine declares 3 modes (11 assertions)
+- [x] 11 distinct gate contract strings declared across Sprint-3 gating skills + 4 multi-invariant Gate section declarations (15 assertions)
+- [x] dev-ops + observability MCP dists parse + tools/list + collect_metrics round-trip (6 assertions)
+- [x] orchestrator.md declares PIPELINE-1 through PIPELINE-7 + 6 per-skill PIPELINE-N citations (14 assertions)
+- [x] ROADMAP.md exists + no unresolved Sprint-3 bugs (2 assertions)
+
+**Harness sections:**
+
+| Section | Focus | Assertions |
+|---------|-------|-----------|
+| S3-A | Skill inventory (SKILL.md + references + frontmatter) | 45 |
+| S3-B | io-standard output naming consistency | 18 |
+| S3-C | Cross-skill reference coherence | 11 |
+| S3-D | Gate contract declarations | 15 |
+| S3-E | dev-ops + observability MCP sanity | 6 |
+| S3-F | orchestrator PIPELINE-N coverage + citations | 14 |
+| S3-G | Sprint 3 bug tracker closure | 2 |
+| **Total** | | **111** |
+
+**Why a Sprint-3-specific harness (not just more lines in run.sh):** same discipline as `sprint-2.sh`. run.sh is the platform baseline, checked every CI run regardless of sprint. sprint-3.sh is the Sprint-3-only CI job that proves the Sprint-3 deliverables hang together — it can be run in isolation from a PR that only touches Sprint-3 code, and it stays standalone so a future Sprint-4 sprint-4.sh doesn't need to duplicate these checks.
+
+**Two initial failures fixed during implementation:**
+1. `decision-recommender consumes chaos findings` — the skill is intentionally generic and doesn't name `chaos-report` specifically. Sentinel broadened to `L2 skill reports || learning-loop-engine`.
+2. `coverage-analyzer cites PIPELINE-3` — the skill cites PIPELINE-5 / PIPELINE-6 (release-track), not PIPELINE-3 (UAT). Citation list corrected.
+
+Both are the same shape as every other sentinel fix in this sprint: when document prose doesn't match the sentinel's expectation, either the sentinel is wrong (fix it) or the document is wrong (fix the document). Here the prose was right.
 
 ---
 
 ## Next Ticket to Work On
-**S3-12: coverage-analyzer skill (L2)** — parses runner coverage output, maps coverage to PRD requirements via RTM, enforces domain-specific thresholds with critical-path uncovered-line gate.
+**Sprint 3 is ✅ COMPLETE.** Next ticket lives in `docs/SPRINT-4.md` (read that file for the active pointer).
 
-## Test inventory (after S3-11)
+## Test inventory (after S3-18, Sprint 3 closed)
 - mcp-servers/sdlc-engine: **104 vitest tests**
 - mcp-servers/codebase-intel: **46 vitest tests**
 - mcp-servers/design-bridge: **54 vitest tests**
 - mcp-servers/dev-ops: **37 vitest tests**
 - mcp-servers/observability: **55 vitest tests**
 - hooks/tests/run.sh: **26 bash assertions**
-- tests/integration/run.sh: **283 bash assertions** (+15 for test-result-analyzer taxonomy + ticket-template + gate contracts)
-- tests/integration/sprint-2.sh: **92 bash assertions**
-- Total: **697 passing checks** across 8 test layers
+- tests/integration/run.sh: **394 bash assertions**
+- tests/integration/sprint-2.sh: **94 bash assertions**
+- tests/integration/sprint-3.sh: **111 bash assertions** (NEW — Sprint 3 closer)
+- Total: **921 passing checks** across 9 test layers
 
 ## Execution Order
 S3-01 (dev-ops) → S3-02 (observability) → S3-03..S3-17 (skills, parallel where possible) → S3-18 (integration)
