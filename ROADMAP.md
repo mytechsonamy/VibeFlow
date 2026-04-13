@@ -25,6 +25,7 @@ MyVibe Framework (SDLC orchestration) + TruthLayer (requirements-first validatio
 | 10 | Missing test infrastructure | FIXED | sdlc-engine/tests/ (90 vitest) + hooks/tests/ (26) + tests/integration/ (21) |
 | 11 | No compact recovery | FIXED | hooks/scripts/compact-recovery.sh (reads live state.db, not cached snapshot) |
 | 12 | Git hooks not atomic | FIXED | hooks/scripts/commit-guard.sh (phase gate + conventional-commit enforcement, exits 2 on block) |
+| 13 | sdlc_get_state crash on read-after-write | FIXED | sdlc-engine/src/engine.ts (Sprint 4 / S4-09): getOrInit was wrapping its read inside store.transact, which on an existing project failed the mutator's revision-must-bump assertion. Fast-path read fix; regression test in engine.test.ts; cross-process reproducer scheduled in Sprint 5 / S5-01. |
 
 ---
 
@@ -42,15 +43,23 @@ MyVibe Framework (SDLC orchestration) + TruthLayer (requirements-first validatio
 **Status file:** docs/SPRINT-2.md
 **Result:** 445 passing checks across 6 test layers. 2 new MCP servers (codebase-intel — 46 tests, design-bridge — 54 tests) + 7 new L1 skills with 88 integration guards for their contracts.
 
-### Sprint 3: DevOps + Observability + Layer 2-3 Skills (Next)
+### Sprint 3: DevOps + Observability + Layer 2-3 Skills ✅ COMPLETE
 **Goal:** CI/CD integration, monitoring, test execution and evolution skills.
-**Tickets:** 18 (2 MCP servers, 15 skills, 1 integration test)
+**Tickets:** 18/18 done (2 MCP servers, 15 skills, 1 integration test)
 **Status file:** docs/SPRINT-3.md
+**Result:** 921 passing checks across 9 test layers. dev-ops + observability MCPs (37 + 55 vitest), 15 new skills across L1/L2/L3 layers (including the financial-only reconciliation-simulator), `tests/integration/sprint-3.sh` (111 assertions).
 
-### Sprint 4: Polish + Packaging + Distribution
-**Goal:** Plugin marketplace ready, documentation, demo project.
-**Tickets:** 9 (tests, hooks hardening, demo, docs, packaging, release)
+### Sprint 4: Polish + Packaging + Distribution ✅ COMPLETE
+**Goal:** Plugin marketplace ready, documentation, demo project, v1.0 release readiness.
+**Tickets:** 9/9 done (S4-01 coverage thresholds, S4-02 hook hardening, S4-03 demo, S4-04 8 user docs, S4-05 manifest finalization + ci_provider, S4-06 packaging, S4-07 CHANGELOG, S4-08 perf + edge cases, S4-09 fresh-install simulation)
 **Status file:** docs/SPRINT-4.md
+**Result:** 1335 passing checks across 10 test layers. v1.0.0 release-ready (`vibeflow-plugin-1.0.0.tar.gz` reproducible via `./package-plugin.sh`). Bug #13 caught + fixed during S4-09. Git tag + GitHub release pending user authorization.
+
+### Sprint 5: v1.0.x Maintenance + GitLab + Real-World Hardening (Next)
+**Goal:** Close v1.0 forward-looking stubs (GitLab CI provider, live PostgreSQL test), add cross-process Bug #13 reproducer, ship marketplace publish workflow.
+**Tickets:** 7 (Bug #13 cross-process repro, GitLab provider, live Postgres, release script, Next.js demo, sprint-5 harness, v1.0.1 closure)
+**Status file:** docs/SPRINT-5.md
+**Targets:** v1.0.1
 
 ---
 
