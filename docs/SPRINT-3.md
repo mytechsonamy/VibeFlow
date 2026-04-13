@@ -296,16 +296,36 @@ L2 skill that runs the same test N times in one session and checks the runs agre
 
 **Integration harness guards (16 new checks):** SKILL.md + both references present, P0 strict-consistent gate sentinel, financial 0.98 + general 0.90 domain threshold sentinels, all 6 taxonomy class sentinels, walk-order declaration sentinel, strict + tolerant mode sentinels, P0-never-tolerant config-error sentinel, `--mode tolerant` runtime-flag-rejected sentinel.
 
-### S3-11: test-result-analyzer skill ⬜ TODO
-**Location:** skills/test-result-analyzer/SKILL.md
-**Layer:** L2 Truth Execution
-**Inputs:** uat-raw-report.md or test runner output (required), scenario-set.md (optional), rtm.md (optional)
-**Outputs:** test-results.md, bug-tickets.md
-**Key features:**
-- Classify failures: bug, flaky, environment, test-defect
-- Generate backlog tickets for real bugs
-- Link failures back to RTM requirements
-**Downstream:** test-results.md → release-decision-engine, bug-tickets.md → learning-loop-engine
+### S3-11: test-result-analyzer skill ✅ DONE
+L2 skill that turns raw test failures into a **classified, ticket-ready** set. Answers "why did this fail + what should the team do about it". Consumes `uat-raw-report.md` / `regression-report.md` / `chaos-report.md` / runner JSON and emits `test-results.md` + `bug-tickets.md`.
+**Files:**
+- `skills/test-result-analyzer/SKILL.md` — 9-step algorithm (ingest → normalize to `Failure` → classify → RTM link → `test-strategy.md` overrides → aggregates → ticket generation → dedup across runs → write outputs)
+- `skills/test-result-analyzer/references/failure-taxonomy.md` — 5 classes (`FLAKY` / `ENVIRONMENT` / `TEST-DEFECT` / `BUG` / `UNCLASSIFIED`) with fixed walk order; BUG intentionally **fourth** in the walk so flakes/infra get a chance to classify first (the residual theory: bugs are what's left after ruling out the other explanations)
+- `skills/test-result-analyzer/references/ticket-template.md` — frozen schema v1 for `bug-tickets.md` entries, `dedupKey` rule, 5 no-ticket conditions (not BUG, confidence <0.7, no scenario, no evidence, dedup >50)
+
+**Gate contract (three structural invariants):**
+1. **No `UNCLASSIFIED` leaks to downstream.** `unclassifiedPercent > 20%` → BLOCKED with "taxonomy needs extension before this report can be trusted"
+2. **Every `BUG` classification has `confidence >= 0.7`.** Lower-confidence bugs are auto-downgraded to `NEEDS_HUMAN_TRIAGE`, surfaced in the report, but NOT auto-ticketed. This is the structural safety net that keeps low-confidence tickets from spamming the backlog
+3. **Every generated ticket traces back to a scenario id.** A BUG-classified failure with no `scenarioId` blocks ticket emission for that failure; > 1 P0 bug without RTM linkage blocks the whole run with `rtmGap`
+
+**Walk order is load-bearing (not signature-weighted):** FLAKY → ENVIRONMENT → TEST-DEFECT → BUG → UNCLASSIFIED. The skill picks the FIRST matching class, not the highest-confidence one. Two runs with slightly different evidence could flip a confidence-weighted pick, so walk order is deterministic at the cost of occasional suboptimal classification. Trust the label across the whole history.
+
+**Overrides can only DEMOTE, never promote.** `test-strategy.md` can override a `BUG` classification down to `FLAKY` / `ENVIRONMENT` / `TEST-DEFECT` (with a mandatory `rationale` field), but cannot promote a `TEST-DEFECT` up to `BUG` — that's a human decision, not a config one. Both the original classification AND the override are preserved in the report so the reviewer sees both.
+
+**Mixed-input rejection:** a glob that resolves to multiple report formats (e.g. `uat-raw-report.md` + `chaos-report.md`) blocks with remediation "run the analyzer once per report; mixing is not supported in v1". Different report formats expose different signals; unified parsing would silently prefer one.
+
+**Dedup is stable across runs:** `dedupKey = SHA-256(testId :: classification :: errorSignature)` where `errorSignature` is the first line of the error message with numbers + UUIDs masked. Matching keys append to `occurrences` on existing tickets, not new tickets. History file is append-only (events: `created` / `occurrence-added` / `closed` / `superseded`). A reopened ticket (previously closed in the external backlog) produces a NEW ticket with `supersedes: <old-id>` — so the team can tell "regression of a closed bug" from "we forgot to close this".
+
+**Occurrence cap = 50:** after 50 `occurrences` on the same dedupKey, the skill stops appending. At that point the ticket is a "this keeps happening" tracker, not a new bug — further appends would bloat the history file without adding signal.
+
+**No-ticket conditions (5):**
+1. Classification is not BUG — only real bugs get tickets
+2. BUG but confidence < 0.7 — keeps low-confidence noise off the backlog
+3. No scenarioId — unactionable without traceability
+4. No evidence — a ticket with no evidence pointer is not actionable
+5. Existing ticket has ≥ 50 occurrences — already tracked
+
+**Integration harness guards (15 new checks):** SKILL.md + both references present, three-rule gate contract sentinel (split grep), all 5 taxonomy class sentinels, walk-order declaration sentinel, "BUG is fourth not first" structural rule sentinel, ticket schema version sentinel, dedupKey field sentinel, confidence ≥ 0.7 floor sentinel, append-only history rule sentinel.
 
 ### S3-12: coverage-analyzer skill ⬜ TODO
 **Location:** skills/coverage-analyzer/SKILL.md
@@ -388,18 +408,18 @@ L2 skill that runs the same test N times in one session and checks the runs agre
 ---
 
 ## Next Ticket to Work On
-**S3-11: test-result-analyzer skill (L2)** — classifies test failures into categories (flake / regression / infra / assertion) and produces actionable failure reports for triage.
+**S3-12: coverage-analyzer skill (L2)** — parses runner coverage output, maps coverage to PRD requirements via RTM, enforces domain-specific thresholds with critical-path uncovered-line gate.
 
-## Test inventory (after S3-10)
+## Test inventory (after S3-11)
 - mcp-servers/sdlc-engine: **104 vitest tests**
 - mcp-servers/codebase-intel: **46 vitest tests**
 - mcp-servers/design-bridge: **54 vitest tests**
 - mcp-servers/dev-ops: **37 vitest tests**
 - mcp-servers/observability: **55 vitest tests**
 - hooks/tests/run.sh: **26 bash assertions**
-- tests/integration/run.sh: **268 bash assertions** (+16 for cross-run-consistency taxonomy + tolerance modes + gate)
+- tests/integration/run.sh: **283 bash assertions** (+15 for test-result-analyzer taxonomy + ticket-template + gate contracts)
 - tests/integration/sprint-2.sh: **92 bash assertions**
-- Total: **682 passing checks** across 8 test layers
+- Total: **697 passing checks** across 8 test layers
 
 ## Execution Order
 S3-01 (dev-ops) → S3-02 (observability) → S3-03..S3-17 (skills, parallel where possible) → S3-18 (integration)

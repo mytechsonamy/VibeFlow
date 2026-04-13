@@ -1048,6 +1048,83 @@ if [[ -f "$TM" ]]; then
   fi
 fi
 
+# test-result-analyzer (S3-11) sidecar + classification + ticket guards.
+TRA_SKILL="$SKILLS_DIR/test-result-analyzer"
+[[ -f "$TRA_SKILL/SKILL.md" ]] && pass "test-result-analyzer SKILL.md present" \
+  || fail "test-result-analyzer SKILL.md present"
+[[ -f "$TRA_SKILL/references/failure-taxonomy.md" ]] \
+  && pass "test-result-analyzer failure-taxonomy.md present" \
+  || fail "test-result-analyzer failure-taxonomy.md present"
+[[ -f "$TRA_SKILL/references/ticket-template.md" ]] \
+  && pass "test-result-analyzer ticket-template.md present" \
+  || fail "test-result-analyzer ticket-template.md present"
+
+# Gate contract: no UNCLASSIFIED leaks + BUG confidence ≥ 0.7 + ticket
+# traceability required. All three are load-bearing for downstream.
+if grep -q "No \`UNCLASSIFIED\` leaks to downstream" "$TRA_SKILL/SKILL.md" \
+   && grep -q "Every \`BUG\` classification has \`confidence >= 0.7\`" "$TRA_SKILL/SKILL.md" \
+   && grep -q "Every generated ticket traces back to a scenario id" "$TRA_SKILL/SKILL.md"; then
+  pass "test-result-analyzer gate: unclassified + confidence + traceability"
+else
+  fail "test-result-analyzer gate: unclassified + confidence + traceability"
+fi
+
+# Failure taxonomy — 5 classes form a closed set. Dropping one silently
+# misclassifies a whole failure mode.
+FT="$TRA_SKILL/references/failure-taxonomy.md"
+if [[ -f "$FT" ]]; then
+  for class in "FLAKY" "ENVIRONMENT" "TEST-DEFECT" "BUG" "UNCLASSIFIED"; do
+    if grep -qE "^## [0-9]\. \`${class}\`" "$FT"; then
+      pass "failure-taxonomy declares '${class}' class"
+    else
+      fail "failure-taxonomy declares '${class}' class"
+    fi
+  done
+  # Walk order sentinel — classification is deterministic because the
+  # walk order is fixed. Silent reorder is how "BUG-first" breaks the
+  # "flaky takes priority" trust.
+  if grep -q "Walk order" "$FT" || grep -q "walk order" "$FT"; then
+    pass "failure-taxonomy declares walk order"
+  else
+    fail "failure-taxonomy declares walk order"
+  fi
+  # BUG-fourth-not-first rule — structural. Silently promoting BUG to
+  # earlier in the walk is how tickets start getting mass-generated for
+  # flakes and environment issues.
+  if grep -q "Why BUG is fourth, not first" "$FT"; then
+    pass "failure-taxonomy enforces 'BUG is fourth' rule"
+  else
+    fail "failure-taxonomy enforces 'BUG is fourth' rule"
+  fi
+fi
+
+# Ticket template — schema version + dedupKey rule + no-ticket conditions.
+TT="$TRA_SKILL/references/ticket-template.md"
+if [[ -f "$TT" ]]; then
+  if grep -q "schema version: 1" "$TT" || grep -q "ticket schema version: 1" "$TT"; then
+    pass "ticket-template declares current schema version"
+  else
+    fail "ticket-template declares current schema version"
+  fi
+  if grep -q "dedupKey" "$TT"; then
+    pass "ticket-template declares dedupKey field"
+  else
+    fail "ticket-template declares dedupKey field"
+  fi
+  # Confidence floor enforced in the no-ticket list.
+  if grep -q "confidence < 0.7" "$TT"; then
+    pass "ticket-template enforces confidence ≥ 0.7 floor"
+  else
+    fail "ticket-template enforces confidence ≥ 0.7 floor"
+  fi
+  # History append-only rule — tickets never edit, only append.
+  if grep -q "append-only" "$TT"; then
+    pass "ticket-template enforces append-only history"
+  else
+    fail "ticket-template enforces append-only history"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [2] hooks.json references =="
 
