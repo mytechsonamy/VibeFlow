@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { z } from "zod";
 import { buildTools, ToolDefinition } from "../src/tools.js";
 import { vitestReport, mkRun, mkTest } from "./_fixtures.js";
-import { NormalizedRun } from "../src/parsers.js";
+import { NormalizedRun, ReporterParseError } from "../src/parsers.js";
 
 function byName(tools: ToolDefinition[], name: string): ToolDefinition {
   const t = tools.find((x) => x.name === name);
@@ -129,6 +129,91 @@ describe("MCP tool handlers", () => {
       })) as { grade: string; totalRuns: number };
       expect(r.grade).toBe("green");
       expect(r.totalRuns).toBe(2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // loadPayload / loadRuns error branches — exercised via the public tool
+  // handlers. Driven by coverage-gap analysis in tools.ts (S4-01).
+  // -------------------------------------------------------------------------
+
+  describe("ob_collect_metrics error branches", () => {
+    it("raises ReporterParseError when reporterPath does not exist", async () => {
+      const tools = buildTools();
+      await expect(
+        byName(tools, "ob_collect_metrics").handler({
+          reporterPath: "/does-not-exist-vf.json",
+        }),
+      ).rejects.toBeInstanceOf(ReporterParseError);
+    });
+
+    it("raises ReporterParseError when reporterPath is not valid JSON", async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ob-tools-bad-"));
+      try {
+        const p = path.join(dir, "bad.json");
+        fs.writeFileSync(p, "{not-json");
+        const tools = buildTools();
+        await expect(
+          byName(tools, "ob_collect_metrics").handler({ reporterPath: p }),
+        ).rejects.toBeInstanceOf(ReporterParseError);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("ob_track_flaky inline run shapes", () => {
+    it("trusts pre-normalized runs in the inline array", async () => {
+      const tools = buildTools();
+      const pre: NormalizedRun[] = [
+        mkRun([mkTest({ id: "t1", status: "passed" })]),
+        mkRun([mkTest({ id: "t1", status: "failed" })]),
+        mkRun([mkTest({ id: "t1", status: "passed" })]),
+        mkRun([mkTest({ id: "t1", status: "failed" })]),
+      ];
+      const r = (await byName(tools, "ob_track_flaky").handler({
+        runs: pre,
+      })) as { flaky: unknown[] };
+      expect(Array.isArray(r.flaky)).toBe(true);
+    });
+
+    it("parses raw reporter payloads passed in the inline array", async () => {
+      const tools = buildTools();
+      const raw = [
+        vitestReport({ cases: [{ title: "t1", status: "passed" }] }),
+        vitestReport({ cases: [{ title: "t1", status: "failed" }] }),
+        vitestReport({ cases: [{ title: "t1", status: "passed" }] }),
+        vitestReport({ cases: [{ title: "t1", status: "failed" }] }),
+      ];
+      const r = (await byName(tools, "ob_track_flaky").handler({
+        runs: raw,
+      })) as { flaky: unknown[] };
+      expect(Array.isArray(r.flaky)).toBe(true);
+    });
+
+    it("reads pre-normalized runs from historyDir when inline runs is not supplied", async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ob-hist-"));
+      try {
+        const runs: NormalizedRun[] = [
+          mkRun([mkTest({ id: "t1", status: "passed" })]),
+          mkRun([mkTest({ id: "t1", status: "failed" })]),
+          mkRun([mkTest({ id: "t1", status: "passed" })]),
+          mkRun([mkTest({ id: "t1", status: "failed" })]),
+        ];
+        runs.forEach((r, i) => {
+          fs.writeFileSync(
+            path.join(dir, `run-${i}.json`),
+            JSON.stringify(r),
+          );
+        });
+        const tools = buildTools();
+        const r = (await byName(tools, "ob_track_flaky").handler({
+          historyDir: dir,
+        })) as { flaky: Array<{ id: string }> };
+        expect(r.flaky.map((f) => f.id)).toContain("t1");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });

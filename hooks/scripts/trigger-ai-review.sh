@@ -53,6 +53,23 @@ fi
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 PHASE="$(vf_current_phase)"
 
+# Rate limit: max 1 review marker per 5 minutes. If an existing marker
+# was written less than 300 seconds ago, leave it alone — the
+# consensus-orchestrator picks up at most one batch at a time and
+# rewriting would reset its queue position. A commit that's rate-limited
+# still ran the guard, it just doesn't kick a fresh review.
+RATE_LIMIT_SECONDS=300
+if [[ -f "$MARKER" ]] && vf_have_jq; then
+  EXISTING_TS="$(jq -r '.requestedAt // empty' "$MARKER" 2>/dev/null || echo "")"
+  if [[ -n "$EXISTING_TS" ]] && command -v python3 >/dev/null 2>&1; then
+    NOW_EPOCH="$(date -u +%s)"
+    EXISTING_EPOCH="$(python3 -c "import datetime;print(int(datetime.datetime.strptime('$EXISTING_TS','%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp()))" 2>/dev/null || echo "")"
+    if [[ -n "$EXISTING_EPOCH" ]] && (( NOW_EPOCH - EXISTING_EPOCH < RATE_LIMIT_SECONDS )); then
+      exit 0
+    fi
+  fi
+fi
+
 # Single-writer: last commit wins. Overwrite is safer than append for a
 # pending-work marker — consensus-orchestrator picks up at most one batch.
 if vf_have_jq; then

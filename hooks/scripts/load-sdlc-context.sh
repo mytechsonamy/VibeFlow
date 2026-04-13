@@ -22,6 +22,20 @@ PHASE="$(vf_current_phase)"
 CONSENSUS="$(vf_last_consensus_status 2>/dev/null || echo "")"
 SATISFIED="$(vf_satisfied_criteria)"
 
+# Degraded-state detection: if sqlite3 or state.db is unavailable, we
+# just fell back to the config's currentPhase. That's still a valid
+# value, but it may be stale — the real phase lives in state.db. Surface
+# the degradation so the model knows the context line is approximate.
+DEGRADED_NOTE=""
+STATE_DB="$(vf_state_db)"
+if ! vf_have_sqlite3; then
+  DEGRADED_NOTE=" (degraded: sqlite3 unavailable; phase read from config)"
+elif [[ ! -f "$STATE_DB" ]]; then
+  DEGRADED_NOTE=" (degraded: state.db missing; phase read from config)"
+elif ! sqlite3 "$STATE_DB" "SELECT 1;" >/dev/null 2>&1; then
+  DEGRADED_NOTE=" (degraded: state.db unreadable; phase read from config)"
+fi
+
 SATISFIED_COUNT=0
 if vf_have_jq; then
   SATISFIED_COUNT="$(echo "$SATISFIED" | jq 'length' 2>/dev/null || echo 0)"
@@ -31,7 +45,7 @@ LINE="VibeFlow active: domain=$DOMAIN, mode=$MODE, phase=$PHASE"
 if [[ -n "$CONSENSUS" ]]; then
   LINE+=", last_consensus=$CONSENSUS"
 fi
-LINE+=", satisfied_criteria=$SATISFIED_COUNT"
+LINE+=", satisfied_criteria=$SATISFIED_COUNT$DEGRADED_NOTE"
 echo "$LINE"
 echo "Use /vibeflow:status for full state, /vibeflow:advance to move phase."
 exit 0

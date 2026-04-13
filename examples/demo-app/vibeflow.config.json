@@ -1,0 +1,15 @@
+{
+  "project": "demo-catalog",
+  "mode": "solo",
+  "domain": "e-commerce",
+  "currentPhase": "DEVELOPMENT",
+  "tech": {
+    "language": "typescript",
+    "runtime": "node",
+    "testRunner": "vitest"
+  },
+  "criticalPaths": [
+    "src/pricing.ts",
+    "src/inventory.ts"
+  ]
+}

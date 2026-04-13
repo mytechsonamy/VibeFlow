@@ -66,14 +66,38 @@ if [[ "$MODE" == "team" ]]; then
 fi
 
 COUNT="$(wc -l < "$REVIEW_LOG" | tr -d ' ')"
+
+# Timeout: if the oldest review in the log is older than 600 seconds and
+# quorum has not been reached, force-finalize the batch with a `timeout:
+# true` flag. This keeps the aggregator from stalling forever when one
+# of the 3 team reviewers never responds (rate-limited, crashed,
+# network dropped, etc.). The aggregator still records the latest
+# review before finalizing, so the final verdict reflects what DID
+# arrive.
+TIMEOUT_SECONDS=600
+TIMED_OUT=false
 if (( COUNT < EXPECTED )); then
-  echo '{"continue": true}'
-  exit 0
+  FIRST_TS="$(head -n 1 "$REVIEW_LOG" | jq -r '.recordedAt // empty' 2>/dev/null || echo "")"
+  if [[ -n "$FIRST_TS" ]] && command -v python3 >/dev/null 2>&1; then
+    NOW_EPOCH="$(date -u +%s)"
+    FIRST_EPOCH="$(python3 -c "import datetime;print(int(datetime.datetime.strptime('$FIRST_TS','%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp()))" 2>/dev/null || echo "")"
+    if [[ -n "$FIRST_EPOCH" ]] && (( NOW_EPOCH - FIRST_EPOCH >= TIMEOUT_SECONDS )); then
+      TIMED_OUT=true
+    fi
+  fi
+  if [[ "$TIMED_OUT" != "true" ]]; then
+    echo '{"continue": true}'
+    exit 0
+  fi
 fi
 
-# Quorum reached — compute aggregate. Agreement = (# APPROVED) / total.
-# Status uses CLAUDE.md thresholds: >=0.9 + 0 critical → APPROVED,
-# <0.5 or >=2 critical → REJECTED, else NEEDS_REVISION.
+# Quorum reached OR timeout fired — compute aggregate. Agreement = (#
+# APPROVED) / total. Status uses CLAUDE.md thresholds: >=0.9 + 0
+# critical → APPROVED, <0.5 or >=2 critical → REJECTED, else
+# NEEDS_REVISION. When timed out, the `timeout: true` flag is added and
+# the status is demoted from APPROVED to NEEDS_REVISION (a partial
+# quorum cannot ship a clean APPROVED verdict — the missing reviewer
+# could have objected).
 AGG="$(jq -s '
   {
     total: length,
@@ -96,8 +120,20 @@ AGG="$(jq -s '
 ' < "$REVIEW_LOG")"
 
 VERDICT_FILE="$CONS_DIR/$SESSION_ID.verdict.json"
-echo "$AGG" | jq --arg ts "$TS" --arg session "$SESSION_ID" \
-  '. + {finalizedAt:$ts, sessionId:$session}' > "$VERDICT_FILE"
+echo "$AGG" \
+  | jq --arg ts "$TS" \
+       --arg session "$SESSION_ID" \
+       --argjson expected "$EXPECTED" \
+       --argjson count "$COUNT" \
+       --argjson timed_out "$TIMED_OUT" \
+       '. + {
+          finalizedAt: $ts,
+          sessionId: $session,
+          expectedReviewers: $expected,
+          receivedReviewers: $count,
+          timeout: $timed_out,
+          status: (if $timed_out and .status == "APPROVED" then "NEEDS_REVISION" else .status end)
+        }' > "$VERDICT_FILE"
 
 # Roll the session log forward: archive it so a subsequent run in the same
 # session starts fresh rather than stacking on an already-finalized batch.
