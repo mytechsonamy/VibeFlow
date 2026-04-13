@@ -43,8 +43,23 @@ export class SdlcEngine {
   ) {}
 
   async getOrInit(projectId: string): Promise<ProjectState> {
+    // Fast path: if the project already exists, return it without
+    // entering the mutator transaction. The mutator path requires
+    // `next.revision === current.revision + 1`, so a no-op return of
+    // `{ next: current, result: current }` always fails validation
+    // — which used to make sdlc_get_state crash on any project that
+    // had been written to before. (Bug #13, S4-09 fix.)
+    const existing = await this.store.read(projectId);
+    if (existing) return existing;
+
     return this.store.transact(projectId, (current) => {
-      if (current) return { next: current, result: current };
+      // Race: another writer may have inserted the row between our
+      // read and this transact callback. Bump the revision so the
+      // mutator validation passes — the state is otherwise unchanged.
+      if (current) {
+        const bumped = bumpRevision(current);
+        return { next: bumped, result: bumped };
+      }
       const now = new Date().toISOString();
       const next: ProjectState = {
         projectId,

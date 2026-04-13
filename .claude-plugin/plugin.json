@@ -6,7 +6,14 @@
     "name": "Musti",
     "email": "mustafa.yildirim@dgpays.com"
   },
-  "repository": "https://github.com/mustiyildirim/vibeflow",
+  "homepage": "https://github.com/mustiyildirim/vibeflow",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mustiyildirim/vibeflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mustiyildirim/vibeflow/issues"
+  },
   "license": "MIT",
   "keywords": [
     "sdlc",
@@ -61,6 +68,12 @@
       "description": "Personal access token for the GitHub REST API (used by dev-ops MCP to trigger workflows, check runs, list artifacts). Needs `actions:write` + `contents:read` at minimum. Leave empty to disable CI-dependent skills.",
       "type": "string",
       "sensitive": true
+    },
+    "ci_provider": {
+      "title": "CI Provider",
+      "description": "Which CI/CD system the dev-ops MCP should target: 'github' (GitHub Actions, default) or 'gitlab' (GitLab CI). The selected provider determines which API endpoints the dev-ops tools call.",
+      "type": "string",
+      "sensitive": false
     }
   }
 }

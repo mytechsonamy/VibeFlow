@@ -104,4 +104,53 @@ describe("FigmaClient — getNodes", () => {
       FigmaClientError,
     );
   });
+
+  // -----------------------------------------------------------------------
+  // Offline / network-failure paths (S4-08).
+  // The Figma MCP must produce a clear, classified error when the
+  // network layer fails (ECONNREFUSED, DNS failure, transport reset)
+  // — NOT a generic TypeError leaking through the fetch boundary.
+  // -----------------------------------------------------------------------
+
+  describe("offline / network failure", () => {
+    it("wraps ECONNREFUSED into FigmaClientError with transport hint", async () => {
+      const client = new FigmaClient({
+        token: "x",
+        fetchImpl: async () => {
+          const err = new Error("connect ECONNREFUSED 127.0.0.1:443");
+          (err as { code?: string }).code = "ECONNREFUSED";
+          throw err;
+        },
+      });
+      await expect(client.getNodes("abc", ["1:2"])).rejects.toThrow(
+        /transport|ECONNREFUSED/,
+      );
+    });
+
+    it("wraps DNS failure (ENOTFOUND) into FigmaClientError", async () => {
+      const client = new FigmaClient({
+        token: "x",
+        fetchImpl: async () => {
+          const err = new Error("getaddrinfo ENOTFOUND api.figma.com");
+          (err as { code?: string }).code = "ENOTFOUND";
+          throw err;
+        },
+      });
+      await expect(client.getNodes("abc", ["1:2"])).rejects.toThrow(
+        /transport|ENOTFOUND/,
+      );
+    });
+
+    it("wraps abrupt connection reset into FigmaClientError", async () => {
+      const client = new FigmaClient({
+        token: "x",
+        fetchImpl: async () => {
+          throw new Error("socket hang up");
+        },
+      });
+      await expect(client.getNodes("abc", ["1:2"])).rejects.toThrow(
+        /transport|socket/,
+      );
+    });
+  });
 });

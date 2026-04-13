@@ -6,6 +6,15 @@ dist/
 build/
 *.tsbuildinfo
 
+# MCP server dists are load-bearing for `claude plugin install` —
+# end users get the built JS without having to run a build step.
+# The negation keeps the dist/ rule but un-ignores the five
+# mcp-servers/*/dist directories specifically. Source maps stay
+# ignored to keep the tarball lean.
+!mcp-servers/*/dist/
+!mcp-servers/*/dist/**
+mcp-servers/*/dist/**/*.map
+
 # Test coverage
 coverage/
 .nyc_output/
@@ -31,3 +40,7 @@ coverage/
 
 # Claude local settings (per-user, not source)
 .claude/settings.local.json
+
+# Plugin packaging output — package-plugin.sh writes here, but the
+# archive itself is build output and not source.
+vibeflow-plugin-*.tar.gz

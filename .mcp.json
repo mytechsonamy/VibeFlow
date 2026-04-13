@@ -22,7 +22,8 @@
       "command": "node",
       "args": ["./mcp-servers/dev-ops/dist/index.js"],
       "env": {
-        "GITHUB_TOKEN": "${userConfig.github_token}"
+        "GITHUB_TOKEN": "${userConfig.github_token}",
+        "CI_PROVIDER": "${userConfig.ci_provider}"
       }
     },
     "observability": {

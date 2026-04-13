@@ -136,3 +136,73 @@ describe("findCycles", () => {
     expect(cycles[0]!.length).toBe(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Large-input scaling (S4-08).
+// Synthesizes a 200-file project with a moderate fan-in and runs
+// buildImportGraph + findCycles end-to-end. Catches accidental N²
+// loops (e.g. quadratic resolution rescans on every import).
+//
+// The scenario is intentionally larger than any project in the repo's
+// own test fixtures so a regression that adds quadratic work shows up
+// before it lands in production.
+// ---------------------------------------------------------------------------
+
+describe("buildImportGraph — large-input scaling", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-large-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("handles a 200-file project under 5 seconds", () => {
+    const N = 200;
+    // Each file imports the next two — a chain plus one fan-out edge.
+    // This is roughly the shape of a real medium-sized service module.
+    for (let i = 0; i < N; i++) {
+      const next = (i + 1) % N;
+      const next2 = (i + 2) % N;
+      write(
+        path.join(dir, `mod-${i}.ts`),
+        `import "./mod-${next}";\nimport "./mod-${next2}";\nexport const m${i} = ${i};\n`,
+      );
+    }
+
+    const start = Date.now();
+    const g = buildImportGraph(dir);
+    const elapsed = Date.now() - start;
+
+    expect(g.files.length).toBe(N);
+    // Chain (N) + fan-out (N) = 2N edges. The modulo wrap creates a
+    // cycle so the total is exactly 2*N for this layout.
+    expect(g.edges.length).toBe(2 * N);
+    expect(g.unresolved).toEqual([]);
+    expect(elapsed).toBeLessThan(5000);
+  });
+
+  it("findCycles terminates on a 200-file dense graph under 2 seconds", () => {
+    const N = 200;
+    for (let i = 0; i < N; i++) {
+      const next = (i + 1) % N;
+      write(
+        path.join(dir, `mod-${i}.ts`),
+        `import "./mod-${next}";\nexport const m${i} = ${i};\n`,
+      );
+    }
+
+    const g = buildImportGraph(dir);
+    const start = Date.now();
+    const cycles = findCycles(g);
+    const elapsed = Date.now() - start;
+
+    // The chain wraps around so every node participates in the same
+    // single cycle of length N.
+    expect(cycles.length).toBe(1);
+    expect(cycles[0]!.length).toBe(N);
+    expect(elapsed).toBeLessThan(2000);
+  });
+});

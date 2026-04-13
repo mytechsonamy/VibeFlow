@@ -132,6 +132,43 @@ describe("createGithubClient — triggerWorkflow", () => {
     ).rejects.toBeInstanceOf(CiClientError);
   });
 
+  // ----- offline / network failure (S4-08) -----
+  // The dev-ops MCP must produce a classified, actionable error when
+  // the network layer fails. The "github request failed (transport):"
+  // prefix lets downstream consumers (skills, hooks) tell a transport
+  // failure apart from a 4xx/5xx and surface the right "you're offline"
+  // suggestion vs "fix your request" suggestion.
+
+  it("offline ECONNREFUSED produces a transport-classified message", async () => {
+    const client = createGithubClient({
+      owner: "o",
+      repo: "r",
+      token: "t",
+      fetchImpl: async () => {
+        const err = new Error("connect ECONNREFUSED 140.82.121.6:443");
+        (err as { code?: string }).code = "ECONNREFUSED";
+        throw err;
+      },
+    });
+    await expect(
+      client.triggerWorkflow({ workflow: "ci.yml", ref: "main" }),
+    ).rejects.toThrow(/transport.*ECONNREFUSED/);
+  });
+
+  it("offline DNS failure (ENOTFOUND) produces a transport-classified message", async () => {
+    const client = createGithubClient({
+      owner: "o",
+      repo: "r",
+      token: "t",
+      fetchImpl: async () => {
+        const err = new Error("getaddrinfo ENOTFOUND api.github.com");
+        (err as { code?: string }).code = "ENOTFOUND";
+        throw err;
+      },
+    });
+    await expect(client.getRun("42")).rejects.toThrow(/transport.*ENOTFOUND/);
+  });
+
   it("wraps invalid JSON responses", async () => {
     const mock = createMockFetch({
       "/repos/o/r/actions/runs/42": {

@@ -45,18 +45,18 @@ VibeFlow is a Claude Code plugin that orchestrates the full SDLC through multi-A
 
 ### Ten test layers — run all ten before declaring a sprint ticket done
 - **Unit (vitest) — 5 MCP servers, each with 80/80/80/80 coverage threshold:**
-  - `cd mcp-servers/sdlc-engine && npm test` — 104 tests (engine, consensus, validation, phases, state store, tools, server dispatch)
-  - `cd mcp-servers/codebase-intel && npm test` — 46 tests (structure, dependency graph, hotspots, tech debt)
-  - `cd mcp-servers/design-bridge && npm test` — 54 tests (figma fetch, token extract, style generate, compare)
-  - `cd mcp-servers/dev-ops && npm test` — 37 tests (pipeline trigger, status, artifacts, deploy, rollback)
+  - `cd mcp-servers/sdlc-engine && npm test` — 105 tests (engine, consensus, validation, phases, state store, tools, server dispatch, Bug #13 getOrInit fast-path)
+  - `cd mcp-servers/codebase-intel && npm test` — 48 tests (structure, dependency graph, hotspots, tech debt, large-input scaling)
+  - `cd mcp-servers/design-bridge && npm test` — 57 tests (figma fetch, token extract, style generate, compare, offline / network failure)
+  - `cd mcp-servers/dev-ops && npm test` — 43 tests (pipeline trigger, status, artifacts, deploy, rollback, CI_PROVIDER selection, ECONNREFUSED / ENOTFOUND)
   - `cd mcp-servers/observability && npm test` — 76 tests (metric collect, flaky track, perf trend, health dashboard, parser edge branches)
-- **Hook scripts (bash):** `bash hooks/tests/run.sh` — 50 assertions covering every hook + shared `_lib.sh` + S4-02 hardening (Merge/Revert allow-list, command-substitution passthrough, post-edit debounce + skip list, rate limiting, test-file mapping cache, compact-recovery integrity check, consensus timeout force-finalize)
+- **Hook scripts (bash):** `bash hooks/tests/run.sh` — 52 assertions covering every hook + shared `_lib.sh` + S4-02 hardening + S4-08 output budgets
 - **Integration (bash + node):**
   - `bash tests/integration/run.sh` — 394 assertions (platform baseline: plugin manifest, hooks.json, .mcp.json dist paths, 5 MCP stdio smokes, engine+hook e2e, Sprint-2 + Sprint-3 skill structural + gate-contract sentinels)
   - `bash tests/integration/sprint-2.sh` — 94 assertions (Sprint 2 L1 skill coherence + io-standard + MCP sanity + bug closure)
   - `bash tests/integration/sprint-3.sh` — 111 assertions (Sprint 3 L1/L2/L3 skill inventory + cross-skill wiring + gate contracts + PIPELINE coverage + bug closure)
-  - `bash tests/integration/sprint-4.sh` — 127 assertions (MCP coverage config + actual coverage run + test count floors + io-standard cross-reference + demo-app presence + PRD families + release-decision verdict + walkthrough commands)
-- Total baseline: **1093 passing checks** across 10 test layers. Any regression that drops this number blocks the ticket.
+  - `bash tests/integration/sprint-4.sh` — 355 assertions (coverage + io-standard + demo-app + user docs + plugin manifest + ci_provider wiring + packaging + tarball + CHANGELOG sync + offline/large-input/budget sentinels + fresh-install end-to-end simulation [S4-K])
+- Total baseline: **1335 passing checks** across 10 test layers. Sprint 4 is ✅ COMPLETE — v1.0.0 release-ready (tag + GitHub release pending user authorization).
 - **Bonus (not in baseline):** `examples/demo-app/` ships its own 45-test vitest suite — run with `cd examples/demo-app && npm install && npm test`.
 
 ## Coding Conventions

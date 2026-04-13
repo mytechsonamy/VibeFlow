@@ -31,6 +31,35 @@ describe("SdlcEngine integration", () => {
     expect(state.satisfiedCriteria).toEqual([]);
   });
 
+  // Bug #13 (S4-09): getOrInit on an existing project must NOT enter
+  // the mutator transaction. The previous implementation called
+  // store.transact and tried to return { next: current, result: current }
+  // — which fails the mutator's `next.revision === current.revision + 1`
+  // assertion. Result: sdlc_get_state crashed on every project that
+  // had been written to before. The fast-path read fix returns the
+  // existing row without touching the mutator.
+  it("getOrInit on an existing project returns it without bumping the revision (Bug #13)", async () => {
+    const initial = await engine.getOrInit("p1");
+    expect(initial.revision).toBe(1);
+
+    // Bump the revision via a real write so the row carries history.
+    await engine.satisfyCriterion({
+      projectId: "p1",
+      criterion: "prd.approved",
+    });
+
+    // Calling getOrInit again must NOT throw and must NOT bump
+    // the revision — it should return the row as-is.
+    const reread = await engine.getOrInit("p1");
+    expect(reread.revision).toBe(2);                  // unchanged from the satisfy
+    expect(reread.currentPhase).toBe("REQUIREMENTS");
+    expect(reread.satisfiedCriteria).toContain("prd.approved");
+
+    // And a third call still doesn't bump.
+    const thirdRead = await engine.getOrInit("p1");
+    expect(thirdRead.revision).toBe(2);
+  });
+
   it("full happy-path advance from REQUIREMENTS to DESIGN", async () => {
     await engine.getOrInit("p1");
     await engine.satisfyCriterion({ projectId: "p1", criterion: "prd.approved" });

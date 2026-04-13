@@ -165,6 +165,21 @@ OUT="$(bash "$SCRIPTS/load-sdlc-context.sh")"
 assert_contains "missing config produces init hint" "vibeflow:init" "$OUT"
 rm -rf "$DIR"
 
+# Output budget (S4-08 memory footprint guard): the SessionStart hook
+# is injected into Claude Code as a system note, so it competes for
+# context budget. Keep it under 250 characters so even with multiple
+# satisfied criteria the line stays compact.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+LSC_OUT="$(bash "$SCRIPTS/load-sdlc-context.sh")"
+LSC_LEN="${#LSC_OUT}"
+if (( LSC_LEN <= 250 )); then
+  pass "load-sdlc-context output stays under 250 char budget (got $LSC_LEN)"
+else
+  fail "load-sdlc-context output exceeds 250 char budget (got $LSC_LEN)"
+fi
+rm -rf "$DIR"
+
 # Degraded state: config exists but state.db is missing → surface a
 # "(degraded: ... phase read from config)" note so the model knows the
 # phase line is approximate. We write a vibeflow.config.json but skip
@@ -361,6 +376,17 @@ export VIBEFLOW_CWD="$DIR"
 OUT="$(bash "$SCRIPTS/compact-recovery.sh")"
 assert_contains "snapshot mentions phase" "phase=DESIGN" "$OUT"
 assert_contains "snapshot mentions criteria" "prd.approved" "$OUT"
+
+# Output budget (S4-08 memory footprint guard): the compact-recovery
+# snapshot can grow with review notes + integrity warnings + criteria
+# list, but it must stay under 800 chars so re-injecting it after a
+# compact doesn't bloat the recovered context.
+CR_LEN="${#OUT}"
+if (( CR_LEN <= 800 )); then
+  pass "compact-recovery output stays under 800 char budget (got $CR_LEN)"
+else
+  fail "compact-recovery output exceeds 800 char budget (got $CR_LEN)"
+fi
 rm -rf "$DIR"
 
 # Integrity check: config.currentPhase disagrees with state.db. The

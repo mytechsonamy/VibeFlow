@@ -77,21 +77,39 @@ export function buildTools(opts: BuildToolsOptions = {}): ToolDefinition[] {
    * (and the server can start) without a valid token. Token errors
    * only surface when a tool that needs the provider is actually
    * called.
+   *
+   * The CI_PROVIDER environment variable (sourced from the
+   * `ci_provider` userConfig key via .mcp.json template substitution)
+   * selects between the supported backends. Unknown values raise a
+   * loud CiConfigError rather than silently falling back to GitHub —
+   * a misconfigured provider is a worse failure mode than no provider.
    */
   const getProvider = (owner: string, repo: string): CiProvider => {
     if (opts.provider) return opts.provider;
-    try {
-      return createGithubClient({
-        owner,
-        repo,
-        token: opts.token,
-        baseUrl: opts.baseUrl,
-        fetchImpl: opts.fetchImpl,
-      });
-    } catch (err) {
-      if (err instanceof CiConfigError) throw err;
-      throw err;
+    const requested = (process.env.CI_PROVIDER ?? "github").toLowerCase();
+    if (requested === "github" || requested === "") {
+      try {
+        return createGithubClient({
+          owner,
+          repo,
+          token: opts.token,
+          baseUrl: opts.baseUrl,
+          fetchImpl: opts.fetchImpl,
+        });
+      } catch (err) {
+        if (err instanceof CiConfigError) throw err;
+        throw err;
+      }
     }
+    if (requested === "gitlab") {
+      throw new CiConfigError(
+        "ci_provider 'gitlab' is declared but the GitLab client is not implemented yet. " +
+          "Set ci_provider to 'github' or remove the override.",
+      );
+    }
+    throw new CiConfigError(
+      `unknown ci_provider '${requested}'. Supported values: 'github', 'gitlab'.`,
+    );
   };
 
   return [

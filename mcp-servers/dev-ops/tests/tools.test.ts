@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import { z } from "zod";
 import { buildTools, ToolDefinition } from "../src/tools.js";
 import { createMockFetch } from "./_mock-fetch.js";
@@ -201,5 +201,79 @@ describe("MCP tool handlers", () => {
     expect(seenBody).toContain('"action":"rollback"');
     expect(seenBody).toContain('"reason":"perf regression"');
     expect(result.note).toMatch(/rollback→v1.0.0/);
+  });
+
+  // ---------------------------------------------------------------------
+  // CI_PROVIDER selection (S4-05) — plugin manifest declares ci_provider
+  // and .mcp.json flows it into the dev-ops env. The provider resolver
+  // must honor it and refuse unknown values loudly rather than silently
+  // falling back to GitHub.
+  // ---------------------------------------------------------------------
+
+  describe("CI_PROVIDER selection", () => {
+    const original = process.env.CI_PROVIDER;
+    afterEach(() => {
+      if (original === undefined) {
+        delete process.env.CI_PROVIDER;
+      } else {
+        process.env.CI_PROVIDER = original;
+      }
+    });
+
+    it("defaults to github when CI_PROVIDER is unset", async () => {
+      delete process.env.CI_PROVIDER;
+      const mock = createMockFetch({
+        "POST /repos/o/r/actions/workflows/ci.yml/dispatches": { rawBody: "" },
+      });
+      const tools = buildTools({ token: "x", fetchImpl: mock.fetch });
+      const result = (await byName(tools, "do_trigger_pipeline").handler({
+        owner: "o",
+        repo: "r",
+        workflow: "ci.yml",
+        ref: "main",
+      })) as { provider: string };
+      expect(result.provider).toBe("github");
+    });
+
+    it("accepts CI_PROVIDER=github case-insensitively", async () => {
+      process.env.CI_PROVIDER = "GitHub";
+      const mock = createMockFetch({
+        "POST /repos/o/r/actions/workflows/ci.yml/dispatches": { rawBody: "" },
+      });
+      const tools = buildTools({ token: "x", fetchImpl: mock.fetch });
+      const result = (await byName(tools, "do_trigger_pipeline").handler({
+        owner: "o",
+        repo: "r",
+        workflow: "ci.yml",
+        ref: "main",
+      })) as { provider: string };
+      expect(result.provider).toBe("github");
+    });
+
+    it("raises CiConfigError on CI_PROVIDER=gitlab (not yet implemented)", async () => {
+      process.env.CI_PROVIDER = "gitlab";
+      const tools = buildTools({ token: "x" });
+      await expect(
+        byName(tools, "do_trigger_pipeline").handler({
+          owner: "o",
+          repo: "r",
+          workflow: "ci.yml",
+          ref: "main",
+        }),
+      ).rejects.toThrow(/gitlab.*not implemented/i);
+    });
+
+    it("raises CiConfigError on an unknown CI_PROVIDER value", async () => {
+      process.env.CI_PROVIDER = "jenkins";
+      const tools = buildTools({ token: "x" });
+      await expect(
+        byName(tools, "do_trigger_pipeline").handler({
+          owner: "o",
+          repo: "r",
+          workflow: "ci.yml",
+          ref: "main",
+        }),
+      ).rejects.toThrow(/unknown ci_provider 'jenkins'/);
+    });
   });
 });
