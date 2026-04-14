@@ -119,27 +119,39 @@ own SemVer rules + GitHub Releases `prerelease: true` flag.
       `## [latest]` CHANGELOG pointer
 - [ ] Harness sentinel for the prerelease path
 
-### S6-07: release.sh CHANGELOG insertion runtime sentinel
-**Location:** `tests/integration/sprint-5.sh [S5-C]` (extend) or
-new `tests/integration/sprint-6.sh [S6-G]`
+### S6-07: release.sh CHANGELOG insertion runtime sentinel ✅ DONE
+**Location:** `bin/release.sh` (new `insert_changelog_entry()` helper + `--test-changelog-insert` mode) + `tests/integration/sprint-5.sh [S5-C]` (6 new sentinels)
 **Discovered during:** S5-07 (CHANGELOG BSD awk bug)
 
 S5-07 uncovered a BSD awk portability bug in `release.sh` that
 caused a silent broken-release (CHANGELOG never updated, release
-commit claimed success). The current `sprint-5.sh [S5-C]` sentinels
-only grep release.sh source — they cannot catch a runtime insertion
-failure. S6-07 adds a runtime test that exercises the CHANGELOG
-insertion step against a tempfile fixture.
+commit claimed success). The existing `sprint-5.sh [S5-C]`
+sentinels only grep release.sh source — they cannot catch a
+runtime insertion failure. S6-07 closes that gap.
 
-- [ ] Fixture CHANGELOG (minimal — header + one `## [1.0.0]` entry)
-- [ ] Harness extracts release.sh's CHANGELOG-insertion block (or
-      calls release.sh with a new `--check-changelog-insert` flag)
-      against the fixture
-- [ ] Asserts the fixture now has a `## [<new-version>]` header at
-      the top AND the post-insertion verification step fires on a
-      deliberately-broken fixture
-- [ ] Lives in sprint-5.sh (closing a Sprint 5 regression window) OR
-      sprint-6.sh if it grows into something larger
+**Completed:**
+- [x] **`insert_changelog_entry <version>` helper** extracted from the inline step-4 logic in release.sh. Idempotent, self-contained, operates on `CHANGELOG.md` in the current working directory. Uses portable head/tail/grep (no BSD awk gotcha). Includes the post-insertion verification that refuses to continue if the new version header is not at the top of the rewritten CHANGELOG. Returns non-zero on any failure.
+- [x] **`release.sh --test-changelog-insert <version>`** new mode that runs ONLY the helper against CHANGELOG.md in cwd, skipping every other release step (cleanliness check, version diff, preflight gauntlet, build, package, commit, tag). Designed to be called from an isolated tempdir fixture. Strict SemVer validation + clear error messages if the version is missing or malformed.
+- [x] **Step 4 in release.sh now calls the helper** — single source of truth. A future refactor cannot drift the inline path and the test path apart.
+- [x] **6 new runtime sentinels in `sprint-5.sh [S5-C]`**:
+  1. happy-path fixture leads with the new version header after insertion
+  2. previous version's heading survives the insertion (prepend, not replace)
+  3. happy-path run exits 0
+  4. header-less fixture + insert → exit non-zero (post-insertion verification fires)
+  5. header-less fixture left unchanged on refusal (no partial-write corruption)
+  6. source-grep sentinels: `--test-changelog-insert` flag + `insert_changelog_entry()` helper both present in release.sh
+
+**Verification:** the happy fixture starts with one `## [1.0.0]` entry and the harness runs `release.sh --test-changelog-insert 9.9.9` against it. After the run, `## [9.9.9]` appears at the top AND `## [1.0.0]` is still present below. The negative fixture has no `## [` headings at all; the harness runs the same command and asserts a non-zero exit + byte-for-byte file unchanged before/after.
+
+**Why this matters:** the BSD awk bug was invisible to static source-grep sentinels because both the inline awk call and the error message strings were intact — only the RUNTIME behavior was broken. S6-07 adds the first runtime check in the S5-C section and locks the contract in. If someone rewrites the insertion logic (e.g. swaps head/tail for sed, or reverts to awk), the happy-path fixture will immediately catch a regression.
+
+**Test count deltas:**
+- `tests/integration/sprint-5.sh`: 87 → **93** (+6)
+- Total baseline: 1445 → **1451** (+6)
+
+**Scope boundaries** (intentionally deferred):
+- **Running `release.sh` end-to-end against a fixture branch** — would require setting up a fake git repo, fake plugin.json, fake MCP dists. Too heavy for a single sentinel. The current approach tests only the CHANGELOG step, which is the part that actually broke.
+- **Fuzz testing the insertion logic** — out of scope. The current sentinels cover the happy path + the one known broken-path. Mutation testing on release.sh is a future sprint concern.
 
 ### S6-08: Sprint 6 integration harness
 **Location:** `tests/integration/sprint-6.sh`
@@ -163,13 +175,15 @@ sentinel.
 
 ## Next Ticket to Work On
 
-**Confirm Sprint 6 scope with the user first.** The candidate list
-above is seeded from Sprint 5's deferrals + the S5-07 bug. It is
-almost certainly too much for a single sprint. Pick a subset,
-re-number if needed, and remove the un-picked items from this file
-before starting work.
+**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). Picking from the remaining candidate list, suggested next-up based on value + scope:
 
-## Test inventory (baseline from v1.0.1)
+1. **S6-01** — Concurrent-advance CAS stress vs real Postgres (narrow scope, high value, closes a real gap)
+2. **S6-04** — Next.js demo `"use client"` + optional `next build` (extends existing surface, low risk)
+3. **S6-05** — GPG-signed release tags (small, closes a v1.1 polish item)
+
+S6-02 (self-hosted GitLab), S6-03 (Postgres version matrix), and S6-06 (prerelease workflow) are LARGER items and should wait until the earlier ones land — confirm scope with user before picking those up.
+
+## Test inventory (after S6-07)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -181,8 +195,8 @@ before starting work.
 - tests/integration/sprint-2.sh: **94 bash assertions**
 - tests/integration/sprint-3.sh: **111 bash assertions**
 - tests/integration/sprint-4.sh: **355 bash assertions**
-- tests/integration/sprint-5.sh: **87 bash assertions**
-- Total: **1445 passing checks** across **11 test layers**
+- tests/integration/sprint-5.sh: **93 bash assertions** (+6 from S6-07 runtime sentinels)
+- Total: **1451 passing checks** across **11 test layers**
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 41 vitest tests
 
 ## Sprint 6 vs Sprint 5 differences

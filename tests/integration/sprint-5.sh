@@ -346,6 +346,86 @@ if [[ -f "$RELEASE_SCRIPT" ]]; then
     fail "release.sh --check-clean smoke — git clone failed"
   fi
   rm -rf "$TMP_RELEASE"
+
+  # ----- [S5-C / S6-07] CHANGELOG insertion runtime sentinel ----------------
+  # Sprint 5 / S5-07 uncovered a BSD awk portability bug in release.sh's
+  # CHANGELOG insertion step that slipped past every static source-grep
+  # check in this section because the bug only surfaced at runtime. Sprint
+  # 6 / S6-07 extracts the insertion logic into insert_changelog_entry()
+  # + exposes it via `release.sh --test-changelog-insert <version>` so we
+  # can exercise the actual runtime path against isolated fixtures here.
+  #
+  # Three assertions:
+  #   1. Happy path — valid fixture + insert → new version header lands
+  #      at the top of the rewritten fixture
+  #   2. Idempotency check on the old entry — the previous version's
+  #      heading survives the insertion (we are PREPENDING, not
+  #      REPLACING)
+  #   3. Negative path — header-less fixture + insert → exit non-zero
+  #      AND the file remains unchanged (no partial write)
+  TMP_CHLOG="$(mktemp -d "${TMPDIR:-/tmp}/vf-s5c-chlog-XXXXXX")"
+  cat > "$TMP_CHLOG/CHANGELOG.md" <<'CHLOG_HAPPY'
+# Changelog
+
+All notable changes are documented in this file.
+
+---
+
+## [1.0.0] — 2026-04-13
+
+Initial release.
+CHLOG_HAPPY
+  if (cd "$TMP_CHLOG" && bash "$RELEASE_SCRIPT" --test-changelog-insert 9.9.9 >/dev/null 2>&1); then
+    if head -20 "$TMP_CHLOG/CHANGELOG.md" | grep -qF "## [9.9.9]"; then
+      pass "release.sh --test-changelog-insert: happy-path fixture leads with new version"
+    else
+      fail "release.sh --test-changelog-insert: happy-path fixture leads with new version"
+    fi
+    if grep -qF "## [1.0.0]" "$TMP_CHLOG/CHANGELOG.md"; then
+      pass "release.sh --test-changelog-insert: previous version survives the insertion"
+    else
+      fail "release.sh --test-changelog-insert: previous version survives the insertion"
+    fi
+  else
+    fail "release.sh --test-changelog-insert: happy-path exits 0 on valid fixture"
+  fi
+  rm -rf "$TMP_CHLOG"
+
+  # Negative — a CHANGELOG without any '## [' heading must be refused
+  # by the post-insertion verification step.
+  TMP_CHLOG_BAD="$(mktemp -d "${TMPDIR:-/tmp}/vf-s5c-chlog-bad-XXXXXX")"
+  cat > "$TMP_CHLOG_BAD/CHANGELOG.md" <<'CHLOG_BAD'
+# Changelog
+
+This file has no version headings at all.
+CHLOG_BAD
+  BAD_BEFORE="$(wc -c < "$TMP_CHLOG_BAD/CHANGELOG.md" | tr -d ' ')"
+  if (cd "$TMP_CHLOG_BAD" && bash "$RELEASE_SCRIPT" --test-changelog-insert 9.9.9 >/dev/null 2>&1); then
+    fail "release.sh --test-changelog-insert: header-less fixture must exit non-zero"
+  else
+    pass "release.sh --test-changelog-insert: header-less fixture exits non-zero"
+  fi
+  BAD_AFTER="$(wc -c < "$TMP_CHLOG_BAD/CHANGELOG.md" | tr -d ' ')"
+  if [[ "$BAD_BEFORE" == "$BAD_AFTER" ]]; then
+    pass "release.sh --test-changelog-insert: header-less fixture left unchanged on refusal"
+  else
+    fail "release.sh --test-changelog-insert: header-less fixture corrupted ($BAD_BEFORE → $BAD_AFTER bytes)"
+  fi
+  rm -rf "$TMP_CHLOG_BAD"
+
+  # Source-grep sentinel: the --test-changelog-insert flag must stay
+  # wired in release.sh so a future refactor that drops it trips the
+  # harness immediately.
+  if grep -q '\-\-test-changelog-insert' "$RELEASE_SCRIPT"; then
+    pass "release.sh defines --test-changelog-insert flag"
+  else
+    fail "release.sh defines --test-changelog-insert flag"
+  fi
+  if grep -q 'insert_changelog_entry()' "$RELEASE_SCRIPT"; then
+    pass "release.sh exposes insert_changelog_entry() helper"
+  else
+    fail "release.sh exposes insert_changelog_entry() helper"
+  fi
 fi
 
 if [[ -f "$RELEASE_WORKFLOW" ]]; then

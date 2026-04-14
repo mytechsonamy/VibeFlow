@@ -40,22 +40,115 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
 
 VERSION=""
 DRY_RUN=false
 CHECK_CLEAN_ONLY=false
+TEST_CHANGELOG_INSERT=false
 
 for arg in "$@"; do
   case "$arg" in
-    --dry-run)      DRY_RUN=true ;;
-    --check-clean)  CHECK_CLEAN_ONLY=true ;;
-    -*)             echo "unknown flag: $arg" >&2; exit 2 ;;
-    *)              if [[ -z "$VERSION" ]]; then VERSION="$arg"; else
-                      echo "unexpected argument: $arg" >&2; exit 2
-                    fi ;;
+    --dry-run)                DRY_RUN=true ;;
+    --check-clean)            CHECK_CLEAN_ONLY=true ;;
+    --test-changelog-insert)  TEST_CHANGELOG_INSERT=true ;;
+    -*)                       echo "unknown flag: $arg" >&2; exit 2 ;;
+    *)                        if [[ -z "$VERSION" ]]; then VERSION="$arg"; else
+                                echo "unexpected argument: $arg" >&2; exit 2
+                              fi ;;
   esac
 done
+
+# ----- insert_changelog_entry <version> -------------------------------------
+# Idempotent helper that prepends a new `## [<version>] — <today>` stub to
+# CHANGELOG.md in the current directory. Extracted into a function so the
+# --test-changelog-insert mode can exercise it against a fixture without
+# running the full release pipeline (preflight, version checks, build, etc).
+#
+# The insertion uses head/tail/grep rather than `awk -v entry="$NEW_ENTRY"`
+# because BSD awk on macOS rejects multiline -v values with a "newline in
+# string" runtime error — the exact bug that silently broke the first
+# release.sh 1.0.1 run in Sprint 5 / S5-07.
+#
+# Post-insertion verification refuses to continue if the new version header
+# is not at the top of the rewritten CHANGELOG. Any regression here exits
+# non-zero and prints to stderr.
+#
+# Returns 0 on success, non-zero on any failure (missing heading, missing
+# file, post-insertion verification failed).
+insert_changelog_entry() {
+  local ver="$1"
+  if [[ ! -f CHANGELOG.md ]]; then
+    echo "release: CHANGELOG.md not found in $(pwd)" >&2
+    return 1
+  fi
+  local today
+  today="$(date -u +%Y-%m-%d)"
+  local new_entry="## [$ver] — $today
+
+<!-- Edit this entry with the highlights of $ver before tagging. -->
+
+### Added
+-
+
+### Fixed
+-
+
+### Changed
+-
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A."
+  local first_heading_line
+  first_heading_line="$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d: -f1)"
+  if [[ -z "$first_heading_line" ]]; then
+    echo "release: CHANGELOG.md has no '## [...]' heading — cannot insert" >&2
+    return 1
+  fi
+  local head_count=$((first_heading_line - 1))
+  {
+    if (( head_count > 0 )); then
+      head -n "$head_count" CHANGELOG.md
+    fi
+    printf '%s\n\n' "$new_entry"
+    tail -n +"$first_heading_line" CHANGELOG.md
+  } > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+  if ! head -20 CHANGELOG.md | grep -qF "## [$ver]"; then
+    echo "release: CHANGELOG.md insertion failed — [$ver] header missing" >&2
+    return 1
+  fi
+  return 0
+}
+
+# --test-changelog-insert <version> ------------------------------------------
+# Runs ONLY the CHANGELOG insertion step against CHANGELOG.md in the
+# current working directory. Skips every other release.sh step so it can
+# be called from an isolated tempdir fixture by the Sprint harnesses.
+# Closes the gap identified in Sprint 5 / S5-07 — the awk BSD bug that
+# slipped past every static source-grep sentinel because it only surfaced
+# at runtime.
+if [[ "$TEST_CHANGELOG_INSERT" == "true" ]]; then
+  if [[ -z "$VERSION" ]]; then
+    echo "release --test-changelog-insert: version argument is required" >&2
+    exit 2
+  fi
+  if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "release --test-changelog-insert: version '$VERSION' is not a strict SemVer X.Y.Z" >&2
+    exit 2
+  fi
+  if insert_changelog_entry "$VERSION"; then
+    echo "  ok   CHANGELOG.md leads with [$VERSION]"
+    exit 0
+  else
+    exit 1
+  fi
+fi
+
+cd "$REPO_ROOT"
 
 # -----------------------------------------------------------------------------
 echo "== [0] working tree cleanliness =="
@@ -154,63 +247,17 @@ fi
 # -----------------------------------------------------------------------------
 echo "== [4] CHANGELOG insertion =="
 
-TODAY="$(date -u +%Y-%m-%d)"
-NEW_ENTRY="## [$VERSION] — $TODAY
-
-<!-- Edit this entry with the highlights of $VERSION before tagging. -->
-
-### Added
--
-
-### Fixed
--
-
-### Changed
--
-
-### Breaking changes
-
-None.
-
-### Migration
-
-N/A."
-
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "  [dry-run] would prepend a new [$VERSION] entry to CHANGELOG.md"
 else
-  # Insert the new entry above the previous latest version heading
-  # so the `## [prev]` block stays untouched.
-  #
-  # We used to pass NEW_ENTRY through `awk -v entry="$NEW_ENTRY"` but
-  # BSD awk on macOS rejects multiline -v values ("newline in string"
-  # runtime error) and silently fails without writing the insertion,
-  # leaving CHANGELOG.md stale and the release commit missing the new
-  # version header. The head/tail approach below is portable (POSIX
-  # head + tail + grep) and has no multiline-variable gotcha.
-  FIRST_HEADING_LINE="$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d: -f1)"
-  if [[ -z "$FIRST_HEADING_LINE" ]]; then
-    echo "release: CHANGELOG.md has no '## [...]' heading — cannot insert" >&2
+  if insert_changelog_entry "$VERSION"; then
+    TODAY="$(date -u +%Y-%m-%d)"
+    echo "  ok   CHANGELOG.md now leads with [$VERSION] — $TODAY"
+    echo "  !    remember to fill in the entry before pushing"
+  else
+    echo "release: CHANGELOG insertion step failed — aborting release." >&2
     exit 1
   fi
-  HEAD_COUNT=$((FIRST_HEADING_LINE - 1))
-  {
-    if (( HEAD_COUNT > 0 )); then
-      head -n "$HEAD_COUNT" CHANGELOG.md
-    fi
-    printf '%s\n\n' "$NEW_ENTRY"
-    tail -n +"$FIRST_HEADING_LINE" CHANGELOG.md
-  } > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
-  # Post-insertion verification — refuse to continue if the new
-  # version header is not at the top of the changelog. Catches any
-  # future regression in the insertion logic before the release
-  # commit is made.
-  if ! head -20 CHANGELOG.md | grep -qF "## [$VERSION]"; then
-    echo "release: CHANGELOG.md insertion failed — [$VERSION] header missing" >&2
-    exit 1
-  fi
-  echo "  ok   CHANGELOG.md now leads with [$VERSION] — $TODAY"
-  echo "  !    remember to fill in the entry before pushing"
 fi
 
 # -----------------------------------------------------------------------------

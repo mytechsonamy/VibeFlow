@@ -56,8 +56,8 @@ VibeFlow is a Claude Code plugin that orchestrates the full SDLC through multi-A
   - `bash tests/integration/sprint-2.sh` — 94 assertions (Sprint 2 L1 skill coherence + io-standard + MCP sanity + bug closure)
   - `bash tests/integration/sprint-3.sh` — 111 assertions (Sprint 3 L1/L2/L3 skill inventory + cross-skill wiring + gate contracts + PIPELINE coverage + bug closure)
   - `bash tests/integration/sprint-4.sh` — 355 assertions (coverage + io-standard + demo-app + user docs + plugin manifest + ci_provider wiring + packaging + tarball + CHANGELOG sync + offline/large-input/budget sentinels + fresh-install end-to-end simulation [S4-K])
-  - `bash tests/integration/sprint-5.sh` — 87 assertions (GitLab CI provider wiring [S5-A] + live PostgreSQL team-mode walk [S5-B] + release script + workflow [S5-C] + Next.js demo layout + artifacts [S5-D] + Bug #13 cross-process reproducer mirror [S5-E])
-- Total baseline: **1445 passing checks** across **11 test layers**. Sprint 4 ✅ COMPLETE + v1.0.0 shipped. Sprint 5 in progress (S5-01..06 ✅, S5-07 pending).
+  - `bash tests/integration/sprint-5.sh` — 93 assertions (GitLab CI provider wiring [S5-A] + live PostgreSQL team-mode walk [S5-B] + release script + workflow + CHANGELOG runtime sentinel [S5-C] + Next.js demo layout + artifacts [S5-D] + Bug #13 cross-process reproducer mirror [S5-E])
+- Total baseline: **1451 passing checks** across **11 test layers**. Sprint 4 ✅ COMPLETE + v1.0.0 shipped. Sprint 5 ✅ COMPLETE + v1.0.1 shipped. Sprint 6 in progress (S6-07 ✅, S6-01..06 + S6-08..09 pending).
 - **Bonus (not in baseline):** `examples/demo-app/` ships 45 vitest tests and `examples/nextjs-demo/` ships 41 vitest tests — run with `cd examples/<demo> && npm install && npm test`.
 
 ## Coding Conventions
