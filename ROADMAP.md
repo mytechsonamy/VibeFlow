@@ -55,11 +55,23 @@ MyVibe Framework (SDLC orchestration) + TruthLayer (requirements-first validatio
 **Status file:** docs/SPRINT-4.md
 **Result:** 1335 passing checks across 10 test layers. v1.0.0 release-ready (`vibeflow-plugin-1.0.0.tar.gz` reproducible via `./package-plugin.sh`). Bug #13 caught + fixed during S4-09. Git tag + GitHub release pending user authorization.
 
-### Sprint 5: v1.0.x Maintenance + GitLab + Real-World Hardening (Next)
+### Sprint 5: v1.0.x Maintenance + GitLab + Real-World Hardening ✅ COMPLETE
 **Goal:** Close v1.0 forward-looking stubs (GitLab CI provider, live PostgreSQL test), add cross-process Bug #13 reproducer, ship marketplace publish workflow.
-**Tickets:** 7 (Bug #13 cross-process repro, GitLab provider, live Postgres, release script, Next.js demo, sprint-5 harness, v1.0.1 closure)
+**Tickets:** 7/7 done (S5-01 Bug #13 cross-process repro, S5-02 GitLab provider, S5-03 live Postgres, S5-04 release script + workflow, S5-05 Next.js demo, S5-06 sprint-5 harness + Bug #13 mirror, S5-07 v1.0.1 closure + release.sh BSD awk fix)
 **Status file:** docs/SPRINT-5.md
-**Targets:** v1.0.1
+**Result:** 1445 passing checks across 11 test layers. v1.0.1 shipped 2026-04-14 at https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.0.1 (`vibeflow-plugin-1.0.1.tar.gz` 418 KB, sha256 `be5bb4a...`). Second demo (`examples/nextjs-demo/`) ships alongside the TypeScript-only demo. `bin/release.sh` discipline automated + gated on user authorization for the push step. `tests/integration/sprint-5.sh` harness runs alongside sprint-2/3/4.
+
+### Sprint 6: v1.1 Scope TBD (Next)
+**Goal:** v1.1 hardening — pick up items deferred from Sprint 5 scope decisions + any new skill work that surfaced during v1.0.x usage. Scope to be confirmed with user before starting.
+**Candidate tickets** (seeded from Sprint 5 deferrals):
+- Concurrent-advance CAS stress test against real Postgres (deferred from S5-03)
+- Self-hosted GitLab integration + self-hosted Postgres version matrix (PG13/15/16, AWS RDS) (deferred from S5-02 + S5-03)
+- `next build` coverage for the Next.js demo + `"use client"` component surface (deferred from S5-05)
+- GPG-signed release tags + marketplace publish API integration (deferred from S5-04)
+- Automated prerelease / beta-channel workflow (deferred from S5-04)
+- sprint-5.sh [S5-C] runtime sentinel for release.sh CHANGELOG insertion regressions (see S5-07 Fixed entry)
+**Status file:** docs/SPRINT-6.md (seeded with candidate backlog — confirm scope before starting)
+**Targets:** v1.1.0
 
 ---
 
