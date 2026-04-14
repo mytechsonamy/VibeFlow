@@ -48,15 +48,16 @@ VibeFlow is a Claude Code plugin that orchestrates the full SDLC through multi-A
   - `cd mcp-servers/sdlc-engine && npm test` — 105 tests (engine, consensus, validation, phases, state store, tools, server dispatch, Bug #13 getOrInit fast-path)
   - `cd mcp-servers/codebase-intel && npm test` — 48 tests (structure, dependency graph, hotspots, tech debt, large-input scaling)
   - `cd mcp-servers/design-bridge && npm test` — 57 tests (figma fetch, token extract, style generate, compare, offline / network failure)
-  - `cd mcp-servers/dev-ops && npm test` — 43 tests (pipeline trigger, status, artifacts, deploy, rollback, CI_PROVIDER selection, ECONNREFUSED / ENOTFOUND)
+  - `cd mcp-servers/dev-ops && npm test` — 62 tests (GitHub client + pipelines + CI_PROVIDER selection + GitLab client 19 cases covering trigger, status normalization, listArtifacts, offline)
   - `cd mcp-servers/observability && npm test` — 76 tests (metric collect, flaky track, perf trend, health dashboard, parser edge branches)
 - **Hook scripts (bash):** `bash hooks/tests/run.sh` — 52 assertions covering every hook + shared `_lib.sh` + S4-02 hardening + S4-08 output budgets
 - **Integration (bash + node):**
-  - `bash tests/integration/run.sh` — 394 assertions (platform baseline: plugin manifest, hooks.json, .mcp.json dist paths, 5 MCP stdio smokes, engine+hook e2e, Sprint-2 + Sprint-3 skill structural + gate-contract sentinels)
+  - `bash tests/integration/run.sh` — 398 assertions (platform baseline: plugin manifest, hooks.json, .mcp.json dist paths, 5 MCP stdio smokes, engine+hook e2e, Sprint-2 + Sprint-3 skill structural + gate-contract sentinels, Bug #13 cross-process reproducer)
   - `bash tests/integration/sprint-2.sh` — 94 assertions (Sprint 2 L1 skill coherence + io-standard + MCP sanity + bug closure)
   - `bash tests/integration/sprint-3.sh` — 111 assertions (Sprint 3 L1/L2/L3 skill inventory + cross-skill wiring + gate contracts + PIPELINE coverage + bug closure)
   - `bash tests/integration/sprint-4.sh` — 355 assertions (coverage + io-standard + demo-app + user docs + plugin manifest + ci_provider wiring + packaging + tarball + CHANGELOG sync + offline/large-input/budget sentinels + fresh-install end-to-end simulation [S4-K])
-- Total baseline: **1335 passing checks** across 10 test layers. Sprint 4 is ✅ COMPLETE — v1.0.0 release-ready (tag + GitHub release pending user authorization).
+  - `bash tests/integration/sprint-5.sh` — 43 assertions (GitLab CI provider wiring [S5-A] + live PostgreSQL team-mode walk [S5-B] + release script + workflow [S5-C] + placeholder for S5-D)
+- Total baseline: **1401 passing checks** across **11 test layers**. Sprint 4 ✅ COMPLETE + v1.0.0 shipped. Sprint 5 in progress (S5-01..04 ✅, S5-05..07 pending).
 - **Bonus (not in baseline):** `examples/demo-app/` ships its own 45-test vitest suite — run with `cd examples/demo-app && npm install && npm test`.
 
 ## Coding Conventions

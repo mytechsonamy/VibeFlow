@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createGithubClient, CiConfigError, } from "./client.js";
+import { createGithubClient, createGitlabClient, CiConfigError, } from "./client.js";
 import { triggerPipeline, getPipelineStatus, fetchArtifacts, deploy, rollback, } from "./pipelines.js";
 const KvObject = z.record(z.string());
 const TriggerPipelineInput = z.object({
@@ -69,8 +69,23 @@ export function buildTools(opts = {}) {
             }
         }
         if (requested === "gitlab") {
-            throw new CiConfigError("ci_provider 'gitlab' is declared but the GitLab client is not implemented yet. " +
-                "Set ci_provider to 'github' or remove the override.");
+            // GitLab treats the (owner, repo) pair as a single "namespace/name"
+            // project path. The tool handlers still pass both for
+            // provider-agnostic compatibility; we collapse them here.
+            const projectId = `${owner}/${repo}`;
+            try {
+                return createGitlabClient({
+                    projectId,
+                    token: opts.token,
+                    baseUrl: opts.baseUrl,
+                    fetchImpl: opts.fetchImpl,
+                });
+            }
+            catch (err) {
+                if (err instanceof CiConfigError)
+                    throw err;
+                throw err;
+            }
         }
         throw new CiConfigError(`unknown ci_provider '${requested}'. Supported values: 'github', 'gitlab'.`);
     };

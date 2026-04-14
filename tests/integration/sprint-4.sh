@@ -95,10 +95,10 @@ echo "== [S4-C] MCP test count regression guard =="
 # harness fails loudly. Update these numbers ONLY when the real
 # counts go up. Same discipline as hooks/tests/run.sh's count floors.
 declare -a TEST_FLOORS=(
-  "sdlc-engine:104"
+  "sdlc-engine:105"
   "codebase-intel:48"
   "design-bridge:57"
-  "dev-ops:43"
+  "dev-ops:62"
   "observability:76"
 )
 

@@ -1767,6 +1767,86 @@ assert_contains "get_state returns projectId smoke" 'projectId' "$GET_STATE_LINE
 assert_contains "get_state body names the smoke project" 'smoke' "$GET_STATE_LINE"
 assert_contains "get_state starts at REQUIREMENTS" 'REQUIREMENTS' "$GET_STATE_LINE"
 
+# ----- Bug #13 cross-process reproducer (Sprint 5 / S5-01) -----
+#
+# getOrInit() used to wrap its read inside store.transact(), which on
+# an existing project returned `{ next: current, result: current }`
+# — same revision — and failed the mutator's `next.revision ===
+# current.revision + 1` assertion. Net effect: `sdlc_get_state`
+# crashed on any project that had been written to before.
+#
+# The bug was caught by sprint-4 [S4-K] during S4-09 and fixed in
+# engine.getOrInit by adding a store.read() fast path. The in-process
+# regression test in mcp-servers/sdlc-engine/tests/engine.test.ts
+# guards the unit layer; this block guards the cross-process MCP
+# JSON-RPC layer — the path the real Claude Code plugin actually
+# takes. A future regression in engine.getOrInit shows up HERE in
+# the platform baseline harness, not just sprint-4.
+#
+# Flow:
+#   1. First engine invocation writes to the project (satisfy +
+#      advance), so the state.db has a row at revision > 1.
+#   2. Second engine invocation calls sdlc_get_state on that same
+#      project. This is the path that used to crash.
+#   3. We assert the response is NOT an error AND contains the
+#      expected post-walk phase (DESIGN).
+
+BUG13_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-int-bug13-XXXXXX")"
+export VIBEFLOW_SQLITE_PATH="$BUG13_DIR/state.db"
+export VIBEFLOW_PROJECT="bug13"
+export VIBEFLOW_MODE="solo"
+
+# Phase 1: write the project into existence.
+node "$ENGINE_DIST" <<'EOF' >/dev/null 2>&1
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"bug13","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"sdlc_satisfy_criterion","arguments":{"projectId":"bug13","criterion":"prd.approved"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sdlc_satisfy_criterion","arguments":{"projectId":"bug13","criterion":"testability.score>=60"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"sdlc_record_consensus","arguments":{"projectId":"bug13","phase":"REQUIREMENTS","agreement":0.95,"criticalIssues":0}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"sdlc_advance_phase","arguments":{"projectId":"bug13","to":"DESIGN"}}}
+EOF
+assert_eq "bug #13 reproducer: phase-1 writes completed" "0" "$?"
+
+# state.db must exist on disk now — this proves the writes landed.
+if [[ -f "$BUG13_DIR/state.db" ]]; then
+  pass "bug #13 reproducer: state.db persisted after phase-1 writes"
+else
+  fail "bug #13 reproducer: state.db persisted after phase-1 writes"
+fi
+
+# Phase 2: read-after-write. The failing path in Bug #13.
+BUG13_OUT="$(node "$ENGINE_DIST" <<'EOF' 2>/dev/null
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"bug13","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"sdlc_get_state","arguments":{"projectId":"bug13"}}}
+EOF
+)"
+
+# The get_state response must NOT be an error envelope. Before the
+# fix this line would fail with:
+#   "revision must increment by exactly 1 (expected N+1, got N)"
+BUG13_LINE="$(echo "$BUG13_OUT" | grep '"id":2')"
+if [[ -z "$BUG13_LINE" ]]; then
+  fail "bug #13 reproducer: phase-2 get_state produced no response"
+elif [[ "$BUG13_LINE" == *'"isError":true'* ]]; then
+  fail "bug #13 reproducer: phase-2 get_state returned an error envelope"
+elif [[ "$BUG13_LINE" == *"revision must increment"* ]]; then
+  fail "bug #13 reproducer: phase-2 get_state tripped the mutator revision check"
+else
+  pass "bug #13 reproducer: phase-2 get_state succeeds on an existing project"
+fi
+
+# The returned state must reflect the post-walk phase, DESIGN.
+assert_contains "bug #13 reproducer: get_state returns DESIGN after advance" 'DESIGN' "$BUG13_LINE"
+
+rm -rf "$BUG13_DIR"
+unset VIBEFLOW_SQLITE_PATH VIBEFLOW_PROJECT VIBEFLOW_MODE
+
+# Restore the smoke env for the rest of [4].
+export VIBEFLOW_SQLITE_PATH="$SMOKE_DIR/state.db"
+export VIBEFLOW_PROJECT="smoke"
+export VIBEFLOW_MODE="solo"
+
 rm -rf "$SMOKE_DIR"
 unset VIBEFLOW_SQLITE_PATH VIBEFLOW_PROJECT VIBEFLOW_MODE
 

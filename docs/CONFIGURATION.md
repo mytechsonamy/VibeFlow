@@ -138,7 +138,7 @@ and are typically secrets or personal preferences.
 | `gemini_model` | no | Google model id used by `gemini` CLI during consensus review. Empty disables Gemini reviews. |
 | `figma_token` | **yes** | Figma personal access token for `design-bridge`. Create at figma.com → Settings → Personal access tokens. Empty disables Figma-dependent skills. |
 | `github_token` | **yes** | GitHub PAT for `dev-ops`. Needs `actions:write` + `contents:read` minimum. Empty disables CI-dependent skills. |
-| `ci_provider` | no | Which CI/CD system the `dev-ops` MCP targets: `"github"` (default — GitHub Actions) or `"gitlab"` (GitLab CI). Unknown values raise a loud `CiConfigError` at first call. As of v1.0 the GitLab client is declared but not yet implemented — set this to `gitlab` only when the corresponding `createGitlabClient` lands. |
+| `ci_provider` | no | Which CI/CD system the `dev-ops` MCP targets: `"github"` (default — GitHub Actions via the `createGithubClient`) or `"gitlab"` (GitLab CI via the `createGitlabClient`, added in v1.0.1 / Sprint 5 / S5-02). Unknown values raise a loud `CiConfigError` at first call. For GitLab, the `owner`/`repo` tool arguments are collapsed into the GitLab "namespace/name" project path. |
 
 Set these via Claude Code's plugin settings UI, NOT by editing
 `.claude-plugin/plugin.json` by hand — that file is plugin source.

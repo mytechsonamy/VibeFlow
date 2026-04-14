@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CiProvider,
   createGithubClient,
+  createGitlabClient,
   FetchImpl,
   CiConfigError,
 } from "./client.js";
@@ -102,10 +103,21 @@ export function buildTools(opts: BuildToolsOptions = {}): ToolDefinition[] {
       }
     }
     if (requested === "gitlab") {
-      throw new CiConfigError(
-        "ci_provider 'gitlab' is declared but the GitLab client is not implemented yet. " +
-          "Set ci_provider to 'github' or remove the override.",
-      );
+      // GitLab treats the (owner, repo) pair as a single "namespace/name"
+      // project path. The tool handlers still pass both for
+      // provider-agnostic compatibility; we collapse them here.
+      const projectId = `${owner}/${repo}`;
+      try {
+        return createGitlabClient({
+          projectId,
+          token: opts.token,
+          baseUrl: opts.baseUrl,
+          fetchImpl: opts.fetchImpl,
+        });
+      } catch (err) {
+        if (err instanceof CiConfigError) throw err;
+        throw err;
+      }
     }
     throw new CiConfigError(
       `unknown ci_provider '${requested}'. Supported values: 'github', 'gitlab'.`,

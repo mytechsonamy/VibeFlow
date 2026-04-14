@@ -13,11 +13,11 @@
  * via the .mcp.json `env` block. Tests inject a stub provider via
  * `createGithubClient({ fetchImpl, token })`.
  *
- * Only GitHub Actions is implemented in Sprint 3 — the
- * CiProvider interface is here so GitLab CI can land later without
- * touching tools.ts. When the GitLab impl arrives it will drop into
- * `createGitlabClient(...)` and the tool handlers will pick the
- * provider by config.
+ * Sprint 3 shipped the GitHub client; Sprint 5 adds the GitLab
+ * client. Both implement the same narrow CiProvider interface so
+ * tools.ts stays provider-agnostic and routes requests through the
+ * CI_PROVIDER environment variable (sourced from the `ci_provider`
+ * userConfig key).
  */
 
 export type FetchImpl = (
@@ -283,6 +283,243 @@ export class CiConfigError extends Error {
     super(message);
     this.name = "CiConfigError";
   }
+}
+
+// ===========================================================================
+// GitLab CI client (Sprint 5 / S5-02)
+// ===========================================================================
+//
+// Mirrors the GitHub client shape so tools.ts can switch providers
+// via the CI_PROVIDER env. Differences from the GitHub path:
+//
+//   - Auth uses the `PRIVATE-TOKEN: <token>` header, not Bearer
+//   - Base URL defaults to https://gitlab.com/api/v4 (self-hosted
+//     instances pass their own `baseUrl`)
+//   - Project id is a numeric id OR an URL-encoded "namespace/name"
+//   - Trigger endpoint: POST /projects/:id/pipeline
+//   - Status endpoint: GET /projects/:id/pipelines/:pipeline_id
+//   - Artifacts: GET /projects/:id/pipelines/:pipeline_id/jobs
+//     returns the job list; we project each job's artifacts_file
+//     (when present) into the normalized PipelineArtifact shape
+//   - Pipeline statuses map differently:
+//       created / waiting_for_resource / preparing / pending / scheduled / manual → queued
+//       running                                                                   → in_progress
+//       success / failed / canceled / skipped                                     → completed
+//     with the terminal verdict in `conclusion`.
+
+export interface GitlabClientOptions {
+  /**
+   * Project identifier. Accepts either the numeric project id ("42")
+   * or the URL-path-encoded full path ("group/subgroup/repo"). The
+   * client URL-encodes the value automatically.
+   */
+  readonly projectId: string;
+  readonly token?: string;
+  /** Defaults to `https://gitlab.com/api/v4`. Trailing slash stripped. */
+  readonly baseUrl?: string;
+  readonly fetchImpl?: FetchImpl;
+}
+
+export function createGitlabClient(opts: GitlabClientOptions): CiProvider {
+  const token = opts.token ?? process.env.GITLAB_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
+  if (!token) {
+    throw new CiConfigError(
+      "GITLAB_TOKEN is required. Set it via plugin userConfig " +
+        "(github_token is reused when you set ci_provider=gitlab, or " +
+        "export GITLAB_TOKEN for local dev).",
+    );
+  }
+  if (!opts.projectId) {
+    throw new CiConfigError(
+      "projectId is required for the GitLab client (either the " +
+        "numeric project id or the 'group/name' path).",
+    );
+  }
+  const baseUrl = (opts.baseUrl ?? "https://gitlab.com/api/v4").replace(/\/$/, "");
+  const fetchImpl = opts.fetchImpl ?? defaultFetch();
+  const projectPath = encodeURIComponent(opts.projectId);
+
+  async function request<T>(
+    path: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<T> {
+    const url = `${baseUrl}${path}`;
+    let res: FetchResponse;
+    try {
+      res = await fetchImpl(url, {
+        method: init.method ?? "GET",
+        headers: {
+          "PRIVATE-TOKEN": token,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      });
+    } catch (err) {
+      throw new CiClientError(
+        `gitlab request failed (transport): ${(err as Error).message}`,
+        { status: 0, path },
+      );
+    }
+    if (!res.ok) {
+      let snippet = "";
+      try {
+        snippet = (await res.text()).slice(0, 200);
+      } catch {
+        snippet = "<unreadable response body>";
+      }
+      throw new CiClientError(
+        `gitlab ${res.status} ${res.statusText} on ${path}: ${snippet}`,
+        { status: res.status, path },
+      );
+    }
+    const body = await res.text();
+    if (body === "") return {} as T;
+    try {
+      return JSON.parse(body) as T;
+    } catch {
+      throw new CiClientError(
+        `gitlab response was not valid JSON on ${path}: ${body.slice(0, 120)}`,
+        { status: res.status, path },
+      );
+    }
+  }
+
+  return {
+    name: "gitlab",
+
+    async triggerWorkflow(input) {
+      if (!input.workflow) {
+        throw new CiClientError("workflow is required", { status: 0, path: "" });
+      }
+      if (!input.ref) {
+        throw new CiClientError("ref is required", { status: 0, path: "" });
+      }
+      if (/\s/.test(input.ref)) {
+        throw new CiClientError(`ref contains whitespace: ${JSON.stringify(input.ref)}`, {
+          status: 0,
+          path: "",
+        });
+      }
+      // GitLab has no "workflow file" concept like GitHub Actions;
+      // pipelines are defined by .gitlab-ci.yml in the repo. We use
+      // the `variables` payload to let callers inject a WORKFLOW
+      // selector plus any additional inputs — consumers should
+      // gate their jobs on `$WORKFLOW == "<name>"` in .gitlab-ci.yml.
+      const variables: Array<{ key: string; value: string }> = [
+        { key: "WORKFLOW", value: input.workflow },
+      ];
+      if (input.inputs) {
+        for (const [k, v] of Object.entries(input.inputs)) {
+          variables.push({ key: k, value: String(v) });
+        }
+      }
+      const result = await request<GitlabPipelinePayload>(
+        `/projects/${projectPath}/pipeline`,
+        {
+          method: "POST",
+          body: { ref: input.ref, variables },
+        },
+      );
+      const runId = result.id ?? "unknown";
+      return {
+        accepted: true,
+        note: `created pipeline ${runId} on ${input.ref} with WORKFLOW=${input.workflow}`,
+      };
+    },
+
+    async getRun(runId) {
+      const raw = await request<GitlabPipelinePayload>(
+        `/projects/${projectPath}/pipelines/${encodeURIComponent(runId)}`,
+      );
+      return normalizeGitlabRun(raw);
+    },
+
+    async listArtifacts(runId) {
+      const jobs = await request<readonly GitlabJobPayload[]>(
+        `/projects/${projectPath}/pipelines/${encodeURIComponent(runId)}/jobs`,
+      );
+      const out: PipelineArtifact[] = [];
+      for (const job of jobs ?? []) {
+        if (!job.artifacts_file || !job.artifacts_file.filename) continue;
+        out.push({
+          id: String(job.id),
+          name: job.artifacts_file.filename,
+          sizeBytes: job.artifacts_file.size ?? 0,
+          downloadUrl: `${baseUrl}/projects/${projectPath}/jobs/${encodeURIComponent(
+            String(job.id),
+          )}/artifacts`,
+          expired: job.artifacts_expire_at
+            ? Date.parse(job.artifacts_expire_at) < Date.now()
+            : false,
+        });
+      }
+      return out;
+    },
+  };
+}
+
+interface GitlabPipelinePayload {
+  id?: number | string;
+  status?: string;
+  web_url?: string;
+  created_at?: string;
+  updated_at?: string;
+  sha?: string | null;
+  ref?: string | null;
+}
+
+interface GitlabJobPayload {
+  id: number | string;
+  name?: string;
+  artifacts_file?: { filename?: string; size?: number } | null;
+  artifacts_expire_at?: string | null;
+}
+
+function normalizeGitlabRun(raw: GitlabPipelinePayload): PipelineRun {
+  const rawStatus = raw.status ?? "";
+  const status = normalizeGitlabStatus(rawStatus);
+  const conclusion = status === "completed" ? normalizeGitlabConclusion(rawStatus) : null;
+  return {
+    id: String(raw.id ?? "0"),
+    status,
+    conclusion,
+    url: raw.web_url ?? "",
+    createdAt: raw.created_at ?? "",
+    updatedAt: raw.updated_at ?? raw.created_at ?? "",
+    headSha: raw.sha ?? null,
+    workflow: raw.ref ?? null,
+  };
+}
+
+function normalizeGitlabStatus(s: string): PipelineRun["status"] {
+  if (
+    s === "created" ||
+    s === "waiting_for_resource" ||
+    s === "preparing" ||
+    s === "pending" ||
+    s === "scheduled" ||
+    s === "manual"
+  ) {
+    return "queued";
+  }
+  if (s === "running") return "in_progress";
+  if (s === "success" || s === "failed" || s === "canceled" || s === "skipped") {
+    return "completed";
+  }
+  // Unknown status — treat as queued so downstream consumers don't
+  // mistakenly interpret it as a terminal verdict.
+  return "queued";
+}
+
+function normalizeGitlabConclusion(s: string): PipelineRun["conclusion"] {
+  if (s === "success") return "success";
+  if (s === "failed") return "failure";
+  if (s === "canceled") return "cancelled";
+  if (s === "skipped") return "skipped";
+  // Terminal status we don't know yet — default to neutral so
+  // downstream consumers can pattern-match.
+  return "neutral";
 }
 
 function defaultFetch(): FetchImpl {

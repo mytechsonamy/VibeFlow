@@ -13,11 +13,11 @@
  * via the .mcp.json `env` block. Tests inject a stub provider via
  * `createGithubClient({ fetchImpl, token })`.
  *
- * Only GitHub Actions is implemented in Sprint 3 — the
- * CiProvider interface is here so GitLab CI can land later without
- * touching tools.ts. When the GitLab impl arrives it will drop into
- * `createGitlabClient(...)` and the tool handlers will pick the
- * provider by config.
+ * Sprint 3 shipped the GitHub client; Sprint 5 adds the GitLab
+ * client. Both implement the same narrow CiProvider interface so
+ * tools.ts stays provider-agnostic and routes requests through the
+ * CI_PROVIDER environment variable (sourced from the `ci_provider`
+ * userConfig key).
  */
 export type FetchImpl = (input: string, init?: {
     method?: string;
@@ -81,3 +81,16 @@ export declare class CiClientError extends Error {
 export declare class CiConfigError extends Error {
     constructor(message: string);
 }
+export interface GitlabClientOptions {
+    /**
+     * Project identifier. Accepts either the numeric project id ("42")
+     * or the URL-path-encoded full path ("group/subgroup/repo"). The
+     * client URL-encodes the value automatically.
+     */
+    readonly projectId: string;
+    readonly token?: string;
+    /** Defaults to `https://gitlab.com/api/v4`. Trailing slash stripped. */
+    readonly baseUrl?: string;
+    readonly fetchImpl?: FetchImpl;
+}
+export declare function createGitlabClient(opts: GitlabClientOptions): CiProvider;

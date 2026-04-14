@@ -1,0 +1,115 @@
+name: release
+
+# Triggered when a vX.Y.Z tag is pushed. The tag itself is created
+# locally by bin/release.sh (which also writes the CHANGELOG and
+# bumps plugin.json). This workflow's job is the public side: build
+# the tarball + sha256 manifest fresh inside a clean runner and
+# attach them to the GitHub release that corresponds to the tag.
+#
+# The workflow does NOT generate the tag or the release notes —
+# those come from the locally-authored tag + CHANGELOG. That split
+# keeps the "public-facing actions wait for explicit authorization"
+# rule from Sprint 4 intact: the tag push is the authorization
+# event, and the runner just mirrors the already-committed artifacts.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write  # needed to upload the tarball to the release
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout at the tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the release notes extraction
+                         # can cross-reference commits if we extend it later
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install jq + sqlite3 (runner already has them, this is a safety net)
+        run: |
+          which jq sqlite3 || sudo apt-get update && sudo apt-get install -y jq sqlite3
+
+      - name: Install MCP server dependencies
+        run: |
+          for mcp in sdlc-engine codebase-intel design-bridge dev-ops observability; do
+            (cd "mcp-servers/$mcp" && npm ci)
+          done
+
+      - name: Rebuild all MCP server dists
+        run: ./build-all.sh
+
+      - name: Pre-flight test gauntlet
+        run: |
+          set -e
+          for mcp in sdlc-engine codebase-intel design-bridge dev-ops observability; do
+            (cd "mcp-servers/$mcp" && npm test)
+          done
+          bash hooks/tests/run.sh
+          bash tests/integration/run.sh
+          bash tests/integration/sprint-2.sh
+          bash tests/integration/sprint-3.sh
+          bash tests/integration/sprint-4.sh
+          # Skip sprint-5.sh [S5-B] in CI unless the runner has
+          # docker; the opt-out keeps the workflow green even when
+          # the live-Postgres walk can't run.
+          VF_SKIP_LIVE_POSTGRES=1 bash tests/integration/sprint-5.sh
+
+      - name: Package plugin tarball
+        run: ./package-plugin.sh --skip-build
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tarball=vibeflow-plugin-$VERSION.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Verify plugin.json version matches tag
+        run: |
+          MANIFEST_VERSION="$(jq -r '.version' .claude-plugin/plugin.json)"
+          if [[ "$MANIFEST_VERSION" != "${{ steps.version.outputs.version }}" ]]; then
+            echo "plugin.json version ($MANIFEST_VERSION) does not match tag (${{ steps.version.outputs.version }})" >&2
+            exit 1
+          fi
+
+      - name: Generate sha256 manifest
+        run: |
+          shasum -a 256 "${{ steps.version.outputs.tarball }}" \
+            > "${{ steps.version.outputs.tarball }}.sha256"
+          cat "${{ steps.version.outputs.tarball }}.sha256"
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '
+            BEGIN { capture = 0 }
+            /^## \[/ {
+              if (capture == 1) exit
+              if ($0 ~ "^## \\[" v "\\]") capture = 1
+            }
+            capture == 1 { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          head -20 /tmp/release-notes.md
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: /tmp/release-notes.md
+          files: |
+            ${{ steps.version.outputs.tarball }}
+            ${{ steps.version.outputs.tarball }}.sha256
+          fail_on_unmatched_files: true

@@ -250,17 +250,51 @@ describe("MCP tool handlers", () => {
       expect(result.provider).toBe("github");
     });
 
-    it("raises CiConfigError on CI_PROVIDER=gitlab (not yet implemented)", async () => {
+    // Sprint 5 / S5-02: CI_PROVIDER=gitlab now routes to the real
+    // GitLab client. The "not yet implemented" error path is gone.
+    it("routes CI_PROVIDER=gitlab through the GitLab client", async () => {
       process.env.CI_PROVIDER = "gitlab";
-      const tools = buildTools({ token: "x" });
-      await expect(
-        byName(tools, "do_trigger_pipeline").handler({
-          owner: "o",
-          repo: "r",
-          workflow: "ci.yml",
-          ref: "main",
-        }),
-      ).rejects.toThrow(/gitlab.*not implemented/i);
+      const mock = createMockFetch({});
+      // GitLab accepts the project-create endpoint with a POST + JSON body.
+      const tools = buildTools({
+        token: "glpat_fake",
+        fetchImpl: async (url, init) => {
+          // Assert we're hitting a GitLab endpoint, not a GitHub one.
+          if (!url.includes("/projects/") || !url.includes("/pipeline")) {
+            throw new Error(`unexpected URL: ${url}`);
+          }
+          // Assert auth header is PRIVATE-TOKEN, not Bearer.
+          const auth = (init?.headers ?? {})["PRIVATE-TOKEN"];
+          if (auth !== "glpat_fake") {
+            throw new Error(`expected PRIVATE-TOKEN header, got ${JSON.stringify(init?.headers)}`);
+          }
+          return {
+            ok: true,
+            status: 201,
+            statusText: "Created",
+            text: async () =>
+              JSON.stringify({
+                id: 4242,
+                status: "pending",
+                web_url: "https://gitlab.com/o/r/-/pipelines/4242",
+                created_at: "2026-04-13T00:00:00Z",
+                ref: "main",
+                sha: "abc123",
+              }),
+          };
+        },
+      });
+      const result = (await byName(tools, "do_trigger_pipeline").handler({
+        owner: "o",
+        repo: "r",
+        workflow: "ci-lint",
+        ref: "main",
+      })) as { accepted: boolean; provider: string; workflow: string };
+      expect(result.accepted).toBe(true);
+      expect(result.provider).toBe("gitlab");
+      expect(result.workflow).toBe("ci-lint");
+      // Swallow unused mock reference
+      void mock;
     });
 
     it("raises CiConfigError on an unknown CI_PROVIDER value", async () => {
