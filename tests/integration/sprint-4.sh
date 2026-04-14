@@ -442,12 +442,17 @@ for key in name version description author homepage repository bugs license keyw
   fi
 done
 
-# Version is the literal "1.0.0" — the v1.0 release gate.
+# Version must match the latest released X.Y.Z — post-v1.0.0 this
+# bumps with every patch release. The sprint-4 harness owns this
+# check because it's the plugin-manifest section; the release.sh
+# preflight runs it on every new release, so the expected version
+# has to be bumped here as part of the release commit.
 PLUGIN_VERSION="$(jq -r '.version' "$PLUGIN")"
-if [[ "$PLUGIN_VERSION" == "1.0.0" ]]; then
-  pass "plugin.json version == 1.0.0"
+EXPECTED_PLUGIN_VERSION="1.0.1"
+if [[ "$PLUGIN_VERSION" == "$EXPECTED_PLUGIN_VERSION" ]]; then
+  pass "plugin.json version == $EXPECTED_PLUGIN_VERSION"
 else
-  fail "plugin.json version == 1.0.0 (got: $PLUGIN_VERSION)"
+  fail "plugin.json version == $EXPECTED_PLUGIN_VERSION (got: $PLUGIN_VERSION)"
 fi
 
 # Repository must be the structured form ({ type, url }), not a bare string.
@@ -873,11 +878,11 @@ else
     fail "tarball extracts cleanly to a fresh dir"
   fi
 
-  # Manifest is parseable + version matches.
-  if jq -e '.version == "1.0.0"' "$S4K_PLUGIN/.claude-plugin/plugin.json" >/dev/null 2>&1; then
-    pass "extracted plugin.json reports version 1.0.0"
+  # Manifest is parseable + version matches the current release.
+  if jq -e --arg v "$EXPECTED_PLUGIN_VERSION" '.version == $v' "$S4K_PLUGIN/.claude-plugin/plugin.json" >/dev/null 2>&1; then
+    pass "extracted plugin.json reports version $EXPECTED_PLUGIN_VERSION"
   else
-    fail "extracted plugin.json reports version 1.0.0"
+    fail "extracted plugin.json reports version $EXPECTED_PLUGIN_VERSION"
   fi
 
   # Every MCP server dist/index.js exists in the extracted tree AND

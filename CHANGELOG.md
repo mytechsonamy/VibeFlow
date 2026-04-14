@@ -7,6 +7,157 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] — 2026-04-14
+
+Post-v1.0 maintenance release. Closes the forward-looking stubs that
+landed in v1.0.0, adds real-world coverage the original release did
+not have time for, and ships the marketplace-publish workflow so
+future v1.0.x releases are reproducible without hand surgery.
+
+**No breaking changes.** No new SDLC skills — this sprint is
+maintenance + missing-piece closure. Skill work returns in v1.1
+(Sprint 6+).
+
+### Added
+
+- **GitLab CI provider** — `dev-ops` MCP server now supports
+  `ci_provider: gitlab` end-to-end. New `createGitlabClient` in
+  `mcp-servers/dev-ops/src/client.ts` (155 LoC) with `PRIVATE-TOKEN`
+  auth, status normalization (10+ GitLab states → 3-value
+  `queued`/`in_progress`/`completed`), URL-encoded `namespace/name`
+  project paths, `artifacts_expire_at` expiry detection, and lazy
+  construction parity with the GitHub client. Token resolution order:
+  explicit → `GITLAB_TOKEN` → `GITHUB_TOKEN`. The "not yet
+  implemented" stub is removed from `tools.ts`. 19 new vitest cases
+  in `tests/gitlab-client.test.ts`. (S5-02)
+- **Live PostgreSQL team-mode integration test** — new
+  `bin/with-postgres.sh` wrapper spins up a throwaway
+  `postgres:14-alpine` container, exports `DATABASE_URL` +
+  `VIBEFLOW_POSTGRES_URL`, and tears down on exit/error/interrupt.
+  Configurable via `VF_PG_*` env vars. `sprint-5.sh [S5-B]` drives
+  the engine through a phase-1-writes / phase-2-read-in-fresh-process
+  walk against the real `pg` wire protocol — the hand-rolled
+  `FakePool` unit tests from Sprint 1 never exercised this path. `pg`
+  moved from `optionalDependencies` to regular `dependencies` in
+  `sdlc-engine/package.json` (dynamic import path preserved, so
+  solo-mode users are not forced to carry it). Gracefully skips when
+  docker / pg / `VF_SKIP_LIVE_POSTGRES=1`. (S5-03)
+- **`bin/release.sh`** — 7-step release-prep script (working-tree
+  cleanliness → strict SemVer validation → preflight gauntlet across
+  all 11 layers → `plugin.json` bump → CHANGELOG stub insertion →
+  `build-all.sh` + `package-plugin.sh` → sha256 manifest → local
+  commit + annotated tag). **Does not push** — tag/release push is
+  user-gated (same discipline as v1.0.0 in Sprint 4 / S4-07).
+  `--check-clean` exit-code-only mode for CI / harness use.
+  `--dry-run` walks the pipeline without writing any files. Strict
+  SemVer (rejects `1.0.1-beta` and build-metadata suffixes). (S5-04)
+- **`.github/workflows/release.yml`** — tag-push-triggered GitHub
+  Actions workflow (`v*.*.*`). Rebuilds dists, runs the full test
+  gauntlet with `VF_SKIP_LIVE_POSTGRES=1`, packages the tarball,
+  verifies `plugin.json` version matches the tag, generates sha256,
+  extracts release notes from CHANGELOG via awk, and uploads via
+  `softprops/action-gh-release@v2`. (S5-04)
+- **Second demo — `examples/nextjs-demo/`** — parallel to the
+  existing TypeScript-only demo. Next.js 14 app-router project with
+  two React Server Component pages, one `"use server"` action, and
+  14 numbered requirements across `PROD-*` / `REV-*` / `ACT-*` /
+  `PAGE-*` families. 41 vitest tests (14 catalog + 18 reviews + 9
+  action) covering every branch without booting Next.js. Pre-baked
+  VibeFlow artifacts: `prd-quality-report.md` (APPROVED, testability
+  86), `scenario-set.md` (14 scenarios), `test-strategy.md`,
+  `release-decision.md` (**GO 91/100**). `docs/NEXTJS-DEMO-WALKTHROUGH.md`
+  parallels the existing demo's walkthrough. `package-plugin.sh`
+  whitelist extended to ship the new demo; `.next/` added to the
+  `find -prune` list so a future `next build` does not leak build
+  artifacts into the tarball. (S5-05)
+- **Bug #13 cross-process reproducer in the platform baseline** —
+  `tests/integration/run.sh [4]` now drives two engine invocations
+  against the same `state.db`: a writer (REQUIREMENTS → DESIGN) and
+  a fresh reader that calls `sdlc_get_state`. Before the Sprint 4
+  fix to `engine.getOrInit()` this path crashed with "revision must
+  increment by exactly 1". The new reproducer fires exactly the two
+  expected failures when the fix is reverted — gold-standard
+  verified. (S5-01) The same reproducer is **mirrored in
+  `sprint-5.sh [S5-E]`** so contributors who only run the Sprint 5
+  harness still catch the regression. (S5-06)
+
+### Changed
+
+- **`mcp-servers/sdlc-engine/package.json`** — `pg` moved from
+  `optionalDependencies` to `dependencies` so team-mode users do not
+  need to manually install the peer. Solo-mode users are still
+  unaffected (`openStore` dynamic-imports pg only when team mode is
+  requested).
+- **`package-plugin.sh`** — whitelist extended to include
+  `examples/nextjs-demo/{app,lib,actions,docs,tests,.vibeflow/reports}`
+  plus the standard manifest files. `find -prune` list grew to
+  include `.next/` alongside `node_modules`, `__pycache__`, `.git`.
+- **`docs/CONFIGURATION.md`** — `ci_provider` row updated to note
+  GitLab is now implemented (v1.0.1 / Sprint 5 / S5-02).
+
+### Fixed
+
+- **`bin/release.sh` CHANGELOG insertion — BSD awk portability.**
+  The original v1.0.0 implementation passed the new version entry
+  through `awk -v entry="$NEW_ENTRY"` which BSD awk on macOS rejects
+  with a "newline in string" runtime error whenever the value
+  contains embedded newlines. awk then exited non-zero, the
+  `&& mv tmp CHANGELOG.md` short-circuited, and release.sh reported
+  success even though CHANGELOG.md was never updated — the v1.0.1
+  release commit would have landed with a stale changelog. The
+  insertion step is rewritten to use `head`/`tail`/`grep` (POSIX,
+  no multiline-variable gotchas) with a post-insertion verification
+  step that refuses to continue if the new version header is not at
+  the top of CHANGELOG.md after the rewrite.
+
+### Test baseline growth
+
+| Version | Test layers | Baseline checks | Bonus suites |
+|---------|-------------|-----------------|--------------|
+| v1.0.0  | 10          | 1255            | demo-app (45) |
+| v1.0.1  | **11** (+ `sprint-5.sh`) | **1445** | demo-app (45) + nextjs-demo (41) |
+
+190-check growth split:
+- `sprint-5.sh` (new harness): 87 assertions — [S5-A] GitLab 23 +
+  [S5-B] Postgres 4 + [S5-C] release 14 + [S5-D] Next.js 41 +
+  [S5-E] Bug #13 mirror 5
+- `run.sh`: +4 (Bug #13 cross-process reproducer)
+- `dev-ops` vitest: +19 (GitLab client)
+- The rest of the delta reflects the test inventory refresh captured
+  across the 5 MCP servers between Sprint 4 and Sprint 5.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A — v1.0.1 is a drop-in replacement for v1.0.0. Users of
+`ci_provider: github` see no change. Users setting
+`ci_provider: gitlab` who previously hit the "not yet implemented"
+error can now configure a real GitLab project via the standard
+`userConfig` key.
+
+### Distribution
+
+- **Tarball**: `./package-plugin.sh` produces
+  `vibeflow-plugin-1.0.1.tar.gz` (grown by the `nextjs-demo` directory).
+- **Local install**: `claude --plugin-dir ~/Projects/VibeFlow`
+- **Marketplace**: `claude plugin install vibeflow@vibeflow-marketplace`
+- **Tag/release push**: user-gated (`bin/release.sh` stops at a
+  local commit + local annotated tag; `git push` + `gh release create`
+  require explicit authorization).
+
+### Documentation
+
+- [Next.js Demo Walkthrough](./examples/nextjs-demo/docs/NEXTJS-DEMO-WALKTHROUGH.md) — new
+- [Getting Started](./docs/GETTING-STARTED.md)
+- [Demo Walkthrough](./examples/demo-app/docs/DEMO-WALKTHROUGH.md) — TypeScript-only, unchanged
+
+[1.0.1]: https://github.com/mustiyildirim/vibeflow/releases/tag/v1.0.1
+
+---
+
 ## [1.0.0] — 2026-04-13
 
 First public release. Production-ready Claude Code plugin orchestrating

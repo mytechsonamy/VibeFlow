@@ -180,13 +180,35 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "  [dry-run] would prepend a new [$VERSION] entry to CHANGELOG.md"
 else
   # Insert the new entry above the previous latest version heading
-  # so the `## [prev]` block stays untouched. Using awk for
-  # portability (sed -i differs between BSD + GNU).
-  awk -v entry="$NEW_ENTRY" '
-    BEGIN { inserted = 0 }
-    /^## \[/ && !inserted { print entry; print ""; inserted = 1 }
-    { print }
-  ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+  # so the `## [prev]` block stays untouched.
+  #
+  # We used to pass NEW_ENTRY through `awk -v entry="$NEW_ENTRY"` but
+  # BSD awk on macOS rejects multiline -v values ("newline in string"
+  # runtime error) and silently fails without writing the insertion,
+  # leaving CHANGELOG.md stale and the release commit missing the new
+  # version header. The head/tail approach below is portable (POSIX
+  # head + tail + grep) and has no multiline-variable gotcha.
+  FIRST_HEADING_LINE="$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d: -f1)"
+  if [[ -z "$FIRST_HEADING_LINE" ]]; then
+    echo "release: CHANGELOG.md has no '## [...]' heading — cannot insert" >&2
+    exit 1
+  fi
+  HEAD_COUNT=$((FIRST_HEADING_LINE - 1))
+  {
+    if (( HEAD_COUNT > 0 )); then
+      head -n "$HEAD_COUNT" CHANGELOG.md
+    fi
+    printf '%s\n\n' "$NEW_ENTRY"
+    tail -n +"$FIRST_HEADING_LINE" CHANGELOG.md
+  } > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+  # Post-insertion verification — refuse to continue if the new
+  # version header is not at the top of the changelog. Catches any
+  # future regression in the insertion logic before the release
+  # commit is made.
+  if ! head -20 CHANGELOG.md | grep -qF "## [$VERSION]"; then
+    echo "release: CHANGELOG.md insertion failed — [$VERSION] header missing" >&2
+    exit 1
+  fi
   echo "  ok   CHANGELOG.md now leads with [$VERSION] — $TODAY"
   echo "  !    remember to fill in the entry before pushing"
 fi
