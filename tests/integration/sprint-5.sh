@@ -12,6 +12,7 @@
 #   [S5-B] — Live PostgreSQL team-mode walk (S5-03, conditional on $DATABASE_URL)
 #   [S5-C] — Release script presence + safety guards (S5-04)
 #   [S5-D] — Next.js demo presence + artifact verdicts (S5-05)
+#   [S5-E] — Bug #13 cross-process reproducer mirror (S5-06)
 #
 # Exit 0 on full pass, 1 otherwise.
 
@@ -372,13 +373,231 @@ if [[ -f "$RELEASE_WORKFLOW" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-echo "== [S5-D] Next.js demo presence =="
+echo "== [S5-D] Next.js demo layout =="
 
-# S5-05 is not yet implemented. Placeholder sentinel.
-if [[ -d "$REPO_ROOT/examples/nextjs-demo" ]]; then
-  fail "[S5-D] examples/nextjs-demo exists — check the S5-05 implementation"
+# S5-05 — examples/nextjs-demo/ must mirror the examples/demo-app/
+# layout, targeted at a Next.js 14 app-router project. File presence
+# + config domain + PRD family declarations + pre-baked artifact
+# verdicts are all asserted here so a future refactor can't silently
+# delete half the demo and still pass CI.
+NEXTJS_DEMO="$REPO_ROOT/examples/nextjs-demo"
+NEXTJS_REQUIRED=(
+  "README.md"
+  ".gitignore"
+  "vibeflow.config.json"
+  "package.json"
+  "tsconfig.json"
+  "vitest.config.ts"
+  "next.config.mjs"
+  "docs/PRD.md"
+  "docs/NEXTJS-DEMO-WALKTHROUGH.md"
+  "app/layout.tsx"
+  "app/page.tsx"
+  "app/products/page.tsx"
+  "app/products/[id]/page.tsx"
+  "lib/catalog.ts"
+  "lib/reviews.ts"
+  "actions/submit-review.ts"
+  "tests/catalog.test.ts"
+  "tests/reviews.test.ts"
+  "tests/action.test.ts"
+  ".vibeflow/reports/prd-quality-report.md"
+  ".vibeflow/reports/scenario-set.md"
+  ".vibeflow/reports/test-strategy.md"
+  ".vibeflow/reports/release-decision.md"
+)
+for rel in "${NEXTJS_REQUIRED[@]}"; do
+  if [[ -f "$NEXTJS_DEMO/$rel" ]]; then
+    pass "nextjs-demo: $rel present"
+  else
+    fail "nextjs-demo: $rel present"
+  fi
+done
+
+# vibeflow.config.json must declare the e-commerce domain + list the
+# Next.js-specific critical paths — the demo's PRD and
+# release-decision weights depend on both.
+if [[ -f "$NEXTJS_DEMO/vibeflow.config.json" ]]; then
+  if jq -e '.domain == "e-commerce"' "$NEXTJS_DEMO/vibeflow.config.json" >/dev/null 2>&1; then
+    pass "nextjs-demo: config domain is e-commerce"
+  else
+    fail "nextjs-demo: config domain is e-commerce"
+  fi
+  if jq -e '.criticalPaths | index("lib/reviews.ts") != null' "$NEXTJS_DEMO/vibeflow.config.json" >/dev/null 2>&1; then
+    pass "nextjs-demo: lib/reviews.ts declared as a critical path"
+  else
+    fail "nextjs-demo: lib/reviews.ts declared as a critical path"
+  fi
+  if jq -e '.criticalPaths | index("actions/submit-review.ts") != null' "$NEXTJS_DEMO/vibeflow.config.json" >/dev/null 2>&1; then
+    pass "nextjs-demo: actions/submit-review.ts declared as a critical path"
+  else
+    fail "nextjs-demo: actions/submit-review.ts declared as a critical path"
+  fi
+fi
+
+# PRD must name every requirement family (PROD/REV/ACT/PAGE) so the
+# rest of the pipeline has something to map onto.
+if [[ -f "$NEXTJS_DEMO/docs/PRD.md" ]]; then
+  for fam in PROD-001 PROD-004 REV-001 REV-004 ACT-001 ACT-003 PAGE-001 PAGE-002; do
+    if grep -q "$fam" "$NEXTJS_DEMO/docs/PRD.md"; then
+      pass "nextjs-demo PRD declares $fam"
+    else
+      fail "nextjs-demo PRD declares $fam"
+    fi
+  done
+fi
+
+# The server action file must start with the "use server" directive
+# — a Next.js 14 requirement. Without it the <form action> wiring
+# would fall back to client-side submission and the whole point of
+# the demo (server actions) would silently regress.
+if [[ -f "$NEXTJS_DEMO/actions/submit-review.ts" ]]; then
+  if head -1 "$NEXTJS_DEMO/actions/submit-review.ts" | grep -q '"use server"'; then
+    pass "nextjs-demo: submit-review.ts starts with \"use server\" directive"
+  else
+    fail "nextjs-demo: submit-review.ts starts with \"use server\" directive"
+  fi
+fi
+
+# The product detail page must import notFound from next/navigation
+# and call it when the product is undefined. PAGE-002.
+DETAIL_PAGE="$NEXTJS_DEMO/app/products/[id]/page.tsx"
+if [[ -f "$DETAIL_PAGE" ]]; then
+  if grep -q 'from "next/navigation"' "$DETAIL_PAGE" && grep -q 'notFound()' "$DETAIL_PAGE"; then
+    pass "nextjs-demo: detail page wires notFound() for unknown products"
+  else
+    fail "nextjs-demo: detail page wires notFound() for unknown products"
+  fi
+  if grep -q 'submitReviewAction' "$DETAIL_PAGE"; then
+    pass "nextjs-demo: detail page wires submitReviewAction as the form handler"
+  else
+    fail "nextjs-demo: detail page wires submitReviewAction as the form handler"
+  fi
+fi
+
+# The products listing page must import + call listProducts(). PAGE-001.
+LIST_PAGE="$NEXTJS_DEMO/app/products/page.tsx"
+if [[ -f "$LIST_PAGE" ]]; then
+  if grep -q 'listProducts' "$LIST_PAGE"; then
+    pass "nextjs-demo: listing page renders via listProducts()"
+  else
+    fail "nextjs-demo: listing page renders via listProducts()"
+  fi
+fi
+
+# Pre-baked release decision must name a GO verdict with the composite
+# score documented in the walkthrough. If a future edit changes the
+# scoring without updating the harness, this fires.
+if [[ -f "$NEXTJS_DEMO/.vibeflow/reports/release-decision.md" ]]; then
+  if grep -q "GO — 91 / 100" "$NEXTJS_DEMO/.vibeflow/reports/release-decision.md"; then
+    pass "nextjs-demo release-decision shows GO 91/100"
+  else
+    fail "nextjs-demo release-decision shows GO 91/100"
+  fi
+fi
+
+# PRD quality report must document an APPROVED verdict above the
+# e-commerce floor (75) so the demo walk-through makes sense.
+if [[ -f "$NEXTJS_DEMO/.vibeflow/reports/prd-quality-report.md" ]]; then
+  if grep -q "APPROVED" "$NEXTJS_DEMO/.vibeflow/reports/prd-quality-report.md"; then
+    pass "nextjs-demo prd-quality report shows APPROVED"
+  else
+    fail "nextjs-demo prd-quality report shows APPROVED"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+echo "== [S5-E] Bug #13 cross-process reproducer (sprint-5 mirror) =="
+
+# S5-06 [S5-E] — the same reproducer already guards run.sh [4]. We
+# mirror it here so a future sprint that touches engine.getOrInit and
+# skips run.sh (e.g. a contributor only runs sprint-5.sh because they
+# only care about Sprint 5 work) still catches the regression.
+#
+# Flow (identical shape to run.sh [4], different project id + state.db
+# directory so the two harnesses don't collide when run in parallel):
+#   1. First engine invocation writes to the project — satisfy x2 +
+#      record_consensus + advance REQUIREMENTS → DESIGN.
+#   2. Second engine invocation calls sdlc_get_state on that same
+#      project. Before the Sprint 4 fix to engine.getOrInit() this
+#      path crashed with "revision must increment by exactly 1".
+#   3. We assert the phase-2 response is NOT an error AND contains
+#      the expected post-walk phase (DESIGN).
+
+ENGINE_DIST_S5E="$REPO_ROOT/mcp-servers/sdlc-engine/dist/index.js"
+
+if [[ ! -f "$ENGINE_DIST_S5E" ]]; then
+  fail "[S5-E] sdlc-engine dist present at $ENGINE_DIST_S5E"
 else
-  pass "[S5-D] examples/nextjs-demo pending (S5-05 open)"
+  pass "[S5-E] sdlc-engine dist present"
+
+  S5E_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-s5e-bug13-XXXXXX")"
+  export VIBEFLOW_SQLITE_PATH="$S5E_DIR/state.db"
+  export VIBEFLOW_PROJECT="s5e-bug13"
+  export VIBEFLOW_MODE="solo"
+
+  # Phase 1: writes — satisfy criteria, record consensus, advance to
+  # DESIGN. The stdout/stderr are discarded; we only care about the
+  # exit code and the side effect (state.db on disk).
+  node "$ENGINE_DIST_S5E" >/dev/null 2>&1 <<'S5E_PHASE1'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"s5e","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"sdlc_satisfy_criterion","arguments":{"projectId":"s5e-bug13","criterion":"prd.approved"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sdlc_satisfy_criterion","arguments":{"projectId":"s5e-bug13","criterion":"testability.score>=60"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"sdlc_record_consensus","arguments":{"projectId":"s5e-bug13","phase":"REQUIREMENTS","agreement":0.95,"criticalIssues":0}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"sdlc_advance_phase","arguments":{"projectId":"s5e-bug13","to":"DESIGN"}}}
+S5E_PHASE1
+  S5E_PHASE1_RC=$?
+  if (( S5E_PHASE1_RC == 0 )); then
+    pass "[S5-E] phase-1 writes completed (engine exit 0)"
+  else
+    fail "[S5-E] phase-1 writes completed (engine exit $S5E_PHASE1_RC)"
+  fi
+
+  # state.db must exist on disk — proves the writes landed and that a
+  # fresh process will see them.
+  if [[ -f "$S5E_DIR/state.db" ]]; then
+    pass "[S5-E] state.db persisted after phase-1 writes"
+  else
+    fail "[S5-E] state.db persisted after phase-1 writes"
+  fi
+
+  # Phase 2: a FRESH engine process calls get_state on the same
+  # project. Before the Sprint 4 fix to engine.getOrInit() this
+  # failed because getOrInit's transact() returned
+  # `{ next: current, result: current }` on an existing row — same
+  # revision — which tripped the mutator's "revision must increment
+  # by exactly 1" assertion.
+  S5E_OUT="$(node "$ENGINE_DIST_S5E" 2>/dev/null <<'S5E_PHASE2'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"s5e-r","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"sdlc_get_state","arguments":{"projectId":"s5e-bug13"}}}
+S5E_PHASE2
+)"
+
+  S5E_LINE="$(echo "$S5E_OUT" | grep '"id":2' || true)"
+  if [[ -z "$S5E_LINE" ]]; then
+    fail "[S5-E] phase-2 get_state produced no response"
+  elif [[ "$S5E_LINE" == *'"isError":true'* ]]; then
+    fail "[S5-E] phase-2 get_state returned an error envelope"
+  elif [[ "$S5E_LINE" == *"revision must increment"* ]]; then
+    fail "[S5-E] phase-2 get_state tripped the mutator revision check (Bug #13 regressed)"
+  else
+    pass "[S5-E] phase-2 get_state succeeds on an existing project"
+  fi
+
+  # The returned state must reflect the post-walk phase, DESIGN.
+  # Without this, a future regression could silently return
+  # REQUIREMENTS (the in-memory default) without tripping the
+  # error-envelope check above.
+  if [[ "$S5E_LINE" == *"DESIGN"* ]]; then
+    pass "[S5-E] phase-2 get_state returns DESIGN after advance"
+  else
+    fail "[S5-E] phase-2 get_state returns DESIGN after advance"
+  fi
+
+  rm -rf "$S5E_DIR"
+  unset VIBEFLOW_SQLITE_PATH VIBEFLOW_PROJECT VIBEFLOW_MODE
 fi
 
 echo

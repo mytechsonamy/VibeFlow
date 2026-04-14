@@ -161,32 +161,90 @@ Postgres row survives independently of any single engine process.
 - **GPG signing of tags/tarballs** — not wired. Users can verify via the sha256 manifest for now; signed tags land in a future hardening sprint.
 - **Automated prerelease workflow** — no beta/rc channel. A prerelease would cut a `v1.0.1-rc.1` tag manually and document the procedure in a separate ticket.
 
-### S5-05: Next.js demo project ⬜ TODO
+### S5-05: Next.js demo project ✅ DONE
 **Location:** `examples/nextjs-demo/`
-**Why now:** the existing `examples/demo-app/` is intentionally a
-non-UI TypeScript project (it's about VibeFlow workflow, not Next.js
-architecture). A second demo aimed at a real Next.js app validates
-that VibeFlow's skills also handle JSX / app router / RSC patterns.
-- [ ] `examples/nextjs-demo/` — minimal Next.js 14 app router project
-- [ ] Sample PRD that scores ≥75 on the e-commerce domain threshold
-- [ ] One real page + one server action + matching tests
-- [ ] Pre-baked VibeFlow artifacts (prd-quality, scenario-set,
-  test-strategy, release-decision)
-- [ ] `docs/NEXTJS-DEMO-WALKTHROUGH.md` parallel to the existing
-  demo's walkthrough
-- [ ] sprint-5.sh sentinel: nextjs-demo presence + structure +
-  artifact verdicts
 
-### S5-06: Sprint 5 integration harness ⬜ TODO
+Paralleling `examples/demo-app/` (pure-TypeScript), this demo targets
+a Next.js 14 **app router** project so VibeFlow's skills are exercised
+against JSX, React Server Components, and server actions — not just
+pure business logic.
+
+**Completed:**
+- [x] **`examples/nextjs-demo/`** — minimal Next.js 14 app router project with `app/layout.tsx` + `app/page.tsx` (redirect to `/products`) + `app/products/page.tsx` (RSC listing) + `app/products/[id]/page.tsx` (RSC detail + review form). No Next boot is required for tests.
+- [x] **Sample PRD** (`docs/PRD.md`) with 14 numbered requirements across 4 families (`PROD-*`, `REV-*`, `ACT-*`, `PAGE-*`) + 3 invariants. Scores **86 / 100** on the pre-baked `prd-quality-analyzer` report, above the e-commerce 75 floor.
+- [x] **Real page + real server action + matching tests:**
+  - `app/products/page.tsx` renders via `listProducts()` (PAGE-001)
+  - `app/products/[id]/page.tsx` calls `notFound()` when `getProduct(id)` is undefined (PAGE-002) and wires `submitReviewAction` as the `<form action>`
+  - `actions/submit-review.ts` starts with `"use server"`, reads FormData, validates via `lib/reviews.ts`, persists via `persistReview(...)`
+  - `lib/catalog.ts` + `lib/reviews.ts` encapsulate all business rules so vitest in the node environment covers every branch without booting Next
+- [x] **41 vitest tests** across 3 files:
+  - `tests/catalog.test.ts` — 14 cases (PROD-001..004 + `formatMoney` + `INV-MONEY-INTEGER`)
+  - `tests/reviews.test.ts` — 18 cases (REV-001..004 + `INV-REV-TEXT-TRIMMED` + `INV-REV-ID-STABLE`)
+  - `tests/action.test.ts` — 9 cases (ACT-001..004 happy + failure paths)
+- [x] **Pre-baked VibeFlow artifacts** at `.vibeflow/reports/`:
+  - `prd-quality-report.md` — APPROVED, testability 86, 0 ambiguous
+  - `scenario-set.md` — 14 scenarios, every P0 requirement mapped
+  - `test-strategy.md` — single-tier unit strategy, 41 tests, critical paths named
+  - `release-decision.md` — **GO 91 / 100** (e-commerce domain)
+- [x] **`docs/NEXTJS-DEMO-WALKTHROUGH.md`** — parallel to `examples/demo-app/docs/DEMO-WALKTHROUGH.md`. Covers project layout, PRD analysis, strategy, phase advance, live vitest run, release decision, and what the demo deliberately does NOT cover.
+- [x] **`tests/integration/sprint-5.sh [S5-D]`** — 39 new sentinels covering:
+  - 23 file-presence checks across the demo layout
+  - 3 vibeflow.config.json checks (e-commerce domain + 2 critical-path entries)
+  - 8 PRD family declarations (PROD/REV/ACT/PAGE)
+  - `"use server"` directive on the action file
+  - `notFound()` wiring + `submitReviewAction` wiring on the detail page
+  - `listProducts()` wiring on the listing page
+  - Release-decision verdict `GO 91 / 100` + PRD-quality `APPROVED`
+- [x] **`package-plugin.sh` whitelist** — extended to include every nextjs-demo directory (`app`, `lib`, `actions`, `docs`, `tests`, `.vibeflow/reports`) + the config / manifest files. `.next/` added to the `find -prune` list so a future `next build` in the demo doesn't leak build artifacts into the tarball.
+- [x] **Smoke-tested live:** `npm install && npm test` from `examples/nextjs-demo/` produces `Test Files 3 passed (3) / Tests 41 passed (41)`.
+
+**Scope decision — what this does NOT cover:**
+- **`next build` in tests** — vitest does not boot Next. Booting Next for a 41-test suite would add ~500 MB of deps and ~30 s of startup per run for no additional signal. The `.tsx` files are validated structurally by `sprint-5.sh [S5-D]`, not by vitest.
+- **Client components or client-side hooks** — the demo is 100% RSC + server actions. A `"use client"` exercise would belong in a follow-up demo if we want to validate the RSC/client boundary.
+- **Database persistence** — the in-memory `SEQ` counter in `lib/reviews.ts` is reset per test via `__resetReviewsForTests()`. A real deploy would swap the store for a DB; that's out of scope for a walkthrough demo.
+
+**Test count deltas:**
+- `tests/integration/sprint-5.sh`: 43 → **82** (+39)
+- Total baseline: 1401 → **1440** (+39)
+- Bonus (not in baseline): nextjs-demo 41 vitest tests (same policy as demo-app's 45 bonus tests)
+
+### S5-06: Sprint 5 integration harness ✅ DONE
 **Location:** `tests/integration/sprint-5.sh`
-**Sections:**
-- [ ] [S5-A] — Live PostgreSQL team-mode walk (S5-03)
-- [ ] [S5-B] — GitLab provider sanity (S5-02)
-- [ ] [S5-C] — Release script presence + safety guards (S5-04)
-- [ ] [S5-D] — Next.js demo presence + artifact verdicts (S5-05)
-- [ ] [S5-E] — Bug #13 cross-process reproducer mirrored here
-  (so a future Sprint that touches the engine catches the
-  regression even without re-running run.sh)
+
+The harness was grown incrementally alongside S5-02..05 — each ticket
+landed its own section in the same file. S5-06 formalizes the
+completed structure and closes the last remaining section ([S5-E],
+the Bug #13 cross-process reproducer mirror). Note: the original
+ticket draft labeled sections Postgres-first, but the actual harness
+is ordered **alphabetically by feature name** (GitLab first), not by
+ticket number — the completed labels below reflect reality.
+
+**Sections (all present + passing):**
+- [x] [S5-A] — GitLab CI provider wiring (S5-02) — 23 sentinels
+- [x] [S5-B] — Live PostgreSQL team-mode walk (S5-03) — 4 sentinels (3 skip-conditional + 1 always-on)
+- [x] [S5-C] — Release script + workflow (S5-04) — 14 sentinels
+- [x] [S5-D] — Next.js demo layout + artifact verdicts (S5-05) — 41 sentinels
+- [x] [S5-E] — Bug #13 cross-process reproducer mirror — 5 sentinels
+  - dist presence + phase-1 writes + state.db persistence +
+    phase-2 get_state not an error envelope + phase-2 returns DESIGN
+  - Uses a distinct project id (`s5e-bug13`) and a dedicated temp
+    `state.db` directory so it does not collide with `run.sh [4]`'s
+    reproducer when both harnesses run in the same session.
+
+**Why the mirror matters:** the Bug #13 fix in `engine.getOrInit()`
+is already guarded at the unit layer (`engine.test.ts`) and in the
+platform baseline (`run.sh [4]`, Sprint 5 / S5-01). The mirror here
+means a contributor who only runs `sprint-5.sh` because they are
+working on Sprint 5 work — and is not rerunning the full baseline —
+still catches a Bug #13 regression. The reproducer shape is
+identical to `run.sh [4]`'s: phase-1 walker writes (REQUIREMENTS →
+DESIGN), phase-2 fresh engine process calls `sdlc_get_state`, then
+the harness asserts the response is not an error envelope and
+contains the expected post-walk phase.
+
+**Test count deltas:**
+- `tests/integration/sprint-5.sh`: 82 → **87** (+5)
+- Total baseline: 1440 → **1445** (+5)
 
 ### S5-07: Sprint 5 closure + v1.0.x release notes ⬜ TODO
 - [ ] CHANGELOG.md `[1.0.1] — <date>` entry covering S5-01..S5-06
@@ -198,9 +256,9 @@ that VibeFlow's skills also handle JSX / app router / RSC patterns.
 ---
 
 ## Next Ticket to Work On
-**S5-05: Next.js demo project** — `examples/nextjs-demo/` parallel to the TypeScript-only demo. Sample PRD + real Next.js 14 app router page + server action + vitest + pre-baked VibeFlow artifacts. Validates that VibeFlow skills handle JSX / RSC patterns, not just pure TypeScript business logic.
+**S5-07: Sprint 5 closure + v1.0.x release notes** — the last remaining ticket. Requires a `CHANGELOG.md [1.0.1]` entry covering S5-01..S5-06, marking Sprint 5 ✅ COMPLETE in this file, updating the CLAUDE.md test layer count (done), and running `bin/release.sh 1.0.1` end-to-end once the user authorizes the actual tag/release push.
 
-## Test inventory (after S5-04)
+## Test inventory (after S5-06)
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
 - mcp-servers/design-bridge: **57 vitest tests**
@@ -211,8 +269,9 @@ that VibeFlow's skills also handle JSX / app router / RSC patterns.
 - tests/integration/sprint-2.sh: **94 bash assertions**
 - tests/integration/sprint-3.sh: **111 bash assertions**
 - tests/integration/sprint-4.sh: **355 bash assertions**
-- tests/integration/sprint-5.sh: **43 bash assertions** (+14 from S5-04 release script + workflow)
-- Total: **1401 passing checks** across **11 test layers**
+- tests/integration/sprint-5.sh: **87 bash assertions** (+5 from S5-06 [S5-E] Bug #13 mirror)
+- Total: **1445 passing checks** across **11 test layers**
+- Bonus (not in baseline): demo-app ships 45 vitest tests + nextjs-demo ships 41 vitest tests
 
 ## Sprint 5 vs Sprint 4 differences
 - **No new SDLC skills.** Sprint 5 is maintenance + missing-piece

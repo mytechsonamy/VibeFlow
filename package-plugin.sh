@@ -104,6 +104,19 @@ WHITELIST=(
   "examples/demo-app/src"
   "examples/demo-app/tests"
   "examples/demo-app/.vibeflow/reports"
+  "examples/nextjs-demo/README.md"
+  "examples/nextjs-demo/vibeflow.config.json"
+  "examples/nextjs-demo/package.json"
+  "examples/nextjs-demo/tsconfig.json"
+  "examples/nextjs-demo/vitest.config.ts"
+  "examples/nextjs-demo/next.config.mjs"
+  "examples/nextjs-demo/.gitignore"
+  "examples/nextjs-demo/docs"
+  "examples/nextjs-demo/app"
+  "examples/nextjs-demo/lib"
+  "examples/nextjs-demo/actions"
+  "examples/nextjs-demo/tests"
+  "examples/nextjs-demo/.vibeflow/reports"
   "docs/GETTING-STARTED.md"
   "docs/CONFIGURATION.md"
   "docs/SKILLS-REFERENCE.md"
@@ -141,6 +154,7 @@ for entry in "${WHITELIST[@]}"; do
       -type d \( \
         -name node_modules -o \
         -name __pycache__ -o \
+        -name .next -o \
         -name .git \
       \) -prune -o \
       -type f \

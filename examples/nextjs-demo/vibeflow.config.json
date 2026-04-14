@@ -1,0 +1,17 @@
+{
+  "project": "nextjs-review-demo",
+  "mode": "solo",
+  "domain": "e-commerce",
+  "currentPhase": "DEVELOPMENT",
+  "tech": {
+    "language": "typescript",
+    "runtime": "node",
+    "framework": "next.js-14-app-router",
+    "testRunner": "vitest"
+  },
+  "criticalPaths": [
+    "lib/reviews.ts",
+    "lib/catalog.ts",
+    "actions/submit-review.ts"
+  ]
+}
