@@ -160,19 +160,55 @@ The `[id]` route is `ƒ (Dynamic)` because the server action wires into the form
 - **Regenerating `.vibeflow/reports/*.md`** — the pre-baked PRD quality / scenario-set / test-strategy / release-decision reports still reference "41 tests" and the old requirement families. Refreshing them is a cosmetic update that belongs in a dedicated "demo re-bake" ticket alongside any future scoring changes. The walkthrough doc notes that pre-baked reports may drift.
 - **`"use client"` component covered by the existing REV-*/ACT-* requirements** — the picker's validation mirrors REV-001 but doesn't introduce a new family. Adding a dedicated `PICK-*` family would invite PRD churn for minimal signal.
 
-### S6-05: GPG-signed release tags + marketplace publish API
-**Location:** `bin/release.sh` + `.github/workflows/release.yml` + `docs/RELEASING.md` (new)
+### S6-05: GPG-signed release tags + RELEASING.md walkthrough ✅ DONE
+**Location:** `bin/release.sh` step [7] + `docs/RELEASING.md` (new) + `tests/integration/sprint-6.sh [S6-C]`
 **Deferred from:** S5-04 scope decision
 
-S5-04's release.sh creates unsigned annotated tags. S6-05 wires GPG
-signing (via `git tag -s`) + documents the key management. Also
-hooks into Claude Code's plugin marketplace API (if/when it exists
-by v1.1) or documents the manual publish flow.
+S4-07's v1.0.0 release and S5-07's v1.0.1 release both shipped with
+annotated (unsigned) tags. S6-05 teaches `bin/release.sh` to sign
+the release tag when a signing key is configured, with a graceful
+fall-back ladder so the script still runs on contributors who have
+no key or have opted out.
 
-- [ ] `git tag -s v$VERSION -m v$VERSION` when a signing key is
-      configured, fallback to annotated-only otherwise
-- [ ] Release workflow verifies the tag signature
-- [ ] New `docs/RELEASING.md` walkthrough covering the full workflow
+**Completed:**
+- [x] **Signed-tag path in `bin/release.sh [7]`** — three-step probe:
+  1. `VF_SKIP_GPG_SIGN=1` → annotated tag even if a key is configured (opt-out for practice releases)
+  2. `git config --get user.signingkey` unset → annotated tag + hint showing how to configure one
+  3. `git tag -s` fails at runtime (passphrase timeout, gpg-agent down, key unreachable) → the half-created signed tag is cleaned up with `git tag -d`, an annotated tag is created instead, and a `WARN` line is printed so the maintainer notices
+- [x] **`TAG_MODE` tracking variable** — set to `"signed"` on the happy path and `"annotated"` on any fall-back. The "Release prepared locally" hint block at the bottom of the script surfaces this so the maintainer can see at a glance which path was taken (and learns about `git tag -v` to verify signed tags).
+- [x] **Dry-run parity** — `release.sh <version> --dry-run` reports which tag mode it WOULD use without actually creating the tag. The three probe branches each emit a distinct `[dry-run]` line so the maintainer can test the signing configuration without committing anything.
+- [x] **`docs/RELEASING.md`** (NEW, 210+ lines) — end-to-end walkthrough covering:
+  - "What `bin/release.sh` does" — seven-step table with dry-run annotation
+  - "Tag signing" — the three-step probe ladder explained
+  - "One-time GPG key setup" — `gpg --list-secret-keys` → `git config --global user.signingkey <KEY>` with links to the GitHub docs for key generation
+  - "Uploading your public key to GitHub" — `gpg --armor --export <KEY>` → https://github.com/settings/keys
+  - "Verifying a signed tag locally" — `git tag -v v1.0.1` with expected output
+  - "Quickstart" — the 5-step cut-and-paste checklist for muscle-memory releases
+  - "Rollback" — three escalating scenarios (local-only, pushed tag only, pushed release)
+  - "Troubleshooting" — 5 concrete error messages + what to do
+- [x] **`sprint-6.sh [S6-C]`** — 12 new sentinels:
+  - 6 source-grep checks on `bin/release.sh` (`VF_SKIP_GPG_SIGN`, `user.signingkey` probe, `git tag -s`, `git tag -a` fall-back, `TAG_MODE` tracking, `git tag -d ... || true` half-tag cleanup)
+  - 1 file presence (`docs/RELEASING.md`)
+  - 5 content greps on RELEASING.md (`VF_SKIP_GPG_SIGN`, `user.signingkey`, `git tag -v`, `## Quickstart`, `## Rollback`)
+
+**Scope decision — what this ticket does NOT cover:**
+- **GitHub Actions signature verification in `release.yml`** — the original ticket mentioned "Release workflow verifies the tag signature". A workflow update requires a PAT with `workflow` scope, which my current token lacks. The verification step is **deferred to a follow-up commit** the user can push manually:
+  ```yaml
+  - name: Report tag signature
+    run: |
+      TAG="${GITHUB_REF#refs/tags/}"
+      if git cat-file tag "$TAG" | grep -q -- "-----BEGIN PGP SIGNATURE-----\|-----BEGIN SSH SIGNATURE-----"; then
+        echo "Tag $TAG is signed"
+      else
+        echo "Tag $TAG is unsigned (annotated)"
+      fi
+  ```
+  This step is a REPORT, not a hard-fail — it logs the signature status alongside the release artifacts so downstream consumers can see at a glance whether a given release tag was signed. Enforcing it would break every pre-S6-05 release tag and would need a separate migration ticket.
+- **Marketplace publish API integration** — the original S5-04 ticket and this ticket draft both mentioned "Claude Code's plugin marketplace API (if/when it exists)". As of v1.0.1, no public API exists for programmatic marketplace publishing — manually uploading to GitHub Releases is the supported path. When the API ships, a dedicated ticket will wire it in.
+
+**Test count deltas:**
+- `tests/integration/sprint-6.sh`: 17 → **29** (+12 from [S6-C])
+- Total baseline: 1469 → **1481** across 12 test layers (1485 in live mode)
 
 ### S6-06: Automated prerelease / beta-channel workflow
 **Location:** `bin/release.sh` (new `--prerelease` mode) + docs
@@ -244,13 +280,13 @@ sentinel.
 
 ## Next Ticket to Work On
 
-**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). **S6-01 ✅ DONE** (concurrent Postgres CAS stress test). **S6-04 ✅ DONE** (Next.js `"use client"` surface + optional next build). Suggested next:
+**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). **S6-01 ✅ DONE** (concurrent Postgres CAS stress test). **S6-04 ✅ DONE** (Next.js `"use client"` surface + optional next build). **S6-05 ✅ DONE** (GPG-signed release tags + RELEASING.md). Suggested next:
 
-1. **S6-05** — GPG-signed release tags (small, closes a v1.1 polish item)
-2. **S6-08** — Sprint 6 integration harness closure (light — sprint-6.sh is already growing organically)
+1. **S6-08** — Sprint 6 integration harness closure (light — sprint-6.sh is already at [S6-A/B/C] and passing)
+2. **S6-09** — Sprint 6 closure + v1.1.0 release notes (if the user wants to cut v1.1.0 from the current state)
 3. **S6-02** / **S6-03** / **S6-06** — larger items, confirm scope with user before picking up
 
-## Test inventory (after S6-04)
+## Test inventory (after S6-05)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -263,8 +299,8 @@ sentinel.
 - tests/integration/sprint-3.sh: **111 bash assertions**
 - tests/integration/sprint-4.sh: **355 bash assertions**
 - tests/integration/sprint-5.sh: **94 bash assertions**
-- tests/integration/sprint-6.sh: **17 bash assertions** (+16 from S6-04 [S6-B] Next.js client surface)
-- Total: **1469 passing checks** across **12 test layers** (1473 with docker + pg live mode)
+- tests/integration/sprint-6.sh: **29 bash assertions** (+12 from S6-05 [S6-C] GPG-signed tags)
+- Total: **1481 passing checks** across **12 test layers** (1485 with docker + pg live mode)
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo **66** vitest tests (41 from S5-05 + 25 from S6-04)
 
 ## Sprint 6 vs Sprint 5 differences

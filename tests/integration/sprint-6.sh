@@ -10,6 +10,7 @@
 # Sections:
 #   [S6-A] — Concurrent-advance CAS stress test on real PostgreSQL (S6-01)
 #   [S6-B] — Next.js demo "use client" component surface + optional next build (S6-04)
+#   [S6-C] — GPG-signed release tags + docs/RELEASING.md walkthrough (S6-05)
 #
 # Exit 0 on full pass, 1 otherwise. Skip gracefully when docker / pg /
 # VF_SKIP_LIVE_POSTGRES / VF_SKIP_NEXT_BUILD conditions match — we do
@@ -375,6 +376,117 @@ else
     tail -20 /tmp/vf-s6b-next-build.log >&2 || true
   fi
   rm -f /tmp/vf-s6b-next-build.log
+fi
+
+# ---------------------------------------------------------------------------
+echo "== [S6-C] GPG-signed release tags + RELEASING.md =="
+
+# S6-05 — the Sprint 4 / S4-07 release of v1.0.0 and the Sprint 5 /
+# S5-07 release of v1.0.1 both shipped with annotated (unsigned)
+# tags. S6-05 teaches bin/release.sh to sign the release tag when a
+# GPG key is configured, with a graceful fall-back ladder so the
+# script still works for contributors who have no key or have opted
+# out. The harness sentinels below verify the source-level
+# invariants that keep the signing path load-bearing — a future
+# refactor that accidentally drops the fall-back (or drops the
+# key-probe) trips this section before a release can happen.
+
+RELEASE_SCRIPT_S6C="$REPO_ROOT/bin/release.sh"
+RELEASING_DOC="$REPO_ROOT/docs/RELEASING.md"
+
+# 1. VF_SKIP_GPG_SIGN opt-out must be wired so maintainers can
+#    unconditionally skip signing for a specific release without
+#    unsetting user.signingkey.
+if grep -q 'VF_SKIP_GPG_SIGN' "$RELEASE_SCRIPT_S6C"; then
+  pass "[S6-C] release.sh honors VF_SKIP_GPG_SIGN opt-out"
+else
+  fail "[S6-C] release.sh honors VF_SKIP_GPG_SIGN opt-out"
+fi
+
+# 2. The probe must call `git config --get user.signingkey` — that's
+#    the only portable way to detect whether a signing key is set.
+if grep -q 'git config --get user.signingkey' "$RELEASE_SCRIPT_S6C"; then
+  pass "[S6-C] release.sh probes user.signingkey before attempting a signed tag"
+else
+  fail "[S6-C] release.sh probes user.signingkey before attempting a signed tag"
+fi
+
+# 3. `git tag -s` (signed) must be in the script AT ALL — without
+#    it, the signing path cannot exist.
+if grep -q 'git tag -s' "$RELEASE_SCRIPT_S6C"; then
+  pass "[S6-C] release.sh invokes git tag -s for the signed path"
+else
+  fail "[S6-C] release.sh invokes git tag -s for the signed path"
+fi
+
+# 4. `git tag -a` (annotated fall-back) must also be in the script —
+#    without it, a release on a machine without signing keys would
+#    abort instead of falling back.
+if grep -q 'git tag -a' "$RELEASE_SCRIPT_S6C"; then
+  pass "[S6-C] release.sh invokes git tag -a for the annotated fall-back"
+else
+  fail "[S6-C] release.sh invokes git tag -a for the annotated fall-back"
+fi
+
+# 5. TAG_MODE tracking variable — set to "signed" on the happy path
+#    and "annotated" on any fall-back. The "next steps" hint block
+#    surfaces this to the maintainer so they notice when a signing
+#    attempt silently degraded.
+if grep -q 'TAG_MODE' "$RELEASE_SCRIPT_S6C"; then
+  pass "[S6-C] release.sh records the chosen TAG_MODE"
+else
+  fail "[S6-C] release.sh records the chosen TAG_MODE"
+fi
+
+# 6. The fall-back path must also clean up any half-created signed
+#    tag (via `git tag -d`) before creating the annotated one. A
+#    failing signed tag can leave a partial ref that blocks the
+#    annotated `git tag -a` with "tag already exists".
+if grep -q 'git tag -d.*|| true' "$RELEASE_SCRIPT_S6C"; then
+  pass "[S6-C] release.sh cleans up a half-created signed tag before the fall-back"
+else
+  fail "[S6-C] release.sh cleans up a half-created signed tag before the fall-back"
+fi
+
+# 7. docs/RELEASING.md must exist as the end-to-end walkthrough.
+if [[ -f "$RELEASING_DOC" ]]; then
+  pass "[S6-C] docs/RELEASING.md present"
+else
+  fail "[S6-C] docs/RELEASING.md present"
+fi
+
+# 8. RELEASING.md must document the signing ladder + VF_SKIP_GPG_SIGN
+#    so a future maintainer reading it knows the escape hatches.
+if [[ -f "$RELEASING_DOC" ]]; then
+  if grep -q 'VF_SKIP_GPG_SIGN' "$RELEASING_DOC"; then
+    pass "[S6-C] RELEASING.md documents VF_SKIP_GPG_SIGN"
+  else
+    fail "[S6-C] RELEASING.md documents VF_SKIP_GPG_SIGN"
+  fi
+  if grep -q 'user.signingkey' "$RELEASING_DOC"; then
+    pass "[S6-C] RELEASING.md documents the user.signingkey setup"
+  else
+    fail "[S6-C] RELEASING.md documents the user.signingkey setup"
+  fi
+  if grep -q 'git tag -v' "$RELEASING_DOC"; then
+    pass "[S6-C] RELEASING.md documents verifying a signed tag (git tag -v)"
+  else
+    fail "[S6-C] RELEASING.md documents verifying a signed tag (git tag -v)"
+  fi
+  # Quickstart checklist — the "cut-and-paste" muscle-memory version
+  # the maintainer runs every release.
+  if grep -q '^## Quickstart' "$RELEASING_DOC"; then
+    pass "[S6-C] RELEASING.md has a Quickstart section"
+  else
+    fail "[S6-C] RELEASING.md has a Quickstart section"
+  fi
+  # Rollback guidance is load-bearing — a release that can't be
+  # rolled back locally is a release that maintainers won't cut.
+  if grep -q '^## Rollback' "$RELEASING_DOC"; then
+    pass "[S6-C] RELEASING.md has a Rollback section"
+  else
+    fail "[S6-C] RELEASING.md has a Rollback section"
+  fi
 fi
 
 echo

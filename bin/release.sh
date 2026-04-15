@@ -306,16 +306,74 @@ fi
 # -----------------------------------------------------------------------------
 echo "== [7] git commit + tag =="
 
+# Sprint 6 / S6-05 — tag signing.
+#
+# Signed tags let downstream consumers verify the release via
+# `git tag -v v<version>` against the maintainer's published GPG (or
+# SSH) public key. The release workflow probes for signing readiness
+# in three steps and degrades gracefully:
+#
+#   1. VF_SKIP_GPG_SIGN=1      → opt-out (annotated tag, even if a key
+#                                is configured). Useful for local dry
+#                                runs or test releases.
+#   2. user.signingkey unset   → no key configured at all, fall back
+#                                to an annotated tag automatically.
+#   3. `git tag -s` fails      → signing was attempted but the key
+#                                wasn't reachable (passphrase timeout,
+#                                gpg-agent down, yubikey unplugged).
+#                                Fall back to annotated + print a
+#                                warning so the maintainer notices.
+#
+# The chosen path is recorded in TAG_MODE so the "next steps" hint
+# block at the bottom of the script can surface it clearly.
+TAG_MODE="annotated"
+
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "  [dry-run] would git add + commit + tag v$VERSION"
   echo "  [dry-run] no files touched, no git state changed"
+  if [[ "${VF_SKIP_GPG_SIGN:-}" == "1" ]]; then
+    echo "  [dry-run] VF_SKIP_GPG_SIGN=1 — would use `git tag -a`"
+  elif git config --get user.signingkey >/dev/null 2>&1; then
+    SIGNING_KEY="$(git config --get user.signingkey)"
+    echo "  [dry-run] user.signingkey=$SIGNING_KEY — would use `git tag -s`"
+  else
+    echo "  [dry-run] no user.signingkey configured — would use `git tag -a`"
+  fi
 else
   git add .claude-plugin/plugin.json CHANGELOG.md
   # Tarball + sha256 are release artifacts — don't commit them, they
   # live only on the GitHub release (same as v1.0.0).
   git commit -m "Release v$VERSION — bump plugin.json + CHANGELOG"
-  git tag -a "v$VERSION" -m "v$VERSION"
-  echo "  ok   git commit + tag v$VERSION created locally"
+
+  if [[ "${VF_SKIP_GPG_SIGN:-}" == "1" ]]; then
+    echo "  !    VF_SKIP_GPG_SIGN=1 — skipping tag signature"
+    git tag -a "v$VERSION" -m "v$VERSION"
+    TAG_MODE="annotated"
+  elif git config --get user.signingkey >/dev/null 2>&1; then
+    SIGNING_KEY="$(git config --get user.signingkey)"
+    echo "  signing tag with key $SIGNING_KEY"
+    if git tag -s "v$VERSION" -m "v$VERSION" 2>/tmp/vf-release-sign.err; then
+      TAG_MODE="signed"
+      echo "  ok   signed tag v$VERSION created"
+    else
+      echo "  WARN git tag -s failed — falling back to annotated tag" >&2
+      echo "  WARN error:" >&2
+      sed 's/^/  WARN   /' /tmp/vf-release-sign.err >&2 || true
+      # The failed signed tag may or may not have been created — make
+      # sure the slot is free before creating the annotated fallback.
+      git tag -d "v$VERSION" >/dev/null 2>&1 || true
+      git tag -a "v$VERSION" -m "v$VERSION"
+      TAG_MODE="annotated"
+    fi
+    rm -f /tmp/vf-release-sign.err
+  else
+    echo "  !    no user.signingkey configured — using annotated tag"
+    echo "  !    configure a signing key to sign future releases:"
+    echo "  !      git config --global user.signingkey <KEY-ID>"
+    git tag -a "v$VERSION" -m "v$VERSION"
+    TAG_MODE="annotated"
+  fi
+  echo "  ok   git commit + tag v$VERSION ($TAG_MODE) created locally"
 fi
 
 # -----------------------------------------------------------------------------
@@ -326,6 +384,14 @@ echo "==============================================================="
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "  (dry-run — no files written, no git ops performed)"
 else
+  echo
+  echo "Tag mode: $TAG_MODE"
+  if [[ "$TAG_MODE" == "signed" ]]; then
+    echo "Verify with:"
+    echo "  git tag -v v$VERSION"
+  else
+    echo "(Unsigned — configure user.signingkey to sign future releases.)"
+  fi
   echo
   echo "Next steps (user-authorized public actions):"
   echo
