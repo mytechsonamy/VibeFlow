@@ -27,6 +27,7 @@
 #   - `bash tests/integration/sprint-3.sh`
 #   - `bash tests/integration/sprint-4.sh`
 #   - `bash tests/integration/sprint-5.sh`
+#   - `bash tests/integration/sprint-6.sh`
 #
 # Artifacts on success:
 #   - vibeflow-plugin-<version>.tar.gz   (via package-plugin.sh)
@@ -213,6 +214,7 @@ PREFLIGHT_CMDS=(
   "bash tests/integration/sprint-3.sh"
   "bash tests/integration/sprint-4.sh"
   "bash tests/integration/sprint-5.sh"
+  "bash tests/integration/sprint-6.sh"
 )
 
 PREFLIGHT_FAILED=0

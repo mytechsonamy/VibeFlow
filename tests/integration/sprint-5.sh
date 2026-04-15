@@ -146,9 +146,14 @@ fi
 if [[ "${VF_SKIP_LIVE_POSTGRES:-}" == "1" ]]; then
   pass "[S5-B] live-postgres walk skipped via VF_SKIP_LIVE_POSTGRES=1"
 elif ! command -v docker >/dev/null 2>&1; then
-  pass "[S5-B] live-postgres walk skipped — docker not installed"
+  pass "[S5-B] live-postgres walk skipped — docker binary not installed"
+elif ! docker info >/dev/null 2>&1; then
+  # Probe the daemon, not just the binary. Closes a latent skip gap
+  # where macOS contributors had docker installed but Docker Desktop
+  # not running — the walk would fire and fail instead of skip.
+  pass "[S5-B] live-postgres walk skipped — docker daemon not running"
 elif [[ ! -d "$REPO_ROOT/mcp-servers/sdlc-engine/node_modules/pg" ]]; then
-  pass "[S5-B] live-postgres walk skipped — pg optional dep not installed"
+  pass "[S5-B] live-postgres walk skipped — pg optional peer dep not installed"
 else
   # The wrapper sets DATABASE_URL + VIBEFLOW_POSTGRES_URL inside the
   # wrapped command, which in turn spawns the engine + walks it.
@@ -287,7 +292,8 @@ if [[ -f "$RELEASE_SCRIPT" ]]; then
                  "bash tests/integration/sprint-2.sh" \
                  "bash tests/integration/sprint-3.sh" \
                  "bash tests/integration/sprint-4.sh" \
-                 "bash tests/integration/sprint-5.sh"; do
+                 "bash tests/integration/sprint-5.sh" \
+                 "bash tests/integration/sprint-6.sh"; do
     if grep -qF "$harness" "$RELEASE_SCRIPT"; then
       pass "release.sh preflight runs '$harness'"
     else
