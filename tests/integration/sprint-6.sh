@@ -11,6 +11,16 @@
 #   [S6-A] — Concurrent-advance CAS stress test on real PostgreSQL (S6-01)
 #   [S6-B] — Next.js demo "use client" component surface + optional next build (S6-04)
 #   [S6-C] — GPG-signed release tags + docs/RELEASING.md walkthrough (S6-05)
+#   [S6-Z] — Sprint 6 harness self-audit (S6-08 closure)
+#
+# Sprint 6 ticket coverage (as of S6-08 closure):
+#   S6-01 (concurrent CAS stress)    → [S6-A]
+#   S6-04 (use client surface)       → [S6-B]
+#   S6-05 (signed release tags)      → [S6-C]
+#   S6-07 (CHANGELOG runtime check)  → sprint-5.sh [S5-C] (extended)
+#   S6-08 (harness closure)          → [S6-Z]
+# S6-02 / S6-03 / S6-06 / S6-09 are not yet picked up — if/when
+# they land, they will add their own [S6-D/E/F/…] sections here.
 #
 # Exit 0 on full pass, 1 otherwise. Skip gracefully when docker / pg /
 # VF_SKIP_LIVE_POSTGRES / VF_SKIP_NEXT_BUILD conditions match — we do
@@ -487,6 +497,73 @@ if [[ -f "$RELEASING_DOC" ]]; then
   else
     fail "[S6-C] RELEASING.md has a Rollback section"
   fi
+fi
+
+# ---------------------------------------------------------------------------
+echo "== [S6-Z] sprint-6.sh harness self-audit =="
+
+# S6-08 — Sprint 6 integration harness closure ticket. The harness
+# is grown organically by each S6-* ticket (S6-01 bootstrapped it,
+# S6-04 added [S6-B], S6-05 added [S6-C]). This closing section is
+# a self-audit that catches "refactor deletes a section header",
+# "chmod -x on the harness file", and "sprint-6.sh dropped from
+# release.sh preflight" — three regressions that would silently
+# make the gauntlet weaker without firing any other harness.
+
+SELF_S6Z="$REPO_ROOT/tests/integration/sprint-6.sh"
+
+# 1. Each expected section header must still be present. If someone
+#    deletes a section during a merge, grep misses the marker and
+#    the sentinel fires. We keep the grep pattern (escaped brackets)
+#    separate from the human-readable label so the pass/fail
+#    message shows `[S6-A]` without the grep escape noise.
+for sec_label in "S6-A" "S6-B" "S6-C" "S6-Z"; do
+  if grep -q "echo \"== \[$sec_label\]" "$SELF_S6Z"; then
+    pass "[S6-Z] [$sec_label] section header still present"
+  else
+    fail "[S6-Z] [$sec_label] section header still present"
+  fi
+done
+
+# 2. The harness file must still be executable. release.sh runs
+#    this script via `bash tests/integration/sprint-6.sh`, which
+#    tolerates `chmod -x`, but other callers may not. A harness
+#    that lost the +x bit is a foot-gun.
+if [[ -x "$SELF_S6Z" ]]; then
+  pass "[S6-Z] sprint-6.sh is executable"
+else
+  fail "[S6-Z] sprint-6.sh is executable"
+fi
+
+# 3. bin/release.sh preflight gauntlet must still reference
+#    sprint-6.sh. sprint-5.sh [S5-C] already checks this from the
+#    sibling harness, but we mirror it here so a contributor running
+#    ONLY sprint-6.sh still catches the regression.
+if grep -q 'tests/integration/sprint-6.sh' "$REPO_ROOT/bin/release.sh"; then
+  pass "[S6-Z] bin/release.sh preflight still references sprint-6.sh"
+else
+  fail "[S6-Z] bin/release.sh preflight still references sprint-6.sh"
+fi
+
+# 4. The harness file's shebang must still be #!/bin/bash (not sh,
+#    not zsh). Bash 3.2-compatible constructs are used throughout
+#    (no associative arrays) so older system bash is fine, but a
+#    shebang swap to /bin/sh would break `[[ ... ]]` and `$(( ))`.
+if head -1 "$SELF_S6Z" | grep -q '^#!/bin/bash$'; then
+  pass "[S6-Z] sprint-6.sh shebang is #!/bin/bash"
+else
+  fail "[S6-Z] sprint-6.sh shebang is #!/bin/bash"
+fi
+
+# 5. The harness must run under `set -uo pipefail` — unbound
+#    variables and broken pipes must fire loudly, not silently
+#    continue. Both the BSD awk bug in v1.0.1 (Sprint 5 / S5-07)
+#    and the "MISSING: unbound variable" discovery during S6-01
+#    would have been harder to catch without strict mode.
+if grep -q '^set -uo pipefail$' "$SELF_S6Z"; then
+  pass "[S6-Z] sprint-6.sh runs under set -uo pipefail"
+else
+  fail "[S6-Z] sprint-6.sh runs under set -uo pipefail"
 fi
 
 echo

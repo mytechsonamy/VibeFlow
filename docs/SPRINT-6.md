@@ -258,13 +258,28 @@ runtime insertion failure. S6-07 closes that gap.
 - **Running `release.sh` end-to-end against a fixture branch** — would require setting up a fake git repo, fake plugin.json, fake MCP dists. Too heavy for a single sentinel. The current approach tests only the CHANGELOG step, which is the part that actually broke.
 - **Fuzz testing the insertion logic** — out of scope. The current sentinels cover the happy path + the one known broken-path. Mutation testing on release.sh is a future sprint concern.
 
-### S6-08: Sprint 6 integration harness
-**Location:** `tests/integration/sprint-6.sh`
+### S6-08: Sprint 6 integration harness ✅ DONE
+**Location:** `tests/integration/sprint-6.sh` header + new `[S6-Z]` closure section
 
-Mirror the pattern from `sprint-5.sh`: one section per S6-* ticket,
-with structural checks for the files/signals each ticket produces.
-This ticket closes last once every other S6 ticket lands its
-sentinel.
+The harness was grown organically by each Sprint 6 ticket: S6-01
+bootstrapped `sprint-6.sh` with `[S6-A]`, S6-04 added `[S6-B]`, and
+S6-05 added `[S6-C]`. S6-08 is the meta-ticket that closes the
+harness — it formalizes the file's shape and adds a self-audit
+section that catches regressions from future refactors (accidental
+section deletion, `chmod -x`, missing release.sh preflight entry).
+
+**Completed:**
+- [x] **Header comment block extended** with a "Sprint 6 ticket coverage" table mapping each shipped S6 ticket to its section marker. S6-07 is noted as living in `sprint-5.sh [S5-C]` (extended during Sprint 6) rather than having its own sprint-6 section. S6-02 / S6-03 / S6-06 / S6-09 are called out as not-yet-picked-up, with a pointer that any future work would add `[S6-D/E/F/…]` sections.
+- [x] **`[S6-Z]` sprint-6.sh harness self-audit** (8 new sentinels):
+  1–4. **Section header presence** — each of `[S6-A]`, `[S6-B]`, `[S6-C]`, `[S6-Z]` has its `echo "== [X] ..."` marker grep'd so a refactor that silently deletes a section fires here.
+  5. **Executable bit** — `[[ -x sprint-6.sh ]]`. `release.sh` invokes the harness via `bash tests/integration/sprint-6.sh` (which tolerates `chmod -x`), but direct invokers would fail.
+  6. **release.sh preflight reference** — mirrors the sprint-5.sh [S5-C] check so running just `sprint-6.sh` still catches the regression.
+  7. **Shebang is `#!/bin/bash`** — bash 3.2-compatible constructs (no associative arrays) are used throughout, but a shebang swap to `/bin/sh` would break `[[ ... ]]` and `$(( ))`.
+  8. **`set -uo pipefail`** — unbound variables and broken pipes must fire loudly. The BSD awk bug in v1.0.1 (S5-07) and the "MISSING: unbound variable" discovery during S6-01 would have been harder to catch without strict mode.
+
+**Test count deltas:**
+- `tests/integration/sprint-6.sh`: 29 → **37** (+8 from `[S6-Z]`)
+- Total baseline: 1481 → **1489** across 12 test layers (1493 in live mode)
 
 ### S6-09: Sprint 6 closure + v1.1.0 release notes
 **Location:** `CHANGELOG.md` + `docs/SPRINT-6.md`
@@ -280,13 +295,12 @@ sentinel.
 
 ## Next Ticket to Work On
 
-**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). **S6-01 ✅ DONE** (concurrent Postgres CAS stress test). **S6-04 ✅ DONE** (Next.js `"use client"` surface + optional next build). **S6-05 ✅ DONE** (GPG-signed release tags + RELEASING.md). Suggested next:
+**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). **S6-01 ✅ DONE** (concurrent Postgres CAS stress test). **S6-04 ✅ DONE** (Next.js `"use client"` surface + optional next build). **S6-05 ✅ DONE** (GPG-signed release tags + RELEASING.md). **S6-08 ✅ DONE** (sprint-6.sh closure + self-audit). Suggested next:
 
-1. **S6-08** — Sprint 6 integration harness closure (light — sprint-6.sh is already at [S6-A/B/C] and passing)
-2. **S6-09** — Sprint 6 closure + v1.1.0 release notes (if the user wants to cut v1.1.0 from the current state)
-3. **S6-02** / **S6-03** / **S6-06** — larger items, confirm scope with user before picking up
+1. **S6-09** — Sprint 6 closure + v1.1.0 release notes. Cuts v1.1.0 through the new signing workflow, marks Sprint 6 ✅ COMPLETE, bumps CLAUDE.md counts, seeds `docs/SPRINT-7.md`. This is the sprint-ending ticket.
+2. **S6-02** / **S6-03** / **S6-06** — larger items, confirm scope with user before picking up. Could also be deferred to a v1.2 sprint.
 
-## Test inventory (after S6-05)
+## Test inventory (after S6-08)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -299,8 +313,8 @@ sentinel.
 - tests/integration/sprint-3.sh: **111 bash assertions**
 - tests/integration/sprint-4.sh: **355 bash assertions**
 - tests/integration/sprint-5.sh: **94 bash assertions**
-- tests/integration/sprint-6.sh: **29 bash assertions** (+12 from S6-05 [S6-C] GPG-signed tags)
-- Total: **1481 passing checks** across **12 test layers** (1485 with docker + pg live mode)
+- tests/integration/sprint-6.sh: **37 bash assertions** (+8 from S6-08 [S6-Z] harness self-audit)
+- Total: **1489 passing checks** across **12 test layers** (1493 with docker + pg live mode)
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo **66** vitest tests (41 from S5-05 + 25 from S6-04)
 
 ## Sprint 6 vs Sprint 5 differences
