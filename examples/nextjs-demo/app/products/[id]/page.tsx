@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getProduct, formatMoney } from "@/lib/catalog";
-import { submitReviewAction } from "@/actions/submit-review";
+import { submitReviewFormAction } from "@/actions/submit-review";
+import { RatingPicker } from "@/components/rating-picker";
 
 type PageProps = { params: { id: string } };
 
@@ -16,11 +17,15 @@ export default function ProductDetailPage({ params }: PageProps) {
       <p>{product.description}</p>
 
       <h2>Leave a review</h2>
-      <form action={submitReviewAction}>
+      {/* submitReviewFormAction wraps submitReviewAction and swallows
+          the return so Next's form action type (void | Promise<void>)
+          is satisfied. submitReviewAction itself is covered directly
+          by tests/action.test.ts. */}
+      <form action={submitReviewFormAction}>
         <input type="hidden" name="productId" value={product.id} />
         <label>
-          Rating (1-5)
-          <input name="rating" type="number" min={1} max={5} required />
+          Rating
+          <RatingPicker name="rating" max={5} defaultValue={5} />
         </label>
         <label>
           Review

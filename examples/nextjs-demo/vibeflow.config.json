@@ -12,6 +12,7 @@
   "criticalPaths": [
     "lib/reviews.ts",
     "lib/catalog.ts",
+    "lib/rating.ts",
     "actions/submit-review.ts"
   ]
 }

@@ -17,6 +17,12 @@ export type SubmitReviewResult =
 // Exported for direct testing. Accepts FormData because Next server
 // actions receive FormData (and an optional "previous state" in the
 // useFormState case, which this demo does not use).
+//
+// Returns a discriminated result so the test suite can assert the
+// success + failure shapes symmetrically. The page itself wraps this
+// via `submitReviewFormAction` below — Next 14's `<form action={...}>`
+// typing requires a void-returning action, so the void wrapper is the
+// one actually mounted on the form.
 export async function submitReviewAction(formData: FormData): Promise<SubmitReviewResult> {
   const productId = formData.get("productId");
   if (typeof productId !== "string" || productId.length === 0) {
@@ -49,4 +55,16 @@ export async function submitReviewAction(formData: FormData): Promise<SubmitRevi
     text: validated.text,
   });
   return { ok: true, review };
+}
+
+// Void wrapper consumed by <form action={...}> in the product detail
+// page. Next 14's form action typing is
+// `(formData: FormData) => void | Promise<void>`; a discriminated
+// result type is not assignable. The wrapper calls submitReviewAction
+// and swallows the result — a real app would call revalidatePath()
+// or redirect() here to surface the outcome to the user. The demo
+// keeps it minimal because the actual assertion story lives in
+// tests/action.test.ts against submitReviewAction directly.
+export async function submitReviewFormAction(formData: FormData): Promise<void> {
+  await submitReviewAction(formData);
 }

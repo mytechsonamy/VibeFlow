@@ -9,10 +9,12 @@
 #
 # Sections:
 #   [S6-A] — Concurrent-advance CAS stress test on real PostgreSQL (S6-01)
+#   [S6-B] — Next.js demo "use client" component surface + optional next build (S6-04)
 #
 # Exit 0 on full pass, 1 otherwise. Skip gracefully when docker / pg /
-# VF_SKIP_LIVE_POSTGRES conditions match — we do NOT fire loudly in
-# dev environments that legitimately cannot run a live Postgres.
+# VF_SKIP_LIVE_POSTGRES / VF_SKIP_NEXT_BUILD conditions match — we do
+# NOT fire loudly in dev environments that legitimately cannot run a
+# live Postgres or a production next build.
 
 set -uo pipefail
 
@@ -247,6 +249,132 @@ STRESS_OUTER
     echo "    OUT tail:" >&2
     echo "$OUT" | tail -15 >&2
   fi
+fi
+
+# ---------------------------------------------------------------------------
+echo "== [S6-B] Next.js demo \"use client\" surface =="
+
+# S6-04 — Sprint 5 / S5-05 shipped the initial Next.js demo as 100%
+# React Server Components + server actions. S6-04 adds the first
+# client component (components/rating-picker.tsx) so the demo also
+# exercises the RSC/client boundary. The component owns hover +
+# click state via useState; the stateless operations live in
+# lib/rating.ts so the vitest suite covers every branch in the node
+# environment without mounting React.
+#
+# The sentinels below run structurally (no Next install needed) and
+# gate on optional `next build` coverage only when the contributor
+# has installed the full dep tree.
+
+NEXT_DEMO="$REPO_ROOT/examples/nextjs-demo"
+
+# Required files for the new surface.
+S6B_REQUIRED=(
+  "lib/rating.ts"
+  "components/rating-picker.tsx"
+  "tests/rating.test.ts"
+)
+for rel in "${S6B_REQUIRED[@]}"; do
+  if [[ -f "$NEXT_DEMO/$rel" ]]; then
+    pass "[S6-B] $rel present"
+  else
+    fail "[S6-B] $rel present"
+  fi
+done
+
+# The client component file MUST start with the "use client"
+# directive — without it, Next treats the file as a server component
+# and rejects useState/useEffect/onClick as unsupported on the
+# server. This is the single load-bearing invariant for the whole
+# client component story.
+RATING_PICKER="$NEXT_DEMO/components/rating-picker.tsx"
+if [[ -f "$RATING_PICKER" ]]; then
+  if head -1 "$RATING_PICKER" | grep -q '"use client"'; then
+    pass "[S6-B] rating-picker.tsx starts with \"use client\" directive"
+  else
+    fail "[S6-B] rating-picker.tsx starts with \"use client\" directive"
+  fi
+  # Must import useState — proves the component is actually a client
+  # component that needs hydration. A "use client" file that imports
+  # nothing reactive would be a configuration error.
+  if grep -q 'from "react"' "$RATING_PICKER"; then
+    pass "[S6-B] rating-picker.tsx imports from react"
+  else
+    fail "[S6-B] rating-picker.tsx imports from react"
+  fi
+  if grep -q 'useState' "$RATING_PICKER"; then
+    pass "[S6-B] rating-picker.tsx uses useState (hover + click state)"
+  else
+    fail "[S6-B] rating-picker.tsx uses useState (hover + click state)"
+  fi
+  # Must pull the pure helpers from lib/rating — proves the logic is
+  # extracted so vitest can cover it without React.
+  if grep -q 'from "@/lib/rating"' "$RATING_PICKER"; then
+    pass "[S6-B] rating-picker.tsx imports pure helpers from lib/rating"
+  else
+    fail "[S6-B] rating-picker.tsx imports pure helpers from lib/rating"
+  fi
+fi
+
+# The product detail page (RSC) must import the RatingPicker client
+# component — this is where the RSC/client boundary runs.
+DETAIL_PAGE="$NEXT_DEMO/app/products/[id]/page.tsx"
+if [[ -f "$DETAIL_PAGE" ]]; then
+  if grep -q 'RatingPicker' "$DETAIL_PAGE"; then
+    pass "[S6-B] detail page wires RatingPicker into the review form"
+  else
+    fail "[S6-B] detail page wires RatingPicker into the review form"
+  fi
+  if grep -q 'from "@/components/rating-picker"' "$DETAIL_PAGE"; then
+    pass "[S6-B] detail page imports RatingPicker via the @/ alias"
+  else
+    fail "[S6-B] detail page imports RatingPicker via the @/ alias"
+  fi
+fi
+
+# vibeflow.config.json must declare lib/rating.ts as a critical path
+# so the demo's release-decision + coverage gates count it.
+if jq -e '.criticalPaths | index("lib/rating.ts") != null' "$NEXT_DEMO/vibeflow.config.json" >/dev/null 2>&1; then
+  pass "[S6-B] vibeflow.config.json declares lib/rating.ts as a critical path"
+else
+  fail "[S6-B] vibeflow.config.json declares lib/rating.ts as a critical path"
+fi
+
+# Rating test file must reference every exported helper + the
+# `"use client"` directive contract — cross-check that a future
+# refactor that renames an export also updates the tests.
+RATING_TEST="$NEXT_DEMO/tests/rating.test.ts"
+if [[ -f "$RATING_TEST" ]]; then
+  for export_name in computeDisplay clampRating renderStars isValidSubmittedRating DEFAULT_MAX_RATING; do
+    if grep -q "\\b$export_name\\b" "$RATING_TEST"; then
+      pass "[S6-B] rating.test.ts exercises $export_name"
+    else
+      fail "[S6-B] rating.test.ts exercises $export_name"
+    fi
+  done
+fi
+
+# Optional `next build` coverage. Default: skip unless the full dep
+# tree is installed. VF_SKIP_NEXT_BUILD=1 forces skip even when
+# installed (for contributors who want to run the harness fast).
+# This mirrors the VF_SKIP_LIVE_POSTGRES skip ladder for [S6-A] +
+# sprint-5.sh [S5-B].
+if [[ "${VF_SKIP_NEXT_BUILD:-}" == "1" ]]; then
+  pass "[S6-B] next build skipped via VF_SKIP_NEXT_BUILD=1"
+elif [[ ! -d "$NEXT_DEMO/node_modules/next" ]]; then
+  pass "[S6-B] next build skipped — next not installed in demo node_modules"
+else
+  # Running next build from a harness pulls in the full Next + React
+  # compilation pipeline. Output is suppressed on success; failures
+  # dump the tail of the next build output for triage.
+  if (cd "$NEXT_DEMO" && npm run build >/tmp/vf-s6b-next-build.log 2>&1); then
+    pass "[S6-B] next build completes without error"
+  else
+    fail "[S6-B] next build completes without error"
+    echo "    next build tail:" >&2
+    tail -20 /tmp/vf-s6b-next-build.log >&2 || true
+  fi
+  rm -f /tmp/vf-s6b-next-build.log
 fi
 
 echo

@@ -41,13 +41,17 @@ examples/nextjs-demo/
 │           └── page.tsx              ← §3.4 PAGE-002 (RSC detail + form)
 ├── actions/
 │   └── submit-review.ts              ← §3.3 ACT-* ("use server")
+├── components/
+│   └── rating-picker.tsx             ← "use client" — Sprint 6 / S6-04
 ├── lib/
 │   ├── catalog.ts                    ← §3.1 PROD-*
-│   └── reviews.ts                    ← §3.2 REV-*
+│   ├── reviews.ts                    ← §3.2 REV-*
+│   └── rating.ts                     ← pure helpers for the picker (S6-04)
 ├── tests/
 │   ├── catalog.test.ts               ← 14 vitest cases covering PROD-*
 │   ├── reviews.test.ts               ← 18 vitest cases covering REV-* + INV-*
-│   └── action.test.ts                ←  9 vitest cases covering ACT-*
+│   ├── action.test.ts                ←  9 vitest cases covering ACT-*
+│   └── rating.test.ts                ← 25 vitest cases covering lib/rating.ts (S6-04)
 ├── .vibeflow/
 │   └── reports/
 │       ├── prd-quality-report.md     ← §2 output
@@ -69,7 +73,7 @@ makes sense without requiring every reader to run every skill.
 
 `examples/demo-app/` intentionally has no UI. It is the shortest path
 from a PRD to a GO verdict using only pure TypeScript. This demo adds
-three surfaces that the first one cannot exercise:
+four surfaces that the first one cannot exercise:
 
 1. **React Server Components** — `app/products/page.tsx` is a server
    component that imports directly from `lib/catalog.ts`.
@@ -78,10 +82,46 @@ three surfaces that the first one cannot exercise:
    in a client-facing page.
 3. **App-router route params** — `app/products/[id]/page.tsx` uses
    the file-based parameter shape Next.js 14 ships.
+4. **Client components** — `components/rating-picker.tsx` starts
+   with the `"use client"` directive and owns local React state
+   (hover + click). It is imported by the RSC detail page, which is
+   where the RSC/client boundary runs. (Sprint 6 / S6-04)
 
-Every one of those still lands its business logic in a pure `lib/*.ts`
-module, which is why vitest in the `node` environment covers every
-requirement without needing to boot Next.
+Every one of those still lands its business logic in a pure
+`lib/*.ts` module — the rating picker's hover/click math lives in
+`lib/rating.ts`, so vitest in the `node` environment covers every
+branch without needing to mount the component or transpile JSX.
+
+### The RSC/client boundary
+
+The product detail page (`app/products/[id]/page.tsx`) is a React
+Server Component: it runs on the server, reads from the in-memory
+catalog, and emits HTML directly. It imports the `RatingPicker`
+client component — the boundary runs at that import. Next.js 14
+serializes the component's props (`name`, `max`, `defaultValue`) from
+the server, delivers the component's code as a separate client
+bundle, and hydrates it on the client.
+
+The picker needs `"use client"` because it uses `useState` for:
+
+- **Hover preview** — hovering a star previews that rating before
+  committing, backed by `computeDisplay(rating, hover)` in
+  `lib/rating.ts`. `hover === null` means "not hovering, show the
+  committed rating"; any other value (including `0`) is an explicit
+  preview override.
+- **Click commit** — clicking a star calls
+  `clampRating(star, max)` before setting state, so any out-of-range
+  value (NaN, Infinity, negative) silently collapses to 0 rather
+  than corrupting the form.
+- **Hidden input** — the picker emits `<input type="hidden" name={name} />`
+  so the form action still sees the numeric value on submit. The
+  server action at `actions/submit-review.ts` re-validates the value
+  with `validateReview({ rating, text })` regardless of what the
+  client says — defense in depth.
+
+The logic above is covered by 25 vitest cases in `tests/rating.test.ts`
+(5 `computeDisplay` + 9 `clampRating` + 5 `renderStars` + 6
+`isValidSubmittedRating`). Every branch tests without touching React.
 
 ## 2. Analyze the PRD
 
@@ -164,17 +204,39 @@ npm test
 Expected:
 
 ```
- Test Files  3 passed (3)
-      Tests  41 passed (41)
+ Test Files  4 passed (4)
+      Tests  66 passed (66)
 ```
 
-(The exact count may tick up as the demo evolves; 40–44 is in range.)
+(The exact count may tick up as the demo evolves; the breakdown is
+14 catalog + 18 reviews + 9 action + 25 rating after Sprint 6 / S6-04.)
 
 Note: **the vitest suite does not boot Next**. It imports directly
-from `lib/*.ts` and `actions/*.ts`. The `app/**/*.tsx` files are part
-of the demo's surface area but are covered structurally by the
-VibeFlow harness (`tests/integration/sprint-5.sh [S5-D]`), not by
-vitest.
+from `lib/*.ts` and `actions/*.ts`. The `app/**/*.tsx` files and the
+`components/*.tsx` client component are part of the demo's surface
+area but are covered structurally by the VibeFlow harness
+(`tests/integration/sprint-5.sh [S5-D]` for the RSC pages,
+`tests/integration/sprint-6.sh [S6-B]` for the `"use client"`
+component), not by vitest.
+
+### Optionally running `next build`
+
+If you install the full dependency tree (`npm install` pulls Next,
+React, and their transitive deps — ~500 MB of disk), you can also
+run the production build:
+
+```bash
+cd examples/nextjs-demo
+npm install
+npm run build
+```
+
+`sprint-6.sh [S6-B]` picks this up automatically: when
+`examples/nextjs-demo/node_modules/next` exists and
+`VF_SKIP_NEXT_BUILD=1` is not set, the harness runs `npm run build`
+and asserts a clean exit. Otherwise it skips gracefully. This means
+day-to-day contributors do not have to install Next to keep the
+gauntlet green.
 
 ## 6. Run the release decision
 

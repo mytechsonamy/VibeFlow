@@ -105,17 +105,60 @@ values and loops the S5-B walk across each.
 - [ ] Document managed-cloud caveats (RDS-specific config) in
       `docs/TEAM-MODE.md`
 
-### S6-04: Next.js demo — `next build` coverage + `"use client"` surface
-**Location:** `examples/nextjs-demo/` + `sprint-6.sh [S6-D]`
+### S6-04: Next.js demo — `next build` coverage + `"use client"` surface ✅ DONE
+**Location:** `examples/nextjs-demo/{lib,components,tests}/` + `app/products/[id]/page.tsx` + `actions/submit-review.ts` + `sprint-6.sh [S6-B]`
 **Deferred from:** S5-05 scope decision
 
-The v1.0.1 Next.js demo is 100% RSC + server actions. S6-04 adds:
+The v1.0.1 Next.js demo was 100% React Server Components + server
+actions. S6-04 adds the first client component so the demo exercises
+the RSC/client boundary, plus an optional `next build` gate in the
+harness so contributors who install the full dep tree get automatic
+coverage of the production build path.
 
-- [ ] A `"use client"` component (e.g. a rating picker) + its tests
-- [ ] A CI-optional `next build` step (gated on `VF_SKIP_NEXT_BUILD=1`)
-- [ ] Harness sentinel verifying the `"use client"` directive + the
-      client/server boundary
-- [ ] Updated `NEXTJS-DEMO-WALKTHROUGH.md` covering the new surface
+**Completed:**
+- [x] **`lib/rating.ts`** — pure TypeScript helpers (no React) for the rating picker. Exports `computeDisplay(rating, hover)`, `clampRating(value, max?)`, `renderStars(displayValue, max?)`, `isValidSubmittedRating(value, max?)`, and the `DEFAULT_MAX_RATING = 5` constant. Every helper is a single-responsibility pure function — vitest covers every branch in the node environment without touching React.
+- [x] **`components/rating-picker.tsx`** — new `"use client"` component owning `useState<number>` for both the committed rating and the hover preview. Click handlers call `clampRating(star, max)` before setting state (defense-in-depth). The component emits a `<input type="hidden" name={name} />` so the form still sees the numeric value on submit; the server action re-validates with `validateReview(...)` regardless of what the client says.
+- [x] **`tests/rating.test.ts`** — 25 vitest cases covering every helper:
+  - 5 `computeDisplay` cases (hover-vs-null precedence, including the subtle case where hover=0 is a valid preview override, distinct from null)
+  - 9 `clampRating` cases (negative, beyond max, fractional, NaN, ±Infinity, exact bounds, custom max)
+  - 5 `renderStars` cases (all empty, all filled, mixed, default max, empty array when max=0)
+  - 6 `isValidSubmittedRating` cases (integer 1..max, 0, max+1, non-integer, non-numeric, custom max)
+- [x] **`app/products/[id]/page.tsx` wiring** — imports `RatingPicker` via the `@/components/rating-picker` alias and replaces the plain `<input type="number">` in the review form. This is where the RSC → client boundary runs: Next 14 serializes the picker's props on the server, delivers the component as a separate client bundle, and hydrates on the client.
+- [x] **`submitReviewFormAction` void wrapper** — discovered during `next build` that Next 14's `<form action={...}>` typing requires `(formData: FormData) => void | Promise<void>`, which rejects the `Promise<SubmitReviewResult>` return of `submitReviewAction`. Added a thin void wrapper in `actions/submit-review.ts` that calls the tested action and swallows the result. The page uses the wrapper; tests continue to import `submitReviewAction` directly against its structured return type. The wrapper is commented in both files with a pointer to the constraint and a real-app note about `revalidatePath()`/`redirect()`.
+- [x] **`vibeflow.config.json`** — `lib/rating.ts` declared as a critical path alongside `lib/reviews.ts`, `lib/catalog.ts`, and `actions/submit-review.ts`.
+- [x] **`docs/NEXTJS-DEMO-WALKTHROUGH.md`** — two new sections: "The RSC/client boundary" walks through why the picker needs `"use client"`, how hover/click state maps onto `lib/rating.ts` helpers, and the defense-in-depth validation story. "Optionally running `next build`" documents the harness gate + the `VF_SKIP_NEXT_BUILD=1` override. Test count line updated from 41 → 66. Project tree diagram updated to include `components/` and `lib/rating.ts`.
+- [x] **`package-plugin.sh` whitelist** — `examples/nextjs-demo/components` added alongside `app`, `lib`, `actions`, `tests`, `docs`, `.vibeflow/reports`. Without this, the new client component would not ship in the tarball.
+- [x] **`sprint-6.sh [S6-B]`** — new 17-assertion section:
+  - **3 file-presence** (lib/rating.ts, components/rating-picker.tsx, tests/rating.test.ts)
+  - **4 rating-picker structure** (`"use client"` directive on line 1, imports from react, uses `useState`, imports pure helpers from `@/lib/rating`)
+  - **2 detail-page wiring** (`RatingPicker` referenced in the form, imported via `@/components/rating-picker` alias)
+  - **1 config** (lib/rating.ts is a critical path)
+  - **5 test coverage** (rating.test.ts exercises each of the 5 exports)
+  - **1 optional `next build` gate** (skip via `VF_SKIP_NEXT_BUILD=1`, skip when `node_modules/next` missing, otherwise run `npm run build` and assert clean exit)
+
+**Live-verified:** ran `cd examples/nextjs-demo && npm install && npm test && npm run build`. Test suite: **66 passed** (4 files: catalog 14 + reviews 18 + action 9 + rating 25). `next build` output:
+```
+Route (app)                              Size     First Load JS
+┌ ○ /                                    140 B          87.4 kB
+├ ○ /_not-found                          875 B          88.1 kB
+├ ○ /products                            8.83 kB        96.1 kB
+└ ƒ /products/[id]                       624 B          87.9 kB
++ First Load JS shared by all            87.2 kB
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+```
+The `[id]` route is `ƒ (Dynamic)` because the server action wires into the form — Next correctly detects the dynamic rendering requirement. Static routes (`/`, `/products`, `/_not-found`) are prerendered at build time.
+
+**Test count deltas:**
+- `examples/nextjs-demo` vitest suite: 41 → **66** (+25 rating helper tests)
+- `tests/integration/sprint-6.sh`: 1 → **17** (+16 from [S6-B]; the next-build gate is 1 assertion either skip or live)
+- Total baseline: 1453 → **1469** across 12 test layers
+- Bonus (not in baseline): demo-app 45 + nextjs-demo 66
+
+**Scope boundaries** (intentionally deferred):
+- **Component-level rendering tests** with @testing-library/react — would require JSX transformer + jsdom in vitest config. The pure-helper approach in `lib/rating.ts` covers every branch of the picker's logic without React; the component file itself is validated structurally by `sprint-6.sh [S6-B]` (directive presence, import wiring).
+- **Regenerating `.vibeflow/reports/*.md`** — the pre-baked PRD quality / scenario-set / test-strategy / release-decision reports still reference "41 tests" and the old requirement families. Refreshing them is a cosmetic update that belongs in a dedicated "demo re-bake" ticket alongside any future scoring changes. The walkthrough doc notes that pre-baked reports may drift.
+- **`"use client"` component covered by the existing REV-*/ACT-* requirements** — the picker's validation mirrors REV-001 but doesn't introduce a new family. Adding a dedicated `PICK-*` family would invite PRD churn for minimal signal.
 
 ### S6-05: GPG-signed release tags + marketplace publish API
 **Location:** `bin/release.sh` + `.github/workflows/release.yml` + `docs/RELEASING.md` (new)
@@ -201,14 +244,13 @@ sentinel.
 
 ## Next Ticket to Work On
 
-**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). **S6-01 ✅ DONE** (concurrent Postgres CAS stress test). Suggested next:
+**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). **S6-01 ✅ DONE** (concurrent Postgres CAS stress test). **S6-04 ✅ DONE** (Next.js `"use client"` surface + optional next build). Suggested next:
 
-1. **S6-04** — Next.js demo `"use client"` + optional `next build` (extends existing surface, low risk)
-2. **S6-05** — GPG-signed release tags (small, closes a v1.1 polish item)
+1. **S6-05** — GPG-signed release tags (small, closes a v1.1 polish item)
+2. **S6-08** — Sprint 6 integration harness closure (light — sprint-6.sh is already growing organically)
+3. **S6-02** / **S6-03** / **S6-06** — larger items, confirm scope with user before picking up
 
-S6-02 (self-hosted GitLab), S6-03 (Postgres version matrix), and S6-06 (prerelease workflow) are LARGER items and should wait — confirm scope with user before picking those up.
-
-## Test inventory (after S6-01)
+## Test inventory (after S6-04)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -220,10 +262,10 @@ S6-02 (self-hosted GitLab), S6-03 (Postgres version matrix), and S6-06 (prerelea
 - tests/integration/sprint-2.sh: **94 bash assertions**
 - tests/integration/sprint-3.sh: **111 bash assertions**
 - tests/integration/sprint-4.sh: **355 bash assertions**
-- tests/integration/sprint-5.sh: **94 bash assertions** (+1 from S6-01 preflight-list addition)
-- tests/integration/sprint-6.sh: **1 bash assertion** (skip path in normal dev; grows to 5 when docker + pg are available)
-- Total: **1453 passing checks** across **12 test layers** (1457 in live mode)
-- Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 41 vitest tests
+- tests/integration/sprint-5.sh: **94 bash assertions**
+- tests/integration/sprint-6.sh: **17 bash assertions** (+16 from S6-04 [S6-B] Next.js client surface)
+- Total: **1469 passing checks** across **12 test layers** (1473 with docker + pg live mode)
+- Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo **66** vitest tests (41 from S5-05 + 25 from S6-04)
 
 ## Sprint 6 vs Sprint 5 differences
 

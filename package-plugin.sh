@@ -115,6 +115,7 @@ WHITELIST=(
   "examples/nextjs-demo/app"
   "examples/nextjs-demo/lib"
   "examples/nextjs-demo/actions"
+  "examples/nextjs-demo/components"
   "examples/nextjs-demo/tests"
   "examples/nextjs-demo/.vibeflow/reports"
   "docs/GETTING-STARTED.md"
