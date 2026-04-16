@@ -44,3 +44,4 @@ coverage/
 # Plugin packaging output — package-plugin.sh writes here, but the
 # archive itself is build output and not source.
 vibeflow-plugin-*.tar.gz
+vibeflow-plugin-*.tar.gz.sha256
