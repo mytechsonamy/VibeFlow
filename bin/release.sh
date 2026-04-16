@@ -209,13 +209,38 @@ if [[ -z "$VERSION" ]]; then
   exit 2
 fi
 
-# Strict SemVer pattern — no prerelease, no metadata.
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "release: version '$VERSION' is not a strict SemVer X.Y.Z" >&2
-  echo "release: prerelease + build-metadata suffixes are not supported by this script" >&2
-  exit 2
+# SemVer validation — mode depends on --prerelease flag.
+# - default:     strict X.Y.Z, no suffix
+# - --prerelease: X.Y.Z-<id>, where <id> is SemVer 2.0.0 compliant
+SEMVER_STABLE='^[0-9]+\.[0-9]+\.[0-9]+$'
+SEMVER_PRERELEASE='^[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z][0-9A-Za-z.-]*$'
+
+if [[ "$PRERELEASE" == "true" ]]; then
+  if [[ "$VERSION" =~ $SEMVER_STABLE ]]; then
+    echo "release: --prerelease is only for SemVer prerelease identifiers (X.Y.Z-<id>)" >&2
+    echo "release: got '$VERSION' which is a strict SemVer triple — drop --prerelease for stable releases" >&2
+    exit 2
+  fi
+  if [[ ! "$VERSION" =~ $SEMVER_PRERELEASE ]]; then
+    echo "release: version '$VERSION' is not a valid SemVer prerelease (X.Y.Z-<id>)" >&2
+    echo "release: example valid forms: 1.3.0-rc.1, 1.3.0-beta.2, 1.3.0-alpha" >&2
+    exit 2
+  fi
+  echo "  ok   version '$VERSION' is a valid SemVer prerelease (prerelease mode)"
+else
+  if [[ "$VERSION" =~ $SEMVER_PRERELEASE ]]; then
+    echo "release: version '$VERSION' is a SemVer prerelease identifier" >&2
+    echo "release: prerelease versions requires --prerelease flag" >&2
+    echo "release: re-run with: bin/release.sh $VERSION --prerelease" >&2
+    exit 2
+  fi
+  if [[ ! "$VERSION" =~ $SEMVER_STABLE ]]; then
+    echo "release: version '$VERSION' is not a strict SemVer X.Y.Z" >&2
+    echo "release: prerelease + build-metadata suffixes require --prerelease (see docs/RELEASING.md)" >&2
+    exit 2
+  fi
+  echo "  ok   version '$VERSION' is a valid SemVer triple"
 fi
-echo "  ok   version '$VERSION' is a valid SemVer triple"
 
 # Must be strictly greater than the current version.
 CURRENT_VERSION="$(jq -r '.version' .claude-plugin/plugin.json)"

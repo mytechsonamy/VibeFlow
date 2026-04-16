@@ -238,6 +238,27 @@ else
   fail "[S8-C] release.sh parses --prerelease flag"
 fi
 
+# 2. release.sh defines SemVer prerelease regex.
+if grep -qE 'SEMVER_PRERELEASE=.*0-9A-Za-z' "$RELEASE_SH_S8C"; then
+  pass "[S8-C] release.sh defines SemVer prerelease regex"
+else
+  fail "[S8-C] release.sh defines SemVer prerelease regex"
+fi
+
+# 3. release.sh rejects prerelease string when --prerelease missing.
+if grep -q 'requires --prerelease' "$RELEASE_SH_S8C"; then
+  pass "[S8-C] release.sh errors on prerelease version without --prerelease"
+else
+  fail "[S8-C] release.sh errors on prerelease version without --prerelease"
+fi
+
+# 4. release.sh rejects --prerelease with strict X.Y.Z.
+if grep -q 'only for SemVer prerelease' "$RELEASE_SH_S8C"; then
+  pass "[S8-C] release.sh errors on --prerelease with stable X.Y.Z"
+else
+  fail "[S8-C] release.sh errors on --prerelease with stable X.Y.Z"
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [S8-Z] sprint-8.sh harness self-audit =="
 
