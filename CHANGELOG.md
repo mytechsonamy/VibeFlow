@@ -595,3 +595,11 @@ N/A — first release.
 Built with Claude Opus 4.6 and Claude Code, by Mustafa Yıldırım.
 
 [1.0.0]: https://github.com/mustiyildirim/vibeflow/releases/tag/v1.0.0
+
+---
+
+## Pre-releases
+
+<!-- Prerelease entries sit below this header. Stable releases stay
+     above the `---` separator; prereleases never become "latest".
+     Added in Sprint 8 / S8-01. -->

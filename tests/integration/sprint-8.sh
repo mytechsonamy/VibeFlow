@@ -259,6 +259,13 @@ else
   fail "[S8-C] release.sh errors on --prerelease with stable X.Y.Z"
 fi
 
+# 5. CHANGELOG.md contains "## Pre-releases" footer.
+if grep -q '^## Pre-releases$' "$CHANGELOG_S8C"; then
+  pass "[S8-C] CHANGELOG.md has a ## Pre-releases footer"
+else
+  fail "[S8-C] CHANGELOG.md has a ## Pre-releases footer"
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [S8-Z] sprint-8.sh harness self-audit =="
 
