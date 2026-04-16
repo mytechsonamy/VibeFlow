@@ -17,13 +17,13 @@ sample project.
 - **Node.js 18+** — `node --version` must show `v18` or higher
 - **Git** — the sdlc-engine uses it for phase-aware commit guards
 - **jq** and **sqlite3** — the hook scripts depend on both (preinstalled on macOS, `brew install jq sqlite` if missing on Linux it's already there)
-- Optional: **PostgreSQL 14+** for team mode
+- Optional: **PostgreSQL 13+** for team mode (13–16 exercised in the v1.2 test matrix; AWS RDS / GCP Cloud SQL / Azure Database also supported — see [TEAM-MODE.md](./TEAM-MODE.md#managed-cloud-postgres-aws-rds-gcp-cloud-sql-azure))
 - Optional: **Figma personal access token** (only if you want `design-bridge` skills)
-- Optional: **GitHub personal access token** (only if you want `dev-ops` pipeline skills)
+- Optional: **GitHub or GitLab personal access token** (only if you want `dev-ops` pipeline skills; GitLab SaaS or self-hosted — see [CONFIGURATION.md](./CONFIGURATION.md))
 
 ## 2. Install the plugin
 
-### Option A — Local development install (current v1.0 path)
+### Option A — Local development install (recommended)
 
 ```bash
 git clone https://github.com/mustiyildirim/vibeflow ~/Projects/VibeFlow

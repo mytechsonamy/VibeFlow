@@ -7,6 +7,163 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] — 2026-04-16
+
+Second minor release. Sprint 7 delivered v1.1's deferrals
+(self-hosted GitLab, Postgres version matrix) + captured two
+release-workflow lessons from the v1.1.0 cut (the "pg missing
+mid-release" incident + the sha256 sidecar drift). All shipped
+tickets tighten release discipline and expand the supported
+infrastructure surface.
+
+**No breaking changes.** Drop-in replacement for v1.1.0.
+
+### Added
+
+- **Self-hosted GitLab support — `createGitlabClient` plumbed
+  end-to-end.** Sprint 5 / S5-02 shipped the client with a
+  configurable `baseUrl` option, but the plugin manifest had no
+  `gitlab_base_url` key, `.mcp.json` did not expose it as an env
+  var, `dev-ops/src/tools.ts` never consumed it from env, and the
+  19 vitest cases all hit gitlab.com. A self-hosted-GitLab user had
+  to hand-edit `client.ts` to make it work. S7-01 closes every link
+  of the chain: new `gitlab_base_url` + `gitlab_token` userConfig
+  keys, `.mcp.json` plumbs both, `tools.ts` reads
+  `process.env.GITLAB_BASE_URL` as the baseUrl fallback,
+  `client.ts` coerces empty-string `baseUrl` to the default,
+  9 new vitest cases + 1 tools-layer case, `docs/CONFIGURATION.md`
+  gains four new rows with worked examples (SaaS, custom port,
+  sub-path install, local dev). (S7-01)
+- **Postgres version matrix — PG13 / PG14 / PG15 / PG16.** Sprint
+  5 / S5-03 pinned the first live-Postgres test to
+  `postgres:14-alpine`; Sprint 6 / S6-01 kept the pin. S7-02 ships
+  `bin/with-postgres-matrix.sh` which loops `VF_PG_IMAGES` (default:
+  PG13 through PG16 Alpine) and invokes the existing
+  `bin/with-postgres.sh` wrapper per image. `sprint-5.sh [S5-B]`
+  and `sprint-6.sh [S6-A]` taught to reuse an outer `DATABASE_URL`
+  so nested wrapper calls don't collide on port 55432. Opt-in
+  runtime sentinel via `VF_RUN_PG_MATRIX=1` in `sprint-7.sh [S7-E]`
+  runs the full matrix end-to-end. Live-verified: all 4 PG versions
+  pass the full sprint-5 walk. `docs/TEAM-MODE.md` gains a
+  "Supported Postgres versions" section + a "Managed-cloud Postgres
+  (AWS RDS, GCP Cloud SQL, Azure)" section covering
+  `sslmode=require`, the PgBouncer transaction-mode advisory-lock
+  gotcha, and IAM-auth scope. (S7-02)
+- **`bin/release.sh` step [0.5] — pg peer-dep sanity check.** The
+  v1.1.0 release failed mid-flight at step [5] because `pg` had
+  been uninstalled during S6-01 testing and `tsc` couldn't find
+  the module. plugin.json had already been bumped, leaving the
+  tree in a half-released state. The new step [0.5] probes both
+  `mcp-servers/sdlc-engine/node_modules/pg` AND
+  `node_modules/@types/pg` before any tree mutation and surfaces
+  the fix command in the error output. (S7-04)
+- **`docs/RELEASING.md` Troubleshooting expanded from 6 to 9
+  entries.** Three new entries capture the v1.1.0 release lessons:
+  "pg peer dep is not installed", "release.sh fails MID-FLIGHT",
+  and "sha256 sidecar doesn't match the uploaded tarball" (with
+  the `gh release upload --clobber` recovery). (S7-05)
+- **Reproducible `package-plugin.sh` tarballs.** The v1.1.0 sha256
+  drift incident had a root cause: `tar -cz` bakes timestamps into
+  the gzip header, and `find`'s filesystem-order output produced
+  different tar orderings across runs. S7-05B rewrites step [4] to
+  stage files into a tempdir, normalize mtimes to epoch 0 via
+  `touch -t 197001010000.00`, sort the file list, detect BSD-vs-GNU
+  tar for ownership flags, and pipe uncompressed tar through
+  `gzip -n`. Two consecutive runs now produce byte-identical
+  archives. `sprint-7.sh [S7-C]` includes a runtime sentinel that
+  actually runs packaging twice and asserts sha256 equality.
+  (S7-05B)
+- **`tests/integration/sprint-7.sh`** — new 51-assertion harness
+  covering all five Sprint 7 shipped tickets plus a closing
+  [S7-Z] self-audit that mirrors sprint-6.sh's [S6-Z]. (S7-01 /
+  S7-02 / S7-04 / S7-05 / S7-05B / S7-06)
+
+### Changed
+
+- **`bin/release.sh` preflight gauntlet** now runs 13 harnesses
+  (was 12 in v1.1.0) — sprint-7.sh added alongside the existing
+  layers.
+- **`tests/integration/sprint-4.sh [S4-F]` userConfig key list**
+  extended with `gitlab_token` + `gitlab_base_url` (+12
+  assertions).
+- **`tests/integration/sprint-4.sh [S4-H]` EXPECTED_PLUGIN_VERSION**
+  bumped 1.1.0 → 1.2.0 via the parameterized variable introduced
+  in S5-07.
+- **`mcp-servers/dev-ops/src/client.ts`** — `createGitlabClient`
+  now treats empty-string `baseUrl` the same as unset (userConfig
+  values arrive as `""` for unset keys).
+
+### Fixed
+
+- **sha256 sidecar drift during release** — see S7-05B under Added.
+  The v1.1.0 release briefly uploaded a sidecar that didn't match
+  the tarball; the root cause is fixed in v1.2.0 so future releases
+  produce byte-identical tarballs across runs on the same host.
+- **Nested `with-postgres.sh` port collision** — sprint-5.sh
+  [S5-B] and sprint-6.sh [S6-A] used to always invoke their own
+  wrapper. Under the S7-02 matrix runner that caused a port-55432
+  collision. Both sections now detect `DATABASE_URL` from an outer
+  context and reuse the running container.
+
+### Test baseline growth
+
+| Version | Test layers | Baseline checks | Bonus suites |
+|---------|-------------|-----------------|--------------|
+| v1.0.0  | 10          | 1255            | demo-app (45) |
+| v1.0.1  | 11          | 1445            | demo-app (45) + nextjs-demo (41) |
+| v1.1.0  | 12          | 1489            | demo-app (45) + nextjs-demo (66) |
+| v1.2.0  | **13**      | **1565**        | demo-app (45) + nextjs-demo (66) |
+
+76-check growth v1.1.0 → v1.2.0 split:
+- `sprint-7.sh` (new harness): 51 assertions across
+  [S7-A/B/C/D/E/Z]
+- `sprint-4.sh`: 355 → 367 (+12 from the two new userConfig keys)
+- `sprint-5.sh`: 94 → 97 (+3 from preflight list + counter
+  settling)
+- `dev-ops` vitest: 62 → 72 (+10 from S7-01 self-hosted GitLab
+  coverage)
+
+Opt-in `VF_RUN_PG_MATRIX=1` adds +12 assertions for the 4-image
+live matrix run → **1581** total.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A — v1.2.0 is a drop-in replacement for v1.1.0. New optional
+env vars default to "do nothing":
+- `VF_RUN_PG_MATRIX=1` — opt IN to the 4-image Postgres matrix
+- `VF_PG_IMAGES` — override the default matrix image list
+- `GITLAB_BASE_URL` — self-hosted GitLab API URL (unset = gitlab.com)
+- `GITLAB_TOKEN` — GitLab PAT (unset = fall back to `GITHUB_TOKEN`)
+
+Self-hosted GitLab users can now set `userConfig.gitlab_base_url`
+directly in Claude Code plugin settings — no more hand-editing
+`client.ts`.
+
+### Distribution
+
+- **Tarball**: `./package-plugin.sh` produces
+  `vibeflow-plugin-1.2.0.tar.gz`. **Now byte-reproducible** across
+  consecutive runs on the same host thanks to S7-05B.
+- **Local install**: `claude --plugin-dir ~/Projects/VibeFlow`
+- **Marketplace**: `claude plugin install vibeflow@vibeflow-marketplace`
+- **Tag/release push**: user-gated. v1.2.0 uses the annotated
+  fall-back (no `user.signingkey` on the release host).
+
+### Documentation
+
+- [Releasing](./docs/RELEASING.md) — now 9 troubleshooting entries
+- [Team Mode](./docs/TEAM-MODE.md) — new "Supported Postgres
+  versions" + "Managed-cloud Postgres" sections
+- [Configuration](./docs/CONFIGURATION.md) — four new rows
+  (`gitlab_base_url`, `gitlab_token`, `GITLAB_BASE_URL`,
+  `GITLAB_TOKEN`)
+
+[1.2.0]: https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.2.0
+
 ## [1.1.0] — 2026-04-16
 
 First minor release after v1.0. Sprint 6 picks up items deferred
