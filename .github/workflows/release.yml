@@ -51,6 +51,14 @@ jobs:
         run: ./build-all.sh
 
       - name: Pre-flight test gauntlet
+        # Sprint 8 / S8-03 — consolidates the deferred workflow
+        # updates from Sprint 6 (sprint-6.sh [S6-A]) and Sprint 7
+        # (sprint-7.sh [S7-D/E]) + wires sprint-8.sh [S8-A]. All
+        # three new harnesses run here alongside the existing
+        # sprint-2..5 layers. The skip envs keep the workflow green
+        # on GitHub-hosted runners that don't have docker-in-docker,
+        # pg installed in the sdlc-engine tree, or next installed in
+        # the demo — same skip ladders the harnesses honor locally.
         run: |
           set -e
           for mcp in sdlc-engine codebase-intel design-bridge dev-ops observability; do
@@ -61,10 +69,20 @@ jobs:
           bash tests/integration/sprint-2.sh
           bash tests/integration/sprint-3.sh
           bash tests/integration/sprint-4.sh
-          # Skip sprint-5.sh [S5-B] in CI unless the runner has
-          # docker; the opt-out keeps the workflow green even when
-          # the live-Postgres walk can't run.
+          # sprint-5.sh [S5-B] lives-Postgres walk → skipped by CI
           VF_SKIP_LIVE_POSTGRES=1 bash tests/integration/sprint-5.sh
+          # sprint-6.sh [S6-A] concurrent-CAS stress + [S6-B]
+          # next-build gate → both skippable via env vars.
+          VF_SKIP_LIVE_POSTGRES=1 VF_SKIP_NEXT_BUILD=1 \
+            bash tests/integration/sprint-6.sh
+          # sprint-7.sh [S7-E] Postgres version matrix is opt-in
+          # via VF_RUN_PG_MATRIX=1 (default: skip). CI inherits the
+          # default skip — a scheduled workflow can set it weekly if
+          # we want the 4-image matrix to run in CI at some cadence.
+          bash tests/integration/sprint-7.sh
+          # sprint-8.sh [S8-A] multi-tarball save/restore regression
+          # runs unconditionally — no external infra needed.
+          bash tests/integration/sprint-8.sh
 
       - name: Package plugin tarball
         run: ./package-plugin.sh --skip-build

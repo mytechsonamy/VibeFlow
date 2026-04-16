@@ -7,13 +7,15 @@
 #
 # Sections:
 #   [S8-A] — sprint-7.sh [S7-C] multi-tarball save/restore fix (S8-02)
+#   [S8-B] — CI release workflow wires sprint-6/7/8 harnesses (S8-03)
 #   [S8-Z] — Sprint 8 harness self-audit (mirrors [S6-Z] / [S7-Z])
 #
 # Sprint 8 ticket coverage (as of current commit):
-#   S8-02 (save/restore fix) → [S8-A]
-# S8-01 / S8-03 / S8-04 / S8-05 / S8-06 / S8-07 / S8-08 are not
-# yet picked up — if and when they land, they will add their own
-# [S8-B/C/…] sections here.
+#   S8-02 (save/restore fix)                  → [S8-A]
+#   S8-03 (CI workflow consolidation)         → [S8-B]
+# S8-01 / S8-04 / S8-05 / S8-06 / S8-07 / S8-08 are not yet
+# picked up — if and when they land, they will add their own
+# [S8-C/D/…] sections here.
 #
 # Exit 0 on full pass, 1 otherwise.
 
@@ -148,6 +150,65 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+echo "== [S8-B] CI release workflow wires sprint-6/7/8 harnesses =="
+
+# S8-03 — Sprint 6 / S6-01 wanted to add sprint-6.sh to the CI
+# release workflow but the author's PAT lacked `workflow` scope.
+# Sprint 7 / S7-06 hit the same blocker for sprint-7.sh. Sprint 8
+# consolidates all three deferred workflow updates (sprint-6.sh,
+# sprint-7.sh, sprint-8.sh) into one user-gated commit that the
+# maintainer pushes with a workflow-scoped token.
+#
+# These sentinels grep the release workflow YAML for each harness.
+# If a future refactor drops one, the sentinel fires immediately
+# — catches the regression before the next release tag push.
+
+RELEASE_WORKFLOW_S8B="$REPO_ROOT/.github/workflows/release.yml"
+
+if [[ -f "$RELEASE_WORKFLOW_S8B" ]]; then
+  # 1-3. Each Sprint 6/7/8 harness must be named in the gauntlet step.
+  for harness_name in "sprint-6.sh" "sprint-7.sh" "sprint-8.sh"; do
+    if grep -q "tests/integration/$harness_name" "$RELEASE_WORKFLOW_S8B"; then
+      pass "[S8-B] release.yml preflight runs $harness_name"
+    else
+      fail "[S8-B] release.yml preflight runs $harness_name"
+    fi
+  done
+
+  # 4. sprint-6.sh needs both VF_SKIP_LIVE_POSTGRES=1 AND
+  #    VF_SKIP_NEXT_BUILD=1 because [S6-B]'s optional next-build
+  #    gate would otherwise try to `npm install && npm run build`
+  #    in the Next.js demo on every CI release — slow and fragile
+  #    on a fresh runner.
+  if grep -q 'VF_SKIP_LIVE_POSTGRES=1 VF_SKIP_NEXT_BUILD=1' "$RELEASE_WORKFLOW_S8B" \
+      || grep -qE 'VF_SKIP_NEXT_BUILD=1.*sprint-6' "$RELEASE_WORKFLOW_S8B" \
+      || grep -qE 'sprint-6.*VF_SKIP_NEXT_BUILD' "$RELEASE_WORKFLOW_S8B"; then
+    pass "[S8-B] release.yml skips sprint-6.sh's optional next build in CI"
+  else
+    fail "[S8-B] release.yml skips sprint-6.sh's optional next build in CI"
+  fi
+
+  # 5. sprint-5.sh must STILL be wired (we only added three new
+  #    harnesses, we didn't replace the existing sprint-5 line).
+  if grep -q "VF_SKIP_LIVE_POSTGRES=1 bash tests/integration/sprint-5.sh" "$RELEASE_WORKFLOW_S8B"; then
+    pass "[S8-B] release.yml still runs sprint-5.sh with VF_SKIP_LIVE_POSTGRES=1"
+  else
+    fail "[S8-B] release.yml still runs sprint-5.sh with VF_SKIP_LIVE_POSTGRES=1"
+  fi
+
+  # 6. S8-03 reference in the comment block so a future contributor
+  #    reading the workflow can trace back to this ticket + the
+  #    three sibling tickets whose workflow updates consolidated here.
+  if grep -q 'S8-03' "$RELEASE_WORKFLOW_S8B"; then
+    pass "[S8-B] release.yml cites S8-03 in the preflight comment block"
+  else
+    fail "[S8-B] release.yml cites S8-03 in the preflight comment block"
+  fi
+else
+  fail "[S8-B] .github/workflows/release.yml present"
+fi
+
+# ---------------------------------------------------------------------------
 echo "== [S8-Z] sprint-8.sh harness self-audit =="
 
 # Same pattern as [S6-Z] / [S7-Z]. Catches section-deletion,
@@ -157,8 +218,8 @@ echo "== [S8-Z] sprint-8.sh harness self-audit =="
 
 SELF_S8Z="$REPO_ROOT/tests/integration/sprint-8.sh"
 
-# 1-2. Each expected section header must still be present.
-for sec_label in "S8-A" "S8-Z"; do
+# 1-3. Each expected section header must still be present.
+for sec_label in "S8-A" "S8-B" "S8-Z"; do
   if grep -q "echo \"== \[$sec_label\]" "$SELF_S8Z"; then
     pass "[S8-Z] [$sec_label] section header still present"
   else

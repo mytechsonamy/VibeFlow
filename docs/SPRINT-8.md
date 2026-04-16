@@ -73,28 +73,37 @@ The [S7-C] determinism runtime sentinel used to save only the FIRST pre-existing
 
 **Live-verified:** with `vibeflow-plugin-1.2.0.tar.gz` (real release) + `vibeflow-plugin-0.9.9.tar.gz` (fake fixture) on disk, ran `sprint-7.sh` and confirmed both files still present afterward with sha256 unchanged. Without the fix, the 1.2.0 tarball would have been clobbered.
 
-### S8-03: Consolidate deferred CI workflow changes
+### S8-03: Consolidate deferred CI workflow changes ✅ DONE (pending user push)
 **Captured during:** Sprint 6 / S6-01 + Sprint 7 / S7-06
-**Location:** `.github/workflows/release.yml`
+**Location:** `.github/workflows/release.yml` + `tests/integration/sprint-8.sh [S8-B]`
 
-Sprint 6's S6-01 ticket wanted to add sprint-6.sh to the CI
-release workflow but the token lacked `workflow` scope. Sprint 7's
-S7-06 hit the same issue with sprint-7.sh. Both are local-only
-changes waiting for a user-gated push.
+Sprint 6's S6-01, Sprint 7's S7-06, and Sprint 8's S8-02 all wanted to wire their respective harness into the CI release workflow, but my PAT consistently lacks the `workflow` scope. S8-03 consolidates all three deferred updates into one commit the maintainer can push with a workflow-scoped token.
 
-S8-03 consolidates both deferred updates into a single
-user-authored commit the maintainer pushes with an elevated
-token:
+**Completed:**
+- [x] `.github/workflows/release.yml` preflight step extended with three new harness runs:
+  - `VF_SKIP_LIVE_POSTGRES=1 VF_SKIP_NEXT_BUILD=1 bash tests/integration/sprint-6.sh` — sprint-6.sh [S6-A] concurrent-CAS walk + [S6-B] next-build gate BOTH skip in CI (no docker-in-docker, no Next installed on a fresh runner)
+  - `bash tests/integration/sprint-7.sh` — runs unconditionally; [S7-E] Postgres matrix is already opt-in via `VF_RUN_PG_MATRIX=1` which CI doesn't set, so it takes the structural-only path
+  - `bash tests/integration/sprint-8.sh` — runs unconditionally; no external infra dependencies
+- [x] `sprint-5.sh`'s existing CI line preserved verbatim (we only added three harnesses, didn't rewrite the existing sprint-5 preflight)
+- [x] Preflight `run:` block now has a big comment block citing S8-03 + the three originating tickets so a future contributor reading the workflow can trace the history
+- [x] **`tests/integration/sprint-8.sh [S8-B]` — 6 new sentinels** that grep the workflow YAML and verify each harness + each skip env var is still wired. If a future refactor drops any of them, the sentinel fires at the next preflight run.
 
-- [ ] Add `VF_SKIP_LIVE_POSTGRES=1 bash tests/integration/sprint-6.sh`
-      after the existing sprint-5.sh CI run
-- [ ] Add `bash tests/integration/sprint-7.sh` after that
-      (no skip needed — sprint-7.sh's [S7-E] already defaults to
-      opt-in via `VF_RUN_PG_MATRIX=1` which CI won't set)
-- [ ] Optionally add a CI-only step that runs with
-      `VF_RUN_PG_MATRIX=1` on a schedule (weekly) rather than on
-      every tag push, so the 4-image matrix exercises in CI
-      without slowing every release
+**User action required:** commit `0cc6657...` (S8-02) is already pushed via `feature/sprint8`, but the follow-up commit that modifies `.github/workflows/release.yml` needs a workflow-scoped PAT to push. The commit is staged locally — push with:
+
+```bash
+# Option A — use gh CLI which has the right scopes by default
+gh auth login
+git push origin feature/sprint8
+
+# Option B — refresh your PAT with workflow scope
+# https://github.com/settings/tokens → edit/regenerate with 'workflow' scope
+git push origin feature/sprint8
+```
+
+Once the workflow change is pushed, CI release runs will exercise sprint-6.sh + sprint-7.sh + sprint-8.sh alongside the existing sprint-2..5 layers. Before that push, CI still runs the pre-Sprint-8 gauntlet (sprint-5.sh only for the newer harnesses).
+
+**Scope not shipped** (moved to future tickets):
+- **Scheduled workflow that runs `VF_RUN_PG_MATRIX=1` weekly** — mentioned as a nice-to-have in the Sprint 8 seed draft. Deferred because it's a separate workflow file (`.github/workflows/pg-matrix.yml`) that needs the same PAT workflow scope to push + adds a cron trigger to consider. Better handled as its own Sprint 9 ticket if/when CI matrix signal is worth the monthly-CI cost.
 
 ### S8-04: Cross-host deterministic tarballs
 **Captured during:** Sprint 7 / S7-05B scope boundaries
@@ -176,14 +185,14 @@ shipped S8-* ticket + closing [S8-Z] self-audit.
 
 ## Next Ticket to Work On
 
-**S8-02 ✅ DONE** (sprint-7.sh [S7-C] save/restore fix). Suggested next:
+**S8-02 ✅ DONE**. **S8-03 ✅ DONE** (workflow change staged, pending user push with workflow-scoped PAT). Suggested next:
 
-- **S8-03** (CI workflow consolidation) — small diff but needs user-gated push (PAT workflow scope)
 - **S8-01** (prerelease workflow) — Sprint 8 headline feature
+- **S8-07** + **S8-08** — harness + release closure, cuts v1.3.0
 
-S8-04 / S8-05 / S8-06 stay deferred. S8-07 + S8-08 are the closure tickets.
+S8-04 / S8-05 / S8-06 stay deferred.
 
-## Test inventory (after S8-02)
+## Test inventory (after S8-02 + S8-03)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -198,8 +207,8 @@ S8-04 / S8-05 / S8-06 stay deferred. S8-07 + S8-08 are the closure tickets.
 - tests/integration/sprint-5.sh: **98 bash assertions** (+1 from sprint-8.sh preflight entry)
 - tests/integration/sprint-6.sh: **37 bash assertions**
 - tests/integration/sprint-7.sh: **51 bash assertions**
-- tests/integration/sprint-8.sh: **12 bash assertions** (NEW: 6 [S8-A] + 6 [S8-Z])
-- Total: **1578 passing checks** across **14 test layers**
+- tests/integration/sprint-8.sh: **19 bash assertions** (6 [S8-A] + 6 [S8-B] + 7 [S8-Z])
+- Total: **1585 passing checks** across **14 test layers**
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 66 vitest tests
 
 ## Test inventory (baseline from v1.2.0)
