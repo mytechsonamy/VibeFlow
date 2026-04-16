@@ -90,6 +90,71 @@ on the next query. If you see this happen on every read, the
 Postgres host is dropping idle connections too aggressively;
 increase your `idle_in_transaction_session_timeout`.
 
+### Supported Postgres versions
+
+VibeFlow exercises its state store against **PG13 / PG14 / PG15 /
+PG16** in the sprint-7.sh [S7-E] matrix runner (opt-in via
+`VF_RUN_PG_MATRIX=1`; the default CI run pins `postgres:14-alpine`
+to keep the gauntlet fast). Anything in the
+[Postgres support window](https://www.postgresql.org/support/versioning/)
+works — the queries use only SQL features stable since PG9.1, and
+`pg_advisory_xact_lock` is stable since PG8.2.
+
+To run the matrix locally:
+
+```bash
+# Default matrix (PG13 → PG16)
+bash bin/with-postgres-matrix.sh bash tests/integration/sprint-5.sh
+
+# Narrow to one version
+VF_PG_IMAGES="postgres:16-alpine" bash bin/with-postgres-matrix.sh \
+  bash tests/integration/sprint-6.sh
+
+# Widen to include a managed-cloud simulator image
+VF_PG_IMAGES="postgres:13-alpine postgres:16-alpine timescale/timescaledb:latest-pg16" \
+  bash bin/with-postgres-matrix.sh bash tests/integration/sprint-5.sh
+```
+
+### Managed-cloud Postgres (AWS RDS, GCP Cloud SQL, Azure)
+
+VibeFlow's state store is pure SQL — no stored procedures, no
+version-specific syntax, no extensions required. Managed Postgres
+services run it unchanged, with three specific caveats:
+
+1. **Require SSL.** AWS RDS and GCP Cloud SQL default to
+   `sslmode=require`. Add it to the connection string:
+
+   ```
+   postgresql://user:pass@mydb.us-east-1.rds.amazonaws.com:5432/vibeflow?sslmode=require
+   ```
+
+   Without `sslmode=require`, the connection is refused and the
+   `[sdlc-engine] pg connect failed for project <id>` error surfaces
+   at first tool call.
+
+2. **PgBouncer transaction-pool caveat.** If your managed Postgres
+   sits behind PgBouncer in `transaction` pool mode, advisory locks
+   can get handed back to a different backend mid-request, which
+   defeats the `pg_advisory_xact_lock` serialization. Two fixes:
+   - Switch the pool to `session` mode (safer, slightly less
+     efficient)
+   - OR point VibeFlow at the direct Postgres endpoint, not the
+     PgBouncer pooler. RDS and Cloud SQL both expose a direct
+     endpoint alongside the pooler endpoint.
+
+   The v1.2 state store does NOT detect this misconfiguration at
+   runtime — you only see its effects as occasional stale-read
+   failures under concurrent load. A follow-up ticket will add a
+   startup probe that rejects transaction-mode poolers explicitly.
+
+3. **IAM / OIDC authentication.** Currently out of scope — the
+   v1.2 client authenticates with a username + password only. If
+   your managed Postgres requires IAM-token auth (AWS RDS IAM auth,
+   Cloud SQL IAM auth), you need to provision the token externally
+   and rotate the `db_connection` string in Claude Code settings on
+   each rotation. A future ticket will wire IAM auth into the
+   connect path.
+
 ## 3. Switch to team mode
 
 ### a. Set the connection string

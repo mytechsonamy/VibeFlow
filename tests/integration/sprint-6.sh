@@ -212,7 +212,17 @@ fi
 STRESS_OUTER
 )"
 
-  OUT="$(bash "$WITH_POSTGRES_S6A" bash -c "$STRESS_SCRIPT" _ "$ENGINE_DIST_S6A" 2>&1 || true)"
+  # Sprint 7 / S7-02 — compose with bin/with-postgres-matrix.sh.
+  # When DATABASE_URL is set by an outer wrapper (the matrix runner
+  # supplies it per-image), the stress script runs against that
+  # container. Otherwise we spin up our own via with-postgres.sh.
+  # Without this detection, nested with-postgres.sh invocations
+  # would collide on port 55432 (same issue as sprint-5.sh [S5-B]).
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    OUT="$(bash -c "$STRESS_SCRIPT" _ "$ENGINE_DIST_S6A" 2>&1 || true)"
+  else
+    OUT="$(bash "$WITH_POSTGRES_S6A" bash -c "$STRESS_SCRIPT" _ "$ENGINE_DIST_S6A" 2>&1 || true)"
+  fi
 
   # Setup completed?
   if echo "$OUT" | grep -q "^SETUP_DONE"; then

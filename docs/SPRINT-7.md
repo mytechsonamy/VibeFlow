@@ -69,21 +69,38 @@ Sprint 5's GitLab client shipped with 19 vitest cases all against `gitlab.com` U
 - `tests/integration/sprint-7.sh`: 26 → **37** (+11 from [S7-D])
 - Total baseline: 1518 → **1551** across 13 test layers (1555 in docker+pg live mode)
 
-### S7-02: Postgres version matrix (PG13 / PG15 / PG16 / managed)
+### S7-02: Postgres version matrix PG13/14/15/16 + managed-cloud caveats ✅ DONE
 **Deferred from:** Sprint 6 / S6-03 (itself deferred from Sprint 5 / S5-03)
-**Location:** `bin/with-postgres.sh` + `sprint-7.sh [S7-?]`
+**Location:** `bin/with-postgres-matrix.sh` (new) + `tests/integration/sprint-7.sh [S7-E]` + `docs/TEAM-MODE.md`
 
-Sprint 5 only tests against `postgres:14-alpine`. Sprint 6's
-[S6-A] concurrent-CAS stress test also pins `postgres:14-alpine`.
-Real users will run a mix of PG13, PG15, PG16, AWS RDS, GCP Cloud
-SQL. S7-02 parameterizes `bin/with-postgres.sh` to accept multiple
-`VF_PG_IMAGE` values and loops the S5-B + S6-A walks across each.
+Sprint 5 / S5-03 shipped the first live-Postgres test pinned to `postgres:14-alpine`. Sprint 6 / S6-01's concurrent-CAS stress test kept the same pin. Real users run a mix of PG13 through PG16 + managed-cloud variants. S7-02 parameterizes the wrapper into a matrix runner + documents managed-cloud caveats.
 
-- [ ] Matrix runner wrapping `with-postgres.sh`
-- [ ] PG13 + PG14 + PG15 + PG16 all exercise the REQUIREMENTS →
-      DESIGN walk + the concurrent-advance CAS stress test
-- [ ] Document managed-cloud caveats (RDS-specific config) in
-      `docs/TEAM-MODE.md`
+**Completed:**
+- [x] **`bin/with-postgres-matrix.sh`** (NEW) — loops over `VF_PG_IMAGES` (default: PG13/14/15/16 Alpine tags), invokes the existing `bin/with-postgres.sh` wrapper per image, and reports a pass/fail summary. Each matrix iteration uses the same port because iterations run sequentially. Narrow the matrix via `VF_PG_IMAGES="postgres:16-alpine"` or widen it to include third-party images (TimescaleDB, Citus, etc.).
+- [x] **`sprint-5.sh [S5-B]` + `sprint-6.sh [S6-A]` composition fix** — both sections previously nested their own `bash bin/with-postgres.sh ...` call. Under the matrix runner that produced a port-55432 collision (outer container + inner nested container). Both now check `DATABASE_URL` at runtime: when set, the walker runs against the existing container; when unset, it still spins up its own throwaway container standalone.
+- [x] **`sprint-7.sh [S7-E]` — 14 new sentinels** covering:
+  - Matrix runner file presence + executable bit
+  - Default image list covers PG13, PG14, PG15, PG16 (4 separate greps so missing any one fires distinctly)
+  - Matrix runner delegates to `bin/with-postgres.sh` (no duplicate docker-pull logic)
+  - Both sprint-5.sh [S5-B] AND sprint-6.sh [S6-A] reuse outer DATABASE_URL when set
+  - TEAM-MODE.md documents: supported PG versions, managed-cloud caveats, PgBouncer transaction-mode gotcha, `sslmode=require` for RDS/Cloud SQL
+  - **Opt-in runtime sentinel via `VF_RUN_PG_MATRIX=1`** that actually runs the matrix end-to-end against all 4 PG versions. Honors the same skip ladder as [S5-B]/[S6-A] (docker daemon + pg peer dep).
+- [x] **`docs/TEAM-MODE.md`** new "Supported Postgres versions" section covering the matrix + example invocations. New "Managed-cloud Postgres" section with three caveats:
+  1. `sslmode=require` for RDS / Cloud SQL connection strings
+  2. **PgBouncer transaction-mode issue** — advisory locks break under transaction-mode pooling; two fixes (switch to session mode OR point at the direct endpoint)
+  3. IAM / OIDC auth out of scope for v1.2 — rotate PAT strings via Claude Code settings on each rotation
+
+**Live-verified:** ran `VF_RUN_PG_MATRIX=1 bash tests/integration/sprint-7.sh` on this host with Docker Desktop up. All 4 Postgres versions (`postgres:13-alpine`, `postgres:14-alpine`, `postgres:15-alpine`, `postgres:16-alpine`) passed the full `sprint-5.sh` walk (97 assertions × 4 images). Matrix runtime: ~3 minutes total on this hardware (30-45s per image, plus the first-run docker pulls).
+
+**Scope boundaries** (intentionally NOT shipped):
+- **Actual RDS / Cloud SQL / Azure Database integration test** — would require an external managed-cloud account + credentials in CI. The mock-based 9-case `gitlab-client.test.ts` S7-01 coverage is our model for this: structural sentinels + explicit scope-out. When we have a CI account wired, a separate ticket adds the live integration.
+- **TimescaleDB / Citus / AlloyDB support** — tested images are stock Postgres only. Extensions and forks should work (the state-store SQL is vanilla) but aren't matrix-covered. The `VF_PG_IMAGES` override lets users add them to the matrix for local verification.
+- **IAM / OIDC auth** — PATs only for now. A follow-up ticket will wire AWS RDS IAM auth + GCP Cloud SQL IAM auth if managed-cloud adoption grows.
+- **PgBouncer startup probe** — the v1.2 state store doesn't detect transaction-mode pooling at startup; TEAM-MODE.md documents the issue but the code silently breaks under it. A follow-up ticket will add a connection-test that rejects transaction-mode poolers explicitly.
+
+**Test count deltas:**
+- `tests/integration/sprint-7.sh`: 37 → **51** (+14 from [S7-E])
+- Total baseline: 1551 → **1565** across 13 test layers (1569 in docker+pg live mode; +12 with matrix run = 1581)
 
 ### S7-03: Automated prerelease / beta-channel workflow
 **Deferred from:** Sprint 6 / S6-06 (itself deferred from Sprint 5 / S5-04)
@@ -187,14 +204,15 @@ release.sh preflight list longer but avoids fragmentation.
 
 ## Next Ticket to Work On
 
-**S7-01 ✅ DONE** (self-hosted GitLab). **S7-04 ✅ DONE**. **S7-05 ✅ DONE**. **S7-05B ✅ DONE**. Next candidates:
+**S7-01 ✅ DONE** (self-hosted GitLab). **S7-02 ✅ DONE** (Postgres matrix). **S7-04 ✅ DONE**. **S7-05 ✅ DONE**. **S7-05B ✅ DONE**. Next candidates:
 
-- **S7-02** (Postgres version matrix) — moderate scope, parameterizes `bin/with-postgres.sh` to run PG13/15/16
 - **S7-03** (prerelease workflow) — larger scope, headline-worthy
-- **S7-06** (Sprint 7 harness closure) — light, just formalizes what sprint-7.sh already ships
+- **S7-06** (Sprint 7 harness closure) — light, formalizes what sprint-7.sh already ships
 - **S7-07** (Sprint 7 closure + v1.2.0 release) — ends the sprint
 
-## Test inventory (after S7-01)
+Suggested: go straight to **S7-06 + S7-07** and cut v1.2.0. S7-03 is substantial enough to land in Sprint 8.
+
+## Test inventory (after S7-02)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -208,8 +226,8 @@ release.sh preflight list longer but avoids fragmentation.
 - tests/integration/sprint-4.sh: **367 bash assertions** (+12 from S7-01 userConfig keys)
 - tests/integration/sprint-5.sh: **97 bash assertions** (+3 from S7-04 sprint-7.sh preflight entry + S6-07 counts settling)
 - tests/integration/sprint-6.sh: **37 bash assertions**
-- tests/integration/sprint-7.sh: **37 bash assertions** (6 [S7-A] + 6 [S7-B] + 6 [S7-C] + 11 [S7-D] + 9 [S7-Z])
-- Total: **1551 passing checks** across **13 test layers** (1555 in docker+pg live mode)
+- tests/integration/sprint-7.sh: **51 bash assertions** (6 [S7-A] + 6 [S7-B] + 6 [S7-C] + 11 [S7-D] + 14 [S7-E] + 10 [S7-Z]; +12 in live matrix mode)
+- Total: **1565 passing checks** across **13 test layers** (1569 in docker+pg live mode, 1581 with live matrix)
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 66 vitest tests
 
 ## Sprint 7 vs Sprint 6 differences

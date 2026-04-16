@@ -11,15 +11,17 @@
 #   [S7-B] — docs/RELEASING.md troubleshooting + sha256-drift recovery (S7-05)
 #   [S7-C] — Reproducible package-plugin.sh tarball (S7-05B)
 #   [S7-D] — Self-hosted GitLab baseUrl plumbing (S7-01)
+#   [S7-E] — Postgres version matrix PG13/14/15/16 (S7-02)
 #   [S7-Z] — Sprint 7 harness self-audit (mirrors [S6-Z])
 #
 # Sprint 7 ticket coverage (as of current commit):
 #   S7-01  (self-hosted GitLab)                  → [S7-D]
+#   S7-02  (Postgres version matrix)             → [S7-E]
 #   S7-04  (release.sh pg sanity check)          → [S7-A]
 #   S7-05  (RELEASING.md troubleshooting)        → [S7-B]
 #   S7-05B (reproducible package-plugin tarball) → [S7-C]
-# S7-02 / S7-03 / S7-06 / S7-07 are not yet picked up — if and when
-# they land, they will add their own [S7-E/F/…] sections here.
+# S7-03 / S7-06 / S7-07 are not yet picked up — if and when they
+# land, they will add their own [S7-F/…] sections here.
 #
 # Exit 0 on full pass, 1 otherwise.
 
@@ -387,6 +389,136 @@ if [[ -f "$CONFIG_DOC_S7D" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+echo "== [S7-E] Postgres version matrix (PG13/14/15/16) =="
+
+# S7-02 — Sprint 5 / S5-03 shipped the first live-Postgres test but
+# pinned postgres:14-alpine. Sprint 6 / S6-01's concurrent-CAS
+# stress test kept the same pin. Real users run a mix of PG13
+# through PG16 + managed-cloud variants. S7-02 parameterizes
+# bin/with-postgres.sh into a matrix runner so we can smoke-test
+# the engine's state store against every Postgres version inside
+# the supported window.
+#
+# Structural sentinels always run; the live matrix run is opt-in
+# via VF_RUN_PG_MATRIX=1 because it spins up 4 containers
+# sequentially (~3 minutes on this hardware). The default gauntlet
+# skips the matrix to keep release.sh preflight under 5 minutes.
+
+MATRIX_SCRIPT_S7E="$REPO_ROOT/bin/with-postgres-matrix.sh"
+TEAM_MODE_DOC_S7E="$REPO_ROOT/docs/TEAM-MODE.md"
+
+# 1. Matrix runner file exists + is executable.
+if [[ -f "$MATRIX_SCRIPT_S7E" ]] && [[ -x "$MATRIX_SCRIPT_S7E" ]]; then
+  pass "[S7-E] bin/with-postgres-matrix.sh present + executable"
+else
+  fail "[S7-E] bin/with-postgres-matrix.sh present + executable"
+fi
+
+# 2-5. Default image list must cover PG13 / PG14 / PG15 / PG16.
+# Narrowing the matrix is the user's call (VF_PG_IMAGES override);
+# the default must be the full supported window so a fresh run
+# catches version-specific breakage. Each check greps for the
+# image tag separately so missing any one fires a distinct failure.
+if [[ -f "$MATRIX_SCRIPT_S7E" ]]; then
+  for pg_tag in "postgres:13-alpine" "postgres:14-alpine" "postgres:15-alpine" "postgres:16-alpine"; do
+    if grep -q "$pg_tag" "$MATRIX_SCRIPT_S7E"; then
+      pass "[S7-E] default matrix includes $pg_tag"
+    else
+      fail "[S7-E] default matrix includes $pg_tag"
+    fi
+  done
+fi
+
+# 6. Matrix runner must delegate per-image work to the existing
+#    with-postgres.sh wrapper. Duplicating the docker-pull +
+#    pg_isready + cleanup logic inside the matrix would be a
+#    maintenance nightmare.
+if [[ -f "$MATRIX_SCRIPT_S7E" ]]; then
+  if grep -q 'bash "\$WRAPPER"' "$MATRIX_SCRIPT_S7E" \
+      || grep -q 'bin/with-postgres.sh' "$MATRIX_SCRIPT_S7E"; then
+    pass "[S7-E] matrix runner delegates to bin/with-postgres.sh per image"
+  else
+    fail "[S7-E] matrix runner delegates to bin/with-postgres.sh per image"
+  fi
+fi
+
+# 7. sprint-5.sh [S5-B] and sprint-6.sh [S6-A] must compose with
+#    the matrix by reusing DATABASE_URL when it's set externally.
+#    Without this, nested with-postgres.sh invocations collide on
+#    port 55432 and every matrix iteration fails.
+if grep -q 'DATABASE_URL.*]]; then' "$REPO_ROOT/tests/integration/sprint-5.sh"; then
+  pass "[S7-E] sprint-5.sh [S5-B] reuses outer DATABASE_URL when set"
+else
+  fail "[S7-E] sprint-5.sh [S5-B] reuses outer DATABASE_URL when set"
+fi
+if grep -q 'DATABASE_URL.*]]; then' "$REPO_ROOT/tests/integration/sprint-6.sh"; then
+  pass "[S7-E] sprint-6.sh [S6-A] reuses outer DATABASE_URL when set"
+else
+  fail "[S7-E] sprint-6.sh [S6-A] reuses outer DATABASE_URL when set"
+fi
+
+# 8. TEAM-MODE.md documents the supported-versions window.
+if grep -q "Supported Postgres versions" "$TEAM_MODE_DOC_S7E"; then
+  pass "[S7-E] TEAM-MODE.md documents the supported Postgres versions"
+else
+  fail "[S7-E] TEAM-MODE.md documents the supported Postgres versions"
+fi
+
+# 9. TEAM-MODE.md documents managed-cloud caveats (RDS/Cloud SQL/Azure).
+if grep -q "Managed-cloud Postgres" "$TEAM_MODE_DOC_S7E"; then
+  pass "[S7-E] TEAM-MODE.md documents managed-cloud Postgres caveats"
+else
+  fail "[S7-E] TEAM-MODE.md documents managed-cloud Postgres caveats"
+fi
+
+# 10. Managed-cloud section must call out the PgBouncer transaction-
+#     pool issue with advisory locks. This is the non-obvious
+#     gotcha — managed Postgres behind transaction-mode PgBouncer
+#     silently breaks VibeFlow's CAS serialization.
+if grep -q "PgBouncer" "$TEAM_MODE_DOC_S7E"; then
+  pass "[S7-E] TEAM-MODE.md calls out the PgBouncer transaction-mode caveat"
+else
+  fail "[S7-E] TEAM-MODE.md calls out the PgBouncer transaction-mode caveat"
+fi
+
+# 11. sslmode=require note for RDS/Cloud SQL — the most common
+#     failure mode when a managed-Postgres user first tries to
+#     connect.
+if grep -q "sslmode=require" "$TEAM_MODE_DOC_S7E"; then
+  pass "[S7-E] TEAM-MODE.md documents the sslmode=require requirement"
+else
+  fail "[S7-E] TEAM-MODE.md documents the sslmode=require requirement"
+fi
+
+# 12. RUNTIME (opt-in) — actually run the matrix end-to-end.
+#     Opt-in via VF_RUN_PG_MATRIX=1 because the run takes ~3 min
+#     and pulls 4 docker images (~400 MB cumulative first run).
+#     Honors the same VF_SKIP_LIVE_POSTGRES + docker-daemon probes
+#     as [S5-B] and [S6-A].
+if [[ "${VF_RUN_PG_MATRIX:-}" != "1" ]]; then
+  pass "[S7-E] live matrix run skipped (opt-in via VF_RUN_PG_MATRIX=1)"
+elif [[ "${VF_SKIP_LIVE_POSTGRES:-}" == "1" ]]; then
+  pass "[S7-E] live matrix run skipped via VF_SKIP_LIVE_POSTGRES=1"
+elif ! command -v docker >/dev/null 2>&1; then
+  pass "[S7-E] live matrix run skipped — docker binary not installed"
+elif ! docker info >/dev/null 2>&1; then
+  pass "[S7-E] live matrix run skipped — docker daemon not running"
+elif [[ ! -d "$REPO_ROOT/mcp-servers/sdlc-engine/node_modules/pg" ]]; then
+  pass "[S7-E] live matrix run skipped — pg optional peer dep not installed"
+else
+  # Run the matrix against sprint-5.sh which includes [S5-B]. Each
+  # image gets its own fresh container via the matrix wrapper.
+  if bash "$MATRIX_SCRIPT_S7E" bash "$REPO_ROOT/tests/integration/sprint-5.sh" >/tmp/vf-s7e-matrix.log 2>&1; then
+    pass "[S7-E] live matrix run — all 4 PG versions pass the S5-B walk"
+  else
+    fail "[S7-E] live matrix run — at least one PG version failed"
+    echo "    matrix log tail:" >&2
+    tail -15 /tmp/vf-s7e-matrix.log >&2 || true
+  fi
+  rm -f /tmp/vf-s7e-matrix.log
+fi
+
+# ---------------------------------------------------------------------------
 echo "== [S7-Z] sprint-7.sh harness self-audit =="
 
 # Mirrors sprint-6.sh [S6-Z]. Catches section-deletion, chmod -x,
@@ -396,8 +528,8 @@ echo "== [S7-Z] sprint-7.sh harness self-audit =="
 
 SELF_S7Z="$REPO_ROOT/tests/integration/sprint-7.sh"
 
-# 1-5. Each expected section header must still be present.
-for sec_label in "S7-A" "S7-B" "S7-C" "S7-D" "S7-Z"; do
+# 1-6. Each expected section header must still be present.
+for sec_label in "S7-A" "S7-B" "S7-C" "S7-D" "S7-E" "S7-Z"; do
   if grep -q "echo \"== \[$sec_label\]" "$SELF_S7Z"; then
     pass "[S7-Z] [$sec_label] section header still present"
   else

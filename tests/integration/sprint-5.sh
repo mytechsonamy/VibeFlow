@@ -210,7 +210,17 @@ fi
 WALK
 )"
   ENGINE_DIST_ABS="$REPO_ROOT/mcp-servers/sdlc-engine/dist/index.js"
-  WALK_OUT="$(bash "$WITH_POSTGRES" bash -c "$WALK_SCRIPT" _ "$ENGINE_DIST_ABS" 2>&1 || true)"
+  # Sprint 7 / S7-02 — compose cleanly with bin/with-postgres-matrix.sh.
+  # When DATABASE_URL is already set by an outer wrapper (the matrix
+  # runner sets it per-image), run the walker directly against that
+  # container. Otherwise spin up our own throwaway container via
+  # with-postgres.sh. Without this detection, nested with-postgres.sh
+  # invocations collide on port 55432.
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    WALK_OUT="$(bash -c "$WALK_SCRIPT" _ "$ENGINE_DIST_ABS" 2>&1 || true)"
+  else
+    WALK_OUT="$(bash "$WITH_POSTGRES" bash -c "$WALK_SCRIPT" _ "$ENGINE_DIST_ABS" 2>&1 || true)"
+  fi
 
   if echo "$WALK_OUT" | grep -q "^PHASE1_OK"; then
     pass "[S5-B] phase 1 writes completed against real PostgreSQL"
