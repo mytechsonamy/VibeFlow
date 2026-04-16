@@ -7,6 +7,163 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] — 2026-04-16
+
+First minor release after v1.0. Sprint 6 picks up items deferred
+from Sprint 5's scope decisions + the one bug surfaced during v1.0.1
+(the BSD awk silent CHANGELOG break). No new SDLC skills — Sprint 6
+is hardening + v1.1 polish. Real skill work lands in v1.2+.
+
+**No breaking changes.** Drop-in replacement for v1.0.1.
+
+### Added
+
+- **Concurrent-advance CAS stress test on real PostgreSQL** —
+  `tests/integration/sprint-6.sh [S6-A]` spins up 5 engine
+  processes under `bin/with-postgres.sh` and races them all on the
+  same `sdlc_advance_phase` call. Asserts exactly 1 winner + 4
+  losers + final state consistency. Sprint 1's 14 `FakePool` unit
+  tests covered the CAS logic at the unit layer; Sprint 5's `[S5-B]`
+  walked one fresh engine against a real Postgres; neither
+  exercised concurrent writers against the real wire protocol.
+  `[S6-A]` closes that gap. The advisory lock + `FOR UPDATE` row
+  lock serializes the writes so tightly that the revision CAS
+  never has to fire — losers hit the phase validator with "Cannot
+  transition to the same phase (DESIGN)" instead. (S6-01)
+- **Next.js demo `"use client"` component surface** —
+  `examples/nextjs-demo/components/rating-picker.tsx` is the first
+  client component in the demo, backed by pure helpers in
+  `lib/rating.ts` (`computeDisplay`, `clampRating`, `renderStars`,
+  `isValidSubmittedRating`). 25 new vitest cases cover every branch
+  in the node environment without mounting React. The detail page
+  (`app/products/[id]/page.tsx`) imports the picker — this is where
+  the RSC/client boundary runs. Total `examples/nextjs-demo` vitest
+  count: 41 → 66. (S6-04)
+- **Optional `next build` gate in the harness** —
+  `sprint-6.sh [S6-B]` auto-runs `npm run build` in the Next.js demo
+  when `examples/nextjs-demo/node_modules/next` is present and
+  `VF_SKIP_NEXT_BUILD=1` is unset. Produces a real production build
+  alongside the vitest suite, catching type/lint regressions the
+  pure-logic tests cannot. Skipped gracefully when Next is not
+  installed. (S6-04)
+- **GPG-signed release tags** — `bin/release.sh [7]` teaches the
+  release workflow to sign the tag when a key is configured, with
+  a three-step graceful fall-back ladder:
+  1. `VF_SKIP_GPG_SIGN=1` → annotated tag (opt-out)
+  2. `user.signingkey` unset → annotated tag + configuration hint
+  3. `git tag -s` fails at runtime → half-tag cleanup + annotated
+     fall-back + `WARN` line surfacing the gpg error
+  `TAG_MODE` is recorded and surfaced in the "Release prepared
+  locally" hint block. Dry-run prints the probe result without
+  creating anything. (S6-05)
+- **`docs/RELEASING.md`** — new 210+ line end-to-end release
+  walkthrough. Covers `bin/release.sh`'s seven steps, the tag
+  signing ladder, one-time GPG key setup, `git tag -v` verification,
+  a 5-step Quickstart checklist, a three-scenario Rollback guide,
+  and a troubleshooting table with 5 common errors. (S6-05)
+- **`tests/integration/sprint-6.sh`** — new 37-assertion harness
+  covering S6-01 ([S6-A]), S6-04 ([S6-B]), S6-05 ([S6-C]), and the
+  S6-08 self-audit ([S6-Z]). Skip gracefully when docker / pg /
+  next are not installed. (S6-01 / S6-04 / S6-05 / S6-08)
+- **`sprint-6.sh [S6-Z]` harness self-audit** — 8 sentinels that
+  catch regressions a future refactor might silently introduce:
+  section header presence, executable bit, release.sh preflight
+  reference, shebang, `set -uo pipefail` discipline. (S6-08)
+
+### Fixed
+
+- **`bin/release.sh` CHANGELOG insertion — BSD awk portability.**
+  The v1.0.0 implementation passed the new version entry through
+  `awk -v entry="$NEW_ENTRY"` which BSD awk on macOS rejected with a
+  "newline in string" runtime error on multiline values. awk exited
+  non-zero, the `&& mv tmp CHANGELOG.md` short-circuited, and
+  `release.sh` reported success even though CHANGELOG.md was never
+  updated. First run on the v1.0.1 release session produced a
+  commit with ONLY `plugin.json` bumped — a silent broken-release
+  path. The insertion step is now a standalone
+  `insert_changelog_entry()` helper using portable
+  `head`/`tail`/`grep` + post-insertion verification. (v1.0.1
+  shipped the initial patch; v1.1.0 / S6-07 adds the runtime-sentinel
+  that catches this bug class at build time.)
+- **`release.sh --test-changelog-insert <version>`** — new mode
+  that runs ONLY the CHANGELOG insertion step against CHANGELOG.md
+  in `cwd`, skipping every other release step. Called from
+  isolated tempdir fixtures by `sprint-5.sh [S5-C]` with happy-path
+  + header-less negative path + source-grep sentinels. Closes the
+  runtime-verification gap that let the BSD awk bug slip past
+  every static source-grep check. (S6-07)
+- **`sprint-5.sh [S5-B]` and `sprint-6.sh [S6-A]` docker-daemon
+  skip probe.** The old `command -v docker` check only verified
+  the binary, not the daemon. macOS contributors with docker
+  installed but Docker Desktop not running would see the walks
+  fire and fail instead of skip. Added `docker info >/dev/null`
+  to both skip ladders. (S6-01)
+
+### Changed
+
+- **`bin/release.sh` preflight gauntlet** now runs
+  `tests/integration/sprint-6.sh` alongside sprint-5 and earlier
+  harnesses. 11 total preflight commands.
+- **`package-plugin.sh` whitelist** extended with
+  `examples/nextjs-demo/components/` so the new client component
+  ships in the tarball.
+- **`tests/integration/sprint-4.sh [S4-H]` expected plugin version**
+  parameterized via `EXPECTED_PLUGIN_VERSION` and bumped to
+  `1.1.0`. Future releases bump this single variable.
+
+### Test baseline growth
+
+| Version | Test layers | Baseline checks | Bonus suites |
+|---------|-------------|-----------------|--------------|
+| v1.0.0  | 10          | 1255            | demo-app (45) |
+| v1.0.1  | 11 (+ sprint-5.sh) | 1445 | demo-app (45) + nextjs-demo (41) |
+| v1.1.0  | **12** (+ sprint-6.sh) | **1489** | demo-app (45) + nextjs-demo (66) |
+
+44-check growth v1.0.1 → v1.1.0 split:
+- `sprint-6.sh` (new harness): 37 assertions — [S6-A] 5 + [S6-B] 16
+  + [S6-C] 12 + [S6-Z] 8 (some counted with different prerequisites
+  — totals reflect the normal-dev path; live mode with docker + pg
+  adds 4 more for [S6-A])
+- `sprint-5.sh`: 93 → 94 (+1 for the new sprint-6.sh preflight
+  entry in [S5-C])
+- `nextjs-demo` vitest: 41 → 66 (+25 rating helpers in tests/rating.test.ts)
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A — v1.1.0 is a drop-in replacement for v1.0.1. Existing
+`ci_provider: github` and `ci_provider: gitlab` configurations are
+unchanged. `VIBEFLOW_POSTGRES_URL` team-mode setups are unchanged.
+
+New optional environment variables (all default to "do nothing"):
+- `VF_SKIP_GPG_SIGN=1` — opt out of tag signing in `bin/release.sh`
+- `VF_SKIP_NEXT_BUILD=1` — opt out of the optional `next build`
+  step in `sprint-6.sh [S6-B]`
+
+### Distribution
+
+- **Tarball**: `./package-plugin.sh` produces
+  `vibeflow-plugin-1.1.0.tar.gz` (grown slightly by the new Next.js
+  demo client component + `docs/RELEASING.md`).
+- **Local install**: `claude --plugin-dir ~/Projects/VibeFlow`
+- **Marketplace**: `claude plugin install vibeflow@vibeflow-marketplace`
+- **Tag/release push**: user-gated — `bin/release.sh` stops at a
+  local commit + local tag; `git push` + `gh release create` require
+  explicit authorization. The signing probe is purely opt-in — all
+  maintainers can still cut a release without configuring a key.
+
+### Documentation
+
+- [Releasing](./docs/RELEASING.md) — new
+- [Getting Started](./docs/GETTING-STARTED.md)
+- [Next.js Demo Walkthrough](./examples/nextjs-demo/docs/NEXTJS-DEMO-WALKTHROUGH.md) — updated for `"use client"` boundary + `next build` gate
+- [Demo Walkthrough](./examples/demo-app/docs/DEMO-WALKTHROUGH.md) — unchanged
+
+[1.1.0]: https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.1.0
+
 ## [1.0.1] — 2026-04-14
 
 Post-v1.0 maintenance release. Closes the forward-looking stubs that
