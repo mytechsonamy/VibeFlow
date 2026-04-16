@@ -90,17 +90,33 @@ atomic: the tree stays clean until the build actually runs.
 - [ ] Error message includes the fix: `cd mcp-servers/sdlc-engine && npm install pg @types/pg`
 - [ ] Harness sentinel asserting the check exists
 
-### S7-05: docs/RELEASING.md Troubleshooting entry for mid-release build failures
-**Captured during:** Sprint 6 / S6-09 (same incident as S7-04)
-**Location:** `docs/RELEASING.md` Troubleshooting section (extend)
+### S7-05: docs/RELEASING.md Troubleshooting + sha256 drift fix
+**Captured during:** Sprint 6 / S6-09 (two separate incidents during v1.1.0)
+**Location:** `docs/RELEASING.md` Troubleshooting section (extend) + `bin/release.sh` step [6] sha256 regen
 
-A new Troubleshooting entry should document the recovery path
-when `bin/release.sh` fails mid-flight at step [5] (or any step
-after the plugin.json bump):
+Two lessons captured during the v1.1.0 release:
+
+**Lesson 1: mid-release build failure recovery.** release.sh fails
+mid-flight at step [5] (or any step after the plugin.json bump):
 
 - [ ] Entry: "release.sh fails at step 5 with `Cannot find module 'pg'`"
 - [ ] Recovery steps: reinstall pg, manually run `bash build-all.sh + bash package-plugin.sh --skip-build + shasum -a 256 ...`, then manually `git add + git commit + git tag -a`
 - [ ] Note that the release commit can fold in the recovery without amending because release.sh's steps 5-7 are all re-runnable from a dirty-tree state (the cleanliness check only runs at step 0)
+
+**Lesson 2: sha256 sidecar drift when preflight regenerates the tarball.**
+Between release.sh's step [6] (sha256 generation) and the eventual
+`gh release upload`, the harness preflight that runs elsewhere
+(or a manual re-run of `package-plugin.sh`) can regenerate the
+tarball. Tar + gzip bake timestamps into the archive so each
+regen produces a slightly different byte-for-byte output → a
+different sha256. If the sidecar on disk was generated BEFORE
+the regen, it will not match the uploaded tarball.
+
+- [ ] `bin/release.sh` should re-generate the sha256 sidecar as the
+      LAST step before the commit, right after the final build, so
+      it cannot be out of sync with the tarball.
+- [ ] Alternative: make `package-plugin.sh` deterministic (tar `--mtime=@0` or similar) so two consecutive runs produce identical bytes. This is the right long-term fix.
+- [ ] `docs/RELEASING.md` Troubleshooting entry: "sha256 doesn't match the tarball" → regenerate with `shasum -a 256 vibeflow-plugin-X.Y.Z.tar.gz > vibeflow-plugin-X.Y.Z.tar.gz.sha256` then `gh release upload vX.Y.Z ... --clobber`.
 
 ### S7-06: Sprint 7 integration harness OR sprint-6.sh extension
 **Location:** `tests/integration/sprint-7.sh` (new) OR `tests/integration/sprint-6.sh` (extend)
