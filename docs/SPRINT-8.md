@@ -52,32 +52,26 @@ with its own validation rules + the GitHub Releases
       runtime check (invoke `release.sh 1.3.0-rc.1 --prerelease
       --dry-run` and assert the expected dry-run output)
 
-### S8-02: Fix sprint-7.sh [S7-C] multi-tarball save/restore bug
+### S8-02: Fix sprint-7.sh [S7-C] multi-tarball save/restore bug ✅ DONE
 **Captured during:** Sprint 7 / S7-07 (v1.2.0 release)
-**Location:** `tests/integration/sprint-7.sh [S7-C]`
+**Location:** `tests/integration/sprint-7.sh [S7-C]` rewrite + `tests/integration/sprint-8.sh [S8-A]` regression sentinel
 
-The [S7-C] determinism runtime sentinel saves only the FIRST
-pre-existing tarball via `ls vibeflow-plugin-*.tar.gz | head -1`
-and then deletes ALL tarballs via `rm -f vibeflow-plugin-*.tar.gz`.
-When the harness runs with multiple version tarballs on disk (e.g.
-right after a fresh `release.sh` run produced
-`vibeflow-plugin-1.2.0.tar.gz` while an older
-`vibeflow-plugin-1.1.0.tar.gz` lingered), only the older one is
-restored and the fresh release artifact gets clobbered.
+The [S7-C] determinism runtime sentinel used to save only the FIRST pre-existing tarball via `ls vibeflow-plugin-*.tar.gz | head -1` and then delete ALL tarballs via `rm -f vibeflow-plugin-*.tar.gz`. When the harness ran with multiple version tarballs on disk — exactly what happens right after a fresh `release.sh <newer>` produces a new tarball alongside a stale older one — the new release artifact got clobbered and only the older one survived. This bit the v1.2.0 release during S7-07.
 
-The fix is small but worth doing explicitly because the current
-behavior bit the v1.2.0 release:
+**Completed:**
+- [x] **Save strategy rewritten** to a `for` loop that `mv`s every match into `$DETERMINISM_TMPDIR/saved/`. Both `.tar.gz` and `.tar.gz.sha256` patterns covered. `[[ -e "$f" ]]` guard handles the no-pre-existing-tarball case (glob expands to a non-existent literal, loop body skips).
+- [x] **Restore strategy rewritten** to a matching `for` loop that `mv`s every saved file back to `$REPO_ROOT/`. Symmetrical to the save loop.
+- [x] **`mkdir -p "$SAVED_DIR"`** added so the save loop's `mv` has a destination — without this the first `mv` would fail with "No such file or directory".
+- [x] **Section comment cites S8-02** + the v1.2.0 incident + the rationale for `[[ -e ]]` over `shopt -s nullglob` (the latter would leak into later harness sections).
+- [x] **`tests/integration/sprint-8.sh [S8-A]` — 6 new sentinels**:
+  1. Save loop iterates every match (grep for `for f in.*vibeflow-plugin-\*\.tar\.gz`)
+  2. Old `ls | head -1` single-tarball pattern is gone
+  3. `mkdir -p "$SAVED_DIR"` precedes the save loop
+  4. Restore loop iterates every saved match
+  5. S8-02 ticket reference present in [S7-C] comment
+  6. **RUNTIME** — seeds two distinct fixture tarballs (`vibeflow-plugin-0.0.1.tar.gz` + `vibeflow-plugin-0.0.2.tar.gz`) with random bytes via `dd if=/dev/urandom`, captures sha256 for each, runs `sprint-7.sh` (which exercises [S7-C]), and asserts BOTH fixtures survive with bytes unchanged. Skip via `VF_SKIP_S8A_RUNTIME=1` for environments that can't write to repo root.
 
-- [ ] Change the save strategy to `mv vibeflow-plugin-*.tar.gz
-      $DETERMINISM_TMPDIR/saved/` so EVERY pre-existing tarball
-      is preserved
-- [ ] Change the restore strategy to `mv $DETERMINISM_TMPDIR/saved/*.tar.gz
-      $REPO_ROOT/` so every saved tarball is put back
-- [ ] Add a regression sentinel: set up a fixture with two
-      pre-existing tarballs, run [S7-C], assert both are still
-      present after
-- [ ] Update the [S7-C] section comment to call out the
-      multi-tarball case
+**Live-verified:** with `vibeflow-plugin-1.2.0.tar.gz` (real release) + `vibeflow-plugin-0.9.9.tar.gz` (fake fixture) on disk, ran `sprint-7.sh` and confirmed both files still present afterward with sha256 unchanged. Without the fix, the 1.2.0 tarball would have been clobbered.
 
 ### S8-03: Consolidate deferred CI workflow changes
 **Captured during:** Sprint 6 / S6-01 + Sprint 7 / S7-06
@@ -182,18 +176,31 @@ shipped S8-* ticket + closing [S8-Z] self-audit.
 
 ## Next Ticket to Work On
 
-**Confirm Sprint 8 scope with the user first.** Good first-pass
-candidates:
+**S8-02 ✅ DONE** (sprint-7.sh [S7-C] save/restore fix). Suggested next:
 
-- **S8-02** (sprint-7.sh [S7-C] fix) — smallest ticket,
-  closes a known bug, good warmup
-- **S8-03** (CI workflow consolidation) — needs user push with
-  workflow-scoped token, but the diff is tiny
-- **S8-01** (prerelease workflow) — the Sprint 8 headline
-  feature if you want a real v1.3 deliverable
+- **S8-03** (CI workflow consolidation) — small diff but needs user-gated push (PAT workflow scope)
+- **S8-01** (prerelease workflow) — Sprint 8 headline feature
 
-S8-04 / S8-05 / S8-06 are LARGER and can move to Sprint 9 if
-Sprint 8 stays narrow.
+S8-04 / S8-05 / S8-06 stay deferred. S8-07 + S8-08 are the closure tickets.
+
+## Test inventory (after S8-02)
+
+- mcp-servers/sdlc-engine: **105 vitest tests**
+- mcp-servers/codebase-intel: **48 vitest tests**
+- mcp-servers/design-bridge: **57 vitest tests**
+- mcp-servers/dev-ops: **72 vitest tests**
+- mcp-servers/observability: **76 vitest tests**
+- hooks/tests/run.sh: **52 bash assertions**
+- tests/integration/run.sh: **398 bash assertions**
+- tests/integration/sprint-2.sh: **94 bash assertions**
+- tests/integration/sprint-3.sh: **111 bash assertions**
+- tests/integration/sprint-4.sh: **367 bash assertions**
+- tests/integration/sprint-5.sh: **98 bash assertions** (+1 from sprint-8.sh preflight entry)
+- tests/integration/sprint-6.sh: **37 bash assertions**
+- tests/integration/sprint-7.sh: **51 bash assertions**
+- tests/integration/sprint-8.sh: **12 bash assertions** (NEW: 6 [S8-A] + 6 [S8-Z])
+- Total: **1578 passing checks** across **14 test layers**
+- Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 66 vitest tests
 
 ## Test inventory (baseline from v1.2.0)
 

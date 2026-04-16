@@ -243,20 +243,25 @@ fi
 #    the repo is dirty (the cleanliness check in release.sh +
 #    user-not-wanting-to-have-artifacts-rebuilt heuristic).
 DETERMINISM_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-s7c-det.XXXXXX")"
+SAVED_DIR="$DETERMINISM_TMPDIR/saved"
+mkdir -p "$SAVED_DIR"
 
-# Capture the current tarball if any exists, so we don't lose it.
-SAVED_TARBALL=""
-if ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz >/dev/null 2>&1; then
-  SAVED_TARBALL="$(ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz | head -1)"
-  mv "$SAVED_TARBALL" "$DETERMINISM_TMPDIR/saved.tar.gz"
-fi
-
-# Also snapshot the sha256 sidecar if present.
-SAVED_SHA=""
-if ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz.sha256 >/dev/null 2>&1; then
-  SAVED_SHA="$(ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz.sha256 | head -1)"
-  mv "$SAVED_SHA" "$DETERMINISM_TMPDIR/saved.sha256"
-fi
+# Sprint 8 / S8-02 — save/restore EVERY pre-existing tarball +
+# sidecar. The old logic used `ls | head -1` to pick one tarball
+# but `rm -f vibeflow-plugin-*.tar.gz` deleted all of them. When
+# the harness ran right after a fresh `release.sh <new-version>`
+# produced v<new>.tar.gz on top of a stale v<old>.tar.gz, only
+# v<old> got saved and v<new> was clobbered — exactly what bit
+# the v1.2.0 release during S7-07. Fix: `mv` every matching file
+# into $SAVED_DIR on entry, `mv` every file in $SAVED_DIR back
+# on exit. `shopt -s nullglob` is too big a hammer (would leak
+# into later sections); we use a for-loop + `[[ -e ]]` guard
+# instead so the glob expands to nothing-useful silently.
+for f in "$REPO_ROOT"/vibeflow-plugin-*.tar.gz \
+         "$REPO_ROOT"/vibeflow-plugin-*.tar.gz.sha256; do
+  [[ -e "$f" ]] || continue
+  mv "$f" "$SAVED_DIR/"
+done
 
 # Run 1 + run 2. Suppress stdout but capture failures.
 if (cd "$REPO_ROOT" && bash package-plugin.sh --skip-build >/dev/null 2>&1); then
@@ -279,14 +284,14 @@ else
   fail "[S7-C] package-plugin.sh run 1 failed"
 fi
 
-# Restore any pre-existing tarball + sidecar so we leave the repo
-# in the state we found it.
-if [[ -n "$SAVED_TARBALL" ]] && [[ -f "$DETERMINISM_TMPDIR/saved.tar.gz" ]]; then
-  mv "$DETERMINISM_TMPDIR/saved.tar.gz" "$SAVED_TARBALL"
-fi
-if [[ -n "$SAVED_SHA" ]] && [[ -f "$DETERMINISM_TMPDIR/saved.sha256" ]]; then
-  mv "$DETERMINISM_TMPDIR/saved.sha256" "$SAVED_SHA"
-fi
+# Sprint 8 / S8-02 — restore EVERY saved file. The `[[ -e ]]`
+# guard handles the empty-saved-dir case (nothing to restore, the
+# glob expands to a non-existent literal and the loop body skips).
+for f in "$SAVED_DIR"/vibeflow-plugin-*.tar.gz \
+         "$SAVED_DIR"/vibeflow-plugin-*.tar.gz.sha256; do
+  [[ -e "$f" ]] || continue
+  mv "$f" "$REPO_ROOT/"
+done
 rm -rf "$DETERMINISM_TMPDIR"
 
 # ---------------------------------------------------------------------------
