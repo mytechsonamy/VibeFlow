@@ -94,7 +94,7 @@ its own SemVer rules + GitHub Releases `prerelease: true` flag.
 
 **Why the line-number check matters:** a pg-missing release that happens AFTER step `[3]` plugin.json bump would leave the working tree with plugin.json incremented but no commit, no tag, no tarball — exactly the half-released state the ticket is designed to prevent. The `[0.5]` line < `[1]` line assertion catches a refactor that accidentally moved the sanity check past the bump point.
 
-### S7-05: docs/RELEASING.md Troubleshooting + sha256 drift fix ✅ DONE (partial — determinism deferred)
+### S7-05: docs/RELEASING.md Troubleshooting + sha256 drift fix ✅ DONE
 **Captured during:** Sprint 6 / S6-09 (two separate incidents during v1.1.0)
 **Location:** `docs/RELEASING.md` Troubleshooting section + `tests/integration/sprint-7.sh [S7-B]`
 
@@ -104,14 +104,7 @@ its own SemVer rules + GitHub Releases `prerelease: true` flag.
 - [x] **Troubleshooting entry 3** — "sha256 sidecar doesn't match the uploaded tarball". Root-cause attribution to `sprint-4.sh [S4-G]` regenerating the tarball during preflight + the `gh release upload --clobber` fix + forward reference to the long-term determinism work (still open — see below).
 - [x] **6 harness sentinels in `sprint-7.sh [S7-B]`** verifying all three entries + the fix commands + the root-cause attribution.
 
-**Scope decision — determinism fix deferred:**
-
-The long-term fix for sha256 drift is making `package-plugin.sh` emit a byte-identical tarball on every run. This requires:
-- `tar --mtime=@0` + `--sort=name` + `--owner=0 --group=0 --numeric-owner` (GNU tar flags; BSD tar on macOS has different syntax or no equivalent)
-- `gzip -n` to strip the filename + timestamp from the gzip header
-- A cross-platform wrapper that normalizes mtimes before tarring (since BSD tar on macOS doesn't have `--mtime`)
-
-That's its own ticket — probably worth a dedicated S7-05B or rolling into a later hardening sprint. For S7-05's v1.2 scope, the doc entry + harness sentinels are enough to close the knowledge gap that bit v1.1.0.
+**Follow-up ticket S7-05B landed** — see below. The long-term tarball determinism fix is now in `package-plugin.sh` and exercised by `sprint-7.sh [S7-C]` with a live byte-identical-sha256 runtime sentinel. The RELEASING.md troubleshooting entry still references the drift scenario because it's the canonical recovery path when a release predates S7-05B or when external regeneration happens outside of `package-plugin.sh`.
 
 **`docs/RELEASING.md` now has 7 Troubleshooting entries** (up from 4):
 1. Dirty working tree
@@ -124,7 +117,24 @@ That's its own ticket — probably worth a dedicated S7-05B or rolling into a la
 8. **release.sh fails mid-flight** (NEW — S7-05 lesson 1)
 9. **sha256 sidecar doesn't match** (NEW — S7-05 lesson 2)
 
-### S7-06: Sprint 7 integration harness OR sprint-6.sh extension
+### S7-05B: Reproducible package-plugin.sh tarball ✅ DONE
+**Carved out from:** S7-05 (Sprint 6 / S6-09 sha256 drift lesson)
+**Location:** `package-plugin.sh` step [4] + `tests/integration/sprint-7.sh [S7-C]`
+
+The RELEASING.md troubleshooting entry S7-05 added closed the knowledge gap around the sha256 drift but did not fix the root cause. S7-05B makes `package-plugin.sh` emit a byte-identical tarball on every run so the drift cannot happen again.
+
+**Completed:**
+- [x] **Staging-dir strategy** — whitelisted files are copied into a tempdir, mtimes normalized to epoch 0 via `touch -t 197001010000.00`, tarred in sorted order, piped through `gzip -n`. The working tree is never modified — all normalization happens on the staged copy.
+- [x] **Cross-platform tar detection** — the script now detects BSD tar (libarchive on macOS) vs GNU tar (Linux) via `tar --version`. BSD tar gets `--uid=0 --gid=0`; GNU tar gets `--owner=0 --group=0 --numeric-owner`. Both normalize the ownership columns in the tar header.
+- [x] **Sorted file list** — `sort "$TMPLIST" > "$TMPLIST.sorted"` before feeding to `tar -T`. Without this, `find`'s filesystem-order output produced different orderings across runs even with normalized mtimes.
+- [x] **`gzip -n`** — strips the filename + timestamp from the gzip header. Without this flag, every archive carries a different "last modified" timestamp even when the tar content is identical.
+- [x] **Runtime sentinel in `sprint-7.sh [S7-C]`** — runs `package-plugin.sh --skip-build` **twice** against the same tree, compares the resulting sha256 values, asserts byte-identical output. This is the real guarantee; the source-grep checks (`gzip -n`, `touch -t`, `sort`, tar-variant detection, S7-05B citation) are a safety net against accidental deletions.
+
+**Live-verified:** ran `package-plugin.sh --skip-build` twice consecutively on this macOS host (bsdtar 3.5.3, Apple gzip 479). Both runs produced `2aa343b359b0cf24d37ea7676ad300610e27cb388a0609b3b07bae6aebd2cf3a` — identical to the byte.
+
+**Scope boundaries** (intentionally NOT shipped):
+- **`--mtime=@0` flag** — GNU-tar only. The staging-dir pre-`touch` approach achieves the same outcome and is portable. Skipped the flag-based approach entirely.
+- **Reproducible across HOSTS** (macOS bsdtar vs Linux GNU tar) — each host's output is now reproducible on that host, but macOS bsdtar and Linux GNU tar may still produce subtly different tar formats (extended attribute blocks, header format variations). Cross-host reproducibility is a v1.3+ concern; for now, the CI runner and the maintainer's local machine may produce different but internally-deterministic archives. The v1.2 release process targets determinism on a single host, which is what the S6-09 incident required.
 **Location:** `tests/integration/sprint-7.sh` (new) OR `tests/integration/sprint-6.sh` (extend)
 
 Sprint 5 / S5-06 and Sprint 6 / S6-08 established the pattern:
@@ -152,13 +162,12 @@ release.sh preflight list longer but avoids fragmentation.
 
 ## Next Ticket to Work On
 
-**S7-04 ✅ DONE** (release.sh pg sanity check). **S7-05 ✅ DONE** (RELEASING.md troubleshooting — determinism deferred). Next candidates:
+**S7-04 ✅ DONE** (release.sh pg sanity check). **S7-05 ✅ DONE** (RELEASING.md troubleshooting). **S7-05B ✅ DONE** (reproducible tarball). Next candidates:
 
 - **S7-01** (self-hosted GitLab) OR **S7-02** (Postgres version matrix) — pick ONE for the next Sprint 7 ticket. Each is a full ticket's worth of work.
 - **S7-03** (prerelease workflow) is LARGER — could be the Sprint 7 headline feature OR deferred to Sprint 8.
-- **S7-05B** (tarball determinism via `tar --mtime=@0` + `gzip -n` + cross-platform wrapper) was carved out of S7-05 and remains open. Small ticket, can slot in alongside any of the above.
 
-## Test inventory (after S7-04 + S7-05)
+## Test inventory (after S7-04 + S7-05 + S7-05B)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -172,8 +181,8 @@ release.sh preflight list longer but avoids fragmentation.
 - tests/integration/sprint-4.sh: **355 bash assertions**
 - tests/integration/sprint-5.sh: **97 bash assertions** (+3 from S7-04 sprint-7.sh preflight entry + S6-07 counts settling)
 - tests/integration/sprint-6.sh: **37 bash assertions**
-- tests/integration/sprint-7.sh: **19 bash assertions** (NEW — 6 [S7-A] + 6 [S7-B] + 7 [S7-Z])
-- Total: **1511 passing checks** across **13 test layers** (1515 in docker+pg live mode)
+- tests/integration/sprint-7.sh: **26 bash assertions** (6 [S7-A] + 6 [S7-B] + 6 [S7-C] + 8 [S7-Z])
+- Total: **1518 passing checks** across **13 test layers** (1522 in docker+pg live mode)
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 66 vitest tests
 
 ## Sprint 7 vs Sprint 6 differences
