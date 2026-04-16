@@ -67,16 +67,23 @@ MyVibe Framework (SDLC orchestration) + TruthLayer (requirements-first validatio
 **Status file:** docs/SPRINT-6.md
 **Result:** 1489 passing checks across 12 test layers. **v1.1.0 shipped 2026-04-16** at https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.1.0 (`vibeflow-plugin-1.1.0.tar.gz`, sha256 `2e1beae...`). Second demo (nextjs-demo) grew from 41 → 66 vitest tests via the new `"use client"` RatingPicker + lib/rating.ts helpers. `bin/release.sh` now signs tags when `user.signingkey` is configured, with a three-step graceful fall-back ladder; full release workflow documented in `docs/RELEASING.md`.
 
-### Sprint 7: v1.2 TBD (Next)
-**Goal:** v1.2 scope TBD — pick up Sprint 6 deferrals + any new items that surface during v1.1 usage. Scope to be confirmed with user before starting.
-**Candidate tickets** (seeded from Sprint 6 deferrals):
-- Self-hosted GitLab integration (deferred from S6-02)
-- Postgres version matrix (PG13/15/16, AWS RDS) (deferred from S6-03)
-- Automated prerelease / beta-channel workflow (deferred from S6-06)
-- `bin/release.sh` pre-step-5 sanity check for pg installation (captured during S6-09 when build-all.sh failed mid-release)
-- `docs/RELEASING.md` Troubleshooting entry for mid-release build failures (captured during S6-09)
-**Status file:** docs/SPRINT-7.md (seeded with candidate backlog — confirm scope before starting)
-**Targets:** v1.2.0
+### Sprint 7: v1.2 Release Hardening + Deferred Items ✅ COMPLETE
+**Goal:** v1.2 hardening — pick up Sprint 6 deferrals (self-hosted GitLab, Postgres version matrix) + fix the two release-workflow lessons captured during v1.1.0.
+**Tickets:** 6/7 shipped (S7-01 self-hosted GitLab, S7-02 Postgres version matrix, S7-04 pre-step-5 pg sanity check, S7-05 RELEASING troubleshooting, S7-05B reproducible tarballs, S7-06 sprint-7.sh closure, S7-07 v1.2.0 closure). S7-03 (prerelease workflow) deferred to Sprint 8.
+**Status file:** docs/SPRINT-7.md
+**Result:** 1565 passing checks across 13 test layers (1581 with `VF_RUN_PG_MATRIX=1`). **v1.2.0 shipped 2026-04-16** at https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.2.0 (`vibeflow-plugin-1.2.0.tar.gz`, sha256 `9c97c93...`). Self-hosted GitLab plumbed end-to-end (new `gitlab_base_url` + `gitlab_token` userConfig keys). Postgres matrix covers PG13/14/15/16 with managed-cloud caveats documented in TEAM-MODE.md. `bin/release.sh` now has a pg peer-dep sanity check at step [0.5]; `package-plugin.sh` produces byte-reproducible tarballs; `docs/RELEASING.md` gained three new troubleshooting entries (6 → 9).
+
+### Sprint 8: v1.3 Scope TBD (Next)
+**Goal:** v1.3 — pick up Sprint 7 deferral (prerelease workflow) + the two [S7-C] bug fixes captured during S7-07, + any new items that surface during v1.2 usage.
+**Candidate tickets** (seeded from Sprint 7 deferrals):
+- Automated prerelease / beta-channel workflow in `bin/release.sh` (deferred from S7-03, originally S6-06)
+- Fix sprint-7.sh [S7-C] multi-tarball save/restore bug (captured during S7-07 v1.2.0 release)
+- Consolidate deferred workflow changes (sprint-6.sh + sprint-7.sh CI wiring — both blocked on PAT workflow scope)
+- Cross-host deterministic tarballs (`tar --mtime=@0` + normalized bsdtar / GNU tar variance)
+- Startup probe that rejects PgBouncer transaction-mode pools explicitly (documented in TEAM-MODE.md but not detected in code as of v1.2)
+- Live RDS / Cloud SQL / Azure Database integration test (needs a managed-cloud CI account)
+**Status file:** docs/SPRINT-8.md (seeded with candidate backlog — confirm scope before starting)
+**Targets:** v1.3.0
 
 ---
 
