@@ -48,12 +48,14 @@ VERSION=""
 DRY_RUN=false
 CHECK_CLEAN_ONLY=false
 TEST_CHANGELOG_INSERT=false
+PRERELEASE=false
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run)                DRY_RUN=true ;;
     --check-clean)            CHECK_CLEAN_ONLY=true ;;
     --test-changelog-insert)  TEST_CHANGELOG_INSERT=true ;;
+    "--prerelease")           PRERELEASE=true ;;
     -*)                       echo "unknown flag: $arg" >&2; exit 2 ;;
     *)                        if [[ -z "$VERSION" ]]; then VERSION="$arg"; else
                                 echo "unexpected argument: $arg" >&2; exit 2
