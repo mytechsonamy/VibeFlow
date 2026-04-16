@@ -209,6 +209,36 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+echo "== [S8-C] prerelease / beta-channel release workflow =="
+
+# S8-01 — bin/release.sh gets a --prerelease mode so maintainers can
+# cut 1.3.0-rc.1 / 1.3.0-beta.2 / 1.3.0-alpha.N-style tags without
+# the strict SemVer guard aborting them. Prerelease entries sit
+# under a dedicated "## Pre-releases" footer in CHANGELOG.md so they
+# never become the "latest" stable entry. Deferred from Sprint 6 /
+# S6-06 → Sprint 7 / S7-03 → Sprint 8 / S8-01. Spec:
+# docs/superpowers/specs/2026-04-16-s8-01-prerelease-workflow-design.md
+#
+# Sentinels:
+#   1-7.  Static — grep release.sh + CHANGELOG.md + RELEASING.md for
+#         the required surface (flag parser, regex, two-mode insert,
+#         conditional hint, footer header, promotion docs).
+#   8-11. Runtime — exercise `release.sh <ver> --dry-run` in all four
+#         (mode × version) quadrants to catch behavioural regressions.
+#         Opt out via VF_SKIP_S8C_RUNTIME=1.
+
+RELEASE_SH_S8C="$REPO_ROOT/bin/release.sh"
+CHANGELOG_S8C="$REPO_ROOT/CHANGELOG.md"
+RELEASING_S8C="$REPO_ROOT/docs/RELEASING.md"
+
+# 1. release.sh parses --prerelease flag.
+if grep -q '"--prerelease")' "$RELEASE_SH_S8C"; then
+  pass "[S8-C] release.sh parses --prerelease flag"
+else
+  fail "[S8-C] release.sh parses --prerelease flag"
+fi
+
+# ---------------------------------------------------------------------------
 echo "== [S8-Z] sprint-8.sh harness self-audit =="
 
 # Same pattern as [S6-Z] / [S7-Z]. Catches section-deletion,
@@ -219,7 +249,7 @@ echo "== [S8-Z] sprint-8.sh harness self-audit =="
 SELF_S8Z="$REPO_ROOT/tests/integration/sprint-8.sh"
 
 # 1-3. Each expected section header must still be present.
-for sec_label in "S8-A" "S8-B" "S8-Z"; do
+for sec_label in "S8-A" "S8-B" "S8-C" "S8-Z"; do
   if grep -q "echo \"== \[$sec_label\]" "$SELF_S8Z"; then
     pass "[S8-Z] [$sec_label] section header still present"
   else
