@@ -293,7 +293,8 @@ if [[ -f "$RELEASE_SCRIPT" ]]; then
                  "bash tests/integration/sprint-3.sh" \
                  "bash tests/integration/sprint-4.sh" \
                  "bash tests/integration/sprint-5.sh" \
-                 "bash tests/integration/sprint-6.sh"; do
+                 "bash tests/integration/sprint-6.sh" \
+                 "bash tests/integration/sprint-7.sh"; do
     if grep -qF "$harness" "$RELEASE_SCRIPT"; then
       pass "release.sh preflight runs '$harness'"
     else

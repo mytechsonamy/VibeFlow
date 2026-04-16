@@ -227,3 +227,70 @@ top of CHANGELOG.md. This is a safety guard added in S5-07 to
 catch BSD awk regressions. If you see this, check that CHANGELOG.md
 starts with a `# Changelog` header and has at least one `## [X.Y.Z]`
 entry before the script runs.
+
+**"release: pg peer dep is not installed in sdlc-engine"** — the
+`pg` + `@types/pg` node modules are required for `tsc` to compile
+`mcp-servers/sdlc-engine/src/state/postgres.ts`. Without them,
+`build-all.sh` fails at step [5] with `Cannot find module 'pg'`.
+The step [0.5] pre-flight sanity check (added in Sprint 7 / S7-04)
+catches this BEFORE plugin.json + CHANGELOG have been touched, so
+the tree stays clean. Fix:
+
+```bash
+cd mcp-servers/sdlc-engine && npm install pg @types/pg
+```
+
+Then re-run `bin/release.sh <version>`. `pg` is a peer dependency
+(declared with `peerDependenciesMeta.pg.optional = true` so
+solo-mode users don't need it) — npm install in the repo root does
+not automatically pull it into sdlc-engine's node_modules.
+
+**release.sh fails MID-FLIGHT (after step [0.5] passed)** — if a
+step between [3] plugin.json bump and [7] commit aborts (e.g. you
+SIGINT the build, or disk fills up), the tree is left with
+plugin.json bumped but no release commit. Recovery:
+
+1. Diagnose the failure — check the last line of release.sh output
+   for the step number.
+2. If you can fix the underlying issue (reinstall a dep, free up
+   disk, etc.): manually run the remaining steps:
+
+   ```bash
+   bash build-all.sh
+   bash package-plugin.sh --skip-build
+   shasum -a 256 vibeflow-plugin-X.Y.Z.tar.gz > vibeflow-plugin-X.Y.Z.tar.gz.sha256
+   git add .claude-plugin/plugin.json CHANGELOG.md
+   git commit -m "Release vX.Y.Z — bump plugin.json + CHANGELOG"
+   # Use -s if user.signingkey is configured, otherwise -a
+   git tag -a vX.Y.Z -m vX.Y.Z
+   ```
+
+3. If you want to abort the release entirely, revert the
+   plugin.json + CHANGELOG.md changes:
+
+   ```bash
+   git checkout .claude-plugin/plugin.json CHANGELOG.md
+   rm -f vibeflow-plugin-X.Y.Z.tar.gz vibeflow-plugin-X.Y.Z.tar.gz.sha256
+   ```
+
+**sha256 sidecar doesn't match the uploaded tarball** — the tarball
+on disk can be regenerated between `release.sh` finishing and
+`gh release create`, which desyncs the sidecar. Common culprit: the
+`sprint-4.sh [S4-G]` section in the preflight gauntlet runs
+`package-plugin.sh` internally, producing a slightly different
+tarball (tar + gzip bake timestamps, so consecutive runs produce
+different bytes). Fix:
+
+```bash
+# Regenerate the sidecar against the CURRENT tarball on disk
+shasum -a 256 vibeflow-plugin-X.Y.Z.tar.gz > vibeflow-plugin-X.Y.Z.tar.gz.sha256
+
+# Replace the stale asset on the already-created GitHub release
+gh release upload vX.Y.Z vibeflow-plugin-X.Y.Z.tar.gz.sha256 --clobber
+```
+
+Prefer to regenerate the sidecar as the LAST step before
+`gh release create` to avoid the window entirely. A future ticket
+(S7-05 long-term item) will make `package-plugin.sh` deterministic
+via `tar --mtime=@0` + `gzip -n` so consecutive runs produce
+byte-identical output.
