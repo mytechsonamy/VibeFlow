@@ -74,6 +74,18 @@
       "description": "Which CI/CD system the dev-ops MCP should target: 'github' (GitHub Actions, default) or 'gitlab' (GitLab CI). The selected provider determines which API endpoints the dev-ops tools call.",
       "type": "string",
       "sensitive": false
+    },
+    "gitlab_token": {
+      "title": "GitLab Personal Access Token",
+      "description": "Personal access token for the GitLab REST API (used by dev-ops MCP when ci_provider=gitlab). Needs `api` + `read_repository` at minimum. Falls back to github_token when unset. Added in v1.2 / Sprint 7 / S7-01.",
+      "type": "string",
+      "sensitive": true
+    },
+    "gitlab_base_url": {
+      "title": "GitLab API Base URL",
+      "description": "Custom GitLab API base URL for self-hosted instances (e.g. https://gitlab.example.com/api/v4). Leave empty to use gitlab.com. Trailing slash stripped automatically. Only consulted when ci_provider=gitlab. Added in v1.2 / Sprint 7 / S7-01.",
+      "type": "string",
+      "sensitive": false
     }
   }
 }

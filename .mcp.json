@@ -23,7 +23,9 @@
       "args": ["./mcp-servers/dev-ops/dist/index.js"],
       "env": {
         "GITHUB_TOKEN": "${userConfig.github_token}",
-        "CI_PROVIDER": "${userConfig.ci_provider}"
+        "CI_PROVIDER": "${userConfig.ci_provider}",
+        "GITLAB_TOKEN": "${userConfig.gitlab_token}",
+        "GITLAB_BASE_URL": "${userConfig.gitlab_base_url}"
       }
     },
     "observability": {

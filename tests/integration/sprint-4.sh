@@ -390,7 +390,7 @@ fi
 # the docs is a common regression — this catches it.
 CFG_DOC="$DOCS/CONFIGURATION.md"
 if [[ -f "$CFG_DOC" ]]; then
-  for key in "mode" "domain" "db_connection" "openai_model" "gemini_model" "figma_token" "github_token"; do
+  for key in "mode" "domain" "db_connection" "openai_model" "gemini_model" "figma_token" "github_token" "gitlab_token" "gitlab_base_url"; do
     if grep -qE "\\\`${key}\\\`" "$CFG_DOC"; then
       pass "CONFIGURATION.md documents userConfig.${key}"
     else
@@ -489,7 +489,7 @@ else
 fi
 
 # Every userConfig key must have title + description + type + sensitive.
-USER_CONFIG_KEYS=(mode domain db_connection openai_model gemini_model figma_token github_token ci_provider)
+USER_CONFIG_KEYS=(mode domain db_connection openai_model gemini_model figma_token github_token ci_provider gitlab_token gitlab_base_url)
 for key in "${USER_CONFIG_KEYS[@]}"; do
   if jq -e --arg k "$key" '.userConfig | has($k)' "$PLUGIN" >/dev/null 2>&1; then
     pass "userConfig declares '$key'"

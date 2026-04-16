@@ -177,7 +177,12 @@ export function createGitlabClient(opts) {
         throw new CiConfigError("projectId is required for the GitLab client (either the " +
             "numeric project id or the 'group/name' path).");
     }
-    const baseUrl = (opts.baseUrl ?? "https://gitlab.com/api/v4").replace(/\/$/, "");
+    // Sprint 7 / S7-01 — `??` only falls back when baseUrl is null or
+    // undefined. An empty string passed through plugin userConfig
+    // (common when the env var is exported but unset) would leave the
+    // request URL host-less. Collapse empty-string to the default too.
+    const customBaseUrl = opts.baseUrl && opts.baseUrl.length > 0 ? opts.baseUrl : undefined;
+    const baseUrl = (customBaseUrl ?? "https://gitlab.com/api/v4").replace(/\/$/, "");
     const fetchImpl = opts.fetchImpl ?? defaultFetch();
     const projectPath = encodeURIComponent(opts.projectId);
     async function request(path, init = {}) {

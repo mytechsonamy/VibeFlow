@@ -72,12 +72,18 @@ export function buildTools(opts = {}) {
             // GitLab treats the (owner, repo) pair as a single "namespace/name"
             // project path. The tool handlers still pass both for
             // provider-agnostic compatibility; we collapse them here.
+            //
+            // Sprint 7 / S7-01 — self-hosted GitLab instances configure a
+            // custom API host via `userConfig.gitlab_base_url`, plumbed into
+            // the MCP as the `GITLAB_BASE_URL` env var. When unset, the
+            // client falls back to `https://gitlab.com/api/v4`.
             const projectId = `${owner}/${repo}`;
+            const gitlabBaseUrl = opts.baseUrl ?? process.env.GITLAB_BASE_URL;
             try {
                 return createGitlabClient({
                     projectId,
                     token: opts.token,
-                    baseUrl: opts.baseUrl,
+                    baseUrl: gitlabBaseUrl,
                     fetchImpl: opts.fetchImpl,
                 });
             }

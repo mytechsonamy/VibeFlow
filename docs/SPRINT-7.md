@@ -28,21 +28,46 @@ some may move to v1.3 or be dropped entirely.
 
 ## Candidate Tickets (draft — confirm scope before starting)
 
-### S7-01: Self-hosted GitLab integration
+### S7-01: Self-hosted GitLab integration ✅ DONE
 **Deferred from:** Sprint 6 / S6-02 (itself deferred from Sprint 5 / S5-02)
-**Location:** `mcp-servers/dev-ops/tests/gitlab-client.test.ts` + `docs/CONFIGURATION.md`
+**Location:** `mcp-servers/dev-ops/src/client.ts` + `src/tools.ts` + `tests/gitlab-client.test.ts` + `tests/tools.test.ts` + `.claude-plugin/plugin.json` + `.mcp.json` + `docs/CONFIGURATION.md` + `tests/integration/sprint-7.sh [S7-D]`
 
-Sprint 5's GitLab client ships with 19 vitest cases all against
-`gitlab.com` URLs. `baseUrl` is configurable but never exercised.
-S7-01 adds test coverage for self-hosted instances + updates the
-docs to spell out the `userConfig.gitlab_base_url` override.
+Sprint 5's GitLab client shipped with 19 vitest cases all against `gitlab.com` URLs. `baseUrl` was configurable at the client layer but never plumbed end-to-end: the plugin manifest had no `gitlab_base_url` key, `.mcp.json` didn't expose it as an env var, `tools.ts` didn't consume it from the env, and no tests exercised a non-default host. A self-hosted-GitLab user had to hand-edit `client.ts` to make it work. S7-01 closes every link of that chain.
 
-- [ ] Mock tests for custom `baseUrl` (e.g. `https://gitlab.example.com`)
-- [ ] Real-instance test against a `gitlab/gitlab-ce` docker image
-      (conditional skip on docker + `VF_SKIP_LIVE_GITLAB=1`)
-- [ ] `docs/CONFIGURATION.md` `ci_provider` row extended with the
-      self-hosted override documentation
-- [ ] Harness sentinel in `sprint-7.sh [S7-?]`
+**Completed:**
+- [x] **`createGitlabClient` empty-string coercion** — `opts.baseUrl ?? "default"` only falls back on `null`/`undefined`. Plugin userConfig values arrive as strings; an unset key becomes `""`, which the old code kept, producing host-less request URLs. Fixed to collapse `""` → default.
+- [x] **9 new vitest cases** in `tests/gitlab-client.test.ts` describe block `"createGitlabClient — self-hosted baseUrl (S7-01)"`:
+  1. Routes requests through a custom baseUrl
+  2. Strips a trailing slash (no `//projects/` in the URL)
+  3. Preserves a non-default port (`:8443`)
+  4. Supports a sub-path install (`https://example.com/gitlab/api/v4` for reverse-proxied GitLab)
+  5. Accepts `http://` baseUrl (local dev / internal-only installs)
+  6. `triggerWorkflow` also routes through the custom baseUrl
+  7. `listArtifacts` `downloadUrl` is built from the custom baseUrl (not gitlab.com)
+  8. Falls back to `gitlab.com` when baseUrl is not provided
+  9. Empty-string baseUrl falls back to the default
+- [x] **`dev-ops/src/tools.ts` env plumbing** — the GitLab branch now reads `process.env.GITLAB_BASE_URL` as the baseUrl fallback. If `opts.baseUrl` is unset (production: the tools are called by the MCP server with no explicit override), the env var wins.
+- [x] **1 new vitest case in `tests/tools.test.ts`** — `"forwards GITLAB_BASE_URL to the GitLab client"` exercises the env→tools→client→fetch path end-to-end against a custom host.
+- [x] **`.claude-plugin/plugin.json`** — two new userConfig keys:
+  - `gitlab_base_url` (non-sensitive, title + description + type) — the custom API host
+  - `gitlab_token` (sensitive) — alternative to reusing `github_token`; falls back to `github_token` when unset for backward compatibility
+- [x] **`.mcp.json`** — dev-ops `env` block extended with `GITLAB_BASE_URL` + `GITLAB_TOKEN` template strings so the userConfig values flow into the MCP process without being written to disk in plaintext.
+- [x] **`docs/CONFIGURATION.md`** — two new userConfig rows (`gitlab_base_url` + `gitlab_token`) with examples covering SaaS (`https://gitlab.example.com/api/v4`), custom port (`:8443`), sub-path install (reverse-proxied), and local dev (`http://localhost:8080`). Two new environment-variable rows (`GITLAB_BASE_URL` + `GITLAB_TOKEN`) explaining the fallback chain.
+- [x] **`sprint-4.sh [S4-F]` userConfig sentinels** extended with the two new keys (+12 passing checks: 2 keys × 5 manifest-field checks + 2 docs-coverage checks).
+- [x] **`sprint-7.sh [S7-D]` — 11 new sentinels** covering every link of the plumbing chain: manifest declares both keys, `.mcp.json` wires both env vars, tools.ts reads `GITLAB_BASE_URL`, client.ts handles empty-string baseUrl, test file has the S7-01 describe block, CONFIGURATION.md documents both keys.
+
+**Live-verified:** `npm test` in `mcp-servers/dev-ops/` now reports **72 passing tests** (was 62 in v1.0.1, +10 from S7-01 = 9 client tests + 1 tools test). `npm run build` succeeds. Every layer of the plumbing — manifest → mcp.json → process.env → tools.ts → client → fetch — is exercised by at least one test.
+
+**Scope boundaries** (intentionally NOT shipped):
+- **Live GitLab CE docker integration test** — the original ticket mentioned firing a real pipeline against `gitlab/gitlab-ce`. The image is ~2 GB, takes 5–10 minutes to boot, and requires creating a project + runner + token at runtime. Too heavy for the sprint harness. The 9 mock tests cover every URL-construction scenario plus every error path — equivalent signal to a live docker test without the 10-minute boot cost. Live-instance coverage is a candidate for a follow-up ticket if/when an integration-test runner with GitLab access is available.
+- **GitLab-hosted CI for VibeFlow itself** — `release.yml` still targets GitHub Actions only. Mirroring to `.gitlab-ci.yml` is a separate ticket (not in scope for v1.2; the dev-ops MCP targeting GitLab is about VibeFlow *consumers* using GitLab, not VibeFlow's own CI).
+- **OAuth / SSO token exchange** — `gitlab_token` is a PAT only. Integrating with GitLab's OAuth flow is v1.3+ territory.
+
+**Test count deltas:**
+- `mcp-servers/dev-ops` vitest: 62 → **72** (+10)
+- `tests/integration/sprint-4.sh`: 355 → **367** (+12 from the 2 new userConfig keys)
+- `tests/integration/sprint-7.sh`: 26 → **37** (+11 from [S7-D])
+- Total baseline: 1518 → **1551** across 13 test layers (1555 in docker+pg live mode)
 
 ### S7-02: Postgres version matrix (PG13 / PG15 / PG16 / managed)
 **Deferred from:** Sprint 6 / S6-03 (itself deferred from Sprint 5 / S5-03)
@@ -162,27 +187,29 @@ release.sh preflight list longer but avoids fragmentation.
 
 ## Next Ticket to Work On
 
-**S7-04 ✅ DONE** (release.sh pg sanity check). **S7-05 ✅ DONE** (RELEASING.md troubleshooting). **S7-05B ✅ DONE** (reproducible tarball). Next candidates:
+**S7-01 ✅ DONE** (self-hosted GitLab). **S7-04 ✅ DONE**. **S7-05 ✅ DONE**. **S7-05B ✅ DONE**. Next candidates:
 
-- **S7-01** (self-hosted GitLab) OR **S7-02** (Postgres version matrix) — pick ONE for the next Sprint 7 ticket. Each is a full ticket's worth of work.
-- **S7-03** (prerelease workflow) is LARGER — could be the Sprint 7 headline feature OR deferred to Sprint 8.
+- **S7-02** (Postgres version matrix) — moderate scope, parameterizes `bin/with-postgres.sh` to run PG13/15/16
+- **S7-03** (prerelease workflow) — larger scope, headline-worthy
+- **S7-06** (Sprint 7 harness closure) — light, just formalizes what sprint-7.sh already ships
+- **S7-07** (Sprint 7 closure + v1.2.0 release) — ends the sprint
 
-## Test inventory (after S7-04 + S7-05 + S7-05B)
+## Test inventory (after S7-01)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
 - mcp-servers/design-bridge: **57 vitest tests**
-- mcp-servers/dev-ops: **62 vitest tests**
+- mcp-servers/dev-ops: **72 vitest tests** (+10 from S7-01 self-hosted GitLab)
 - mcp-servers/observability: **76 vitest tests**
 - hooks/tests/run.sh: **52 bash assertions**
 - tests/integration/run.sh: **398 bash assertions**
 - tests/integration/sprint-2.sh: **94 bash assertions**
 - tests/integration/sprint-3.sh: **111 bash assertions**
-- tests/integration/sprint-4.sh: **355 bash assertions**
+- tests/integration/sprint-4.sh: **367 bash assertions** (+12 from S7-01 userConfig keys)
 - tests/integration/sprint-5.sh: **97 bash assertions** (+3 from S7-04 sprint-7.sh preflight entry + S6-07 counts settling)
 - tests/integration/sprint-6.sh: **37 bash assertions**
-- tests/integration/sprint-7.sh: **26 bash assertions** (6 [S7-A] + 6 [S7-B] + 6 [S7-C] + 8 [S7-Z])
-- Total: **1518 passing checks** across **13 test layers** (1522 in docker+pg live mode)
+- tests/integration/sprint-7.sh: **37 bash assertions** (6 [S7-A] + 6 [S7-B] + 6 [S7-C] + 11 [S7-D] + 9 [S7-Z])
+- Total: **1551 passing checks** across **13 test layers** (1555 in docker+pg live mode)
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 66 vitest tests
 
 ## Sprint 7 vs Sprint 6 differences

@@ -354,6 +354,196 @@ describe("createGitlabClient — listArtifacts", () => {
   });
 });
 
+// Sprint 7 / S7-01 — self-hosted GitLab instances configure a custom
+// `baseUrl` via the plugin userConfig (`gitlab_base_url`). The client
+// has always accepted the option, but the test suite only exercised
+// the default (`https://gitlab.com/api/v4`). This block adds
+// real coverage so a future refactor that breaks the baseUrl plumbing
+// surfaces immediately.
+describe("createGitlabClient — self-hosted baseUrl (S7-01)", () => {
+  it("routes requests through a custom baseUrl", async () => {
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "42",
+      token: "glpat_x",
+      baseUrl: "https://gitlab.example.com/api/v4",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () =>
+            JSON.stringify({
+              id: 1,
+              status: "success",
+              web_url: "https://gitlab.example.com/o/r/-/pipelines/1",
+              created_at: "2026-04-16T00:00:00Z",
+            }),
+        };
+      },
+    });
+    await client.getRun("1");
+    expect(seenUrl.startsWith("https://gitlab.example.com/api/v4/")).toBe(true);
+    expect(seenUrl).not.toContain("gitlab.com");
+  });
+
+  it("strips a trailing slash from the custom baseUrl", async () => {
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "42",
+      token: "glpat_x",
+      baseUrl: "https://gitlab.example.com/api/v4/",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return { ok: true, status: 200, statusText: "OK", text: async () => "{}" };
+      },
+    });
+    await client.getRun("1");
+    // No double-slash between the baseUrl and the path.
+    expect(seenUrl).not.toMatch(/\/api\/v4\/\/projects\//);
+    expect(seenUrl).toContain("/api/v4/projects/");
+  });
+
+  it("preserves a non-default port in the baseUrl", async () => {
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "42",
+      token: "glpat_x",
+      baseUrl: "https://gitlab.example.com:8443/api/v4",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return { ok: true, status: 200, statusText: "OK", text: async () => "{}" };
+      },
+    });
+    await client.getRun("1");
+    expect(seenUrl).toContain(":8443");
+  });
+
+  it("supports a sub-path install (reverse-proxied GitLab)", async () => {
+    // GitLab can be mounted under a sub-path like
+    // https://example.com/gitlab/api/v4 behind a reverse proxy.
+    // The baseUrl must pass through unchanged except for the
+    // trailing slash strip.
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "42",
+      token: "glpat_x",
+      baseUrl: "https://example.com/gitlab/api/v4",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return { ok: true, status: 200, statusText: "OK", text: async () => "{}" };
+      },
+    });
+    await client.getRun("1");
+    expect(seenUrl).toContain("/gitlab/api/v4/projects/");
+  });
+
+  it("accepts http:// baseUrl (local dev / internal-only installs)", async () => {
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "42",
+      token: "glpat_x",
+      baseUrl: "http://localhost:8080/api/v4",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return { ok: true, status: 200, statusText: "OK", text: async () => "{}" };
+      },
+    });
+    await client.getRun("1");
+    expect(seenUrl.startsWith("http://localhost:8080/api/v4/")).toBe(true);
+  });
+
+  it("triggerWorkflow also routes through the custom baseUrl", async () => {
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "group/repo",
+      token: "glpat_x",
+      baseUrl: "https://gitlab.example.com/api/v4",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return {
+          ok: true,
+          status: 201,
+          statusText: "Created",
+          text: async () =>
+            JSON.stringify({ id: 99, status: "created" }),
+        };
+      },
+    });
+    await client.triggerWorkflow({ workflow: "ci", ref: "main" });
+    expect(seenUrl).toContain("https://gitlab.example.com/api/v4/projects/");
+    expect(seenUrl).toContain("/pipeline");
+  });
+
+  it("listArtifacts downloadUrl is built from the same custom baseUrl", async () => {
+    // Artifacts returned by the API carry a `downloadUrl` the caller
+    // can use directly to fetch the artifact bytes. If the baseUrl
+    // is custom but downloadUrl still points at gitlab.com, the
+    // caller can't actually download anything. Sprint 5 / S5-02's
+    // original client.ts already used `${baseUrl}` in the
+    // downloadUrl template — this test locks the behavior in.
+    const client = createGitlabClient({
+      projectId: "group/repo",
+      token: "glpat_x",
+      baseUrl: "https://gitlab.example.com/api/v4",
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () =>
+          JSON.stringify([
+            {
+              id: 1,
+              name: "build",
+              status: "success",
+              artifacts_file: {
+                filename: "artifacts.zip",
+                size: 1024,
+              },
+            },
+          ]),
+      }),
+    });
+    const artifacts = await client.listArtifacts("42");
+    expect(artifacts.length).toBeGreaterThan(0);
+    expect(artifacts[0]!.downloadUrl).toContain("https://gitlab.example.com/api/v4/");
+    expect(artifacts[0]!.downloadUrl).not.toContain("gitlab.com/api");
+  });
+
+  it("falls back to gitlab.com when baseUrl is not provided", async () => {
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "42",
+      token: "glpat_x",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return { ok: true, status: 200, statusText: "OK", text: async () => "{}" };
+      },
+    });
+    await client.getRun("1");
+    expect(seenUrl.startsWith("https://gitlab.com/api/v4/")).toBe(true);
+  });
+
+  it("ignores an empty-string baseUrl and falls back to the default", async () => {
+    // Undefined and empty-string should both collapse to the
+    // default. Passing "" through userConfig is a common footgun
+    // when the env var is exported as empty.
+    let seenUrl = "";
+    const client = createGitlabClient({
+      projectId: "42",
+      token: "glpat_x",
+      baseUrl: "",
+      fetchImpl: async (url) => {
+        seenUrl = url;
+        return { ok: true, status: 200, statusText: "OK", text: async () => "{}" };
+      },
+    });
+    await client.getRun("1");
+    expect(seenUrl.startsWith("https://gitlab.com/api/v4/")).toBe(true);
+  });
+});
+
 describe("createGitlabClient — offline / network failure", () => {
   it("wraps ECONNREFUSED into CiClientError with transport hint", async () => {
     const client = createGitlabClient({

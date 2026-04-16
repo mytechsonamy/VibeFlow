@@ -10,15 +10,16 @@
 #   [S7-A] — release.sh pre-step-5 pg peer-dep sanity check (S7-04)
 #   [S7-B] — docs/RELEASING.md troubleshooting + sha256-drift recovery (S7-05)
 #   [S7-C] — Reproducible package-plugin.sh tarball (S7-05B)
+#   [S7-D] — Self-hosted GitLab baseUrl plumbing (S7-01)
 #   [S7-Z] — Sprint 7 harness self-audit (mirrors [S6-Z])
 #
 # Sprint 7 ticket coverage (as of current commit):
+#   S7-01  (self-hosted GitLab)                  → [S7-D]
 #   S7-04  (release.sh pg sanity check)          → [S7-A]
 #   S7-05  (RELEASING.md troubleshooting)        → [S7-B]
 #   S7-05B (reproducible package-plugin tarball) → [S7-C]
-# S7-01 / S7-02 / S7-03 / S7-06 / S7-07 are not yet picked up — if
-# and when they land, they will add their own [S7-D/E/F/…] sections
-# here.
+# S7-02 / S7-03 / S7-06 / S7-07 are not yet picked up — if and when
+# they land, they will add their own [S7-E/F/…] sections here.
 #
 # Exit 0 on full pass, 1 otherwise.
 
@@ -287,6 +288,105 @@ fi
 rm -rf "$DETERMINISM_TMPDIR"
 
 # ---------------------------------------------------------------------------
+echo "== [S7-D] Self-hosted GitLab baseUrl plumbing =="
+
+# S7-01 — self-hosted GitLab instances configure a custom API host
+# via `userConfig.gitlab_base_url`. The client accepted the option
+# from day one, but the plumbing (plugin manifest → .mcp.json env
+# var → dev-ops tools.ts → createGitlabClient) was never fully
+# wired. S7-01 closes every gap + adds test coverage.
+#
+# Sentinels verify each link of the chain so a future refactor that
+# breaks any step trips immediately.
+
+DEV_OPS_CLIENT_S7D="$REPO_ROOT/mcp-servers/dev-ops/src/client.ts"
+DEV_OPS_TOOLS_S7D="$REPO_ROOT/mcp-servers/dev-ops/src/tools.ts"
+DEV_OPS_TEST_S7D="$REPO_ROOT/mcp-servers/dev-ops/tests/gitlab-client.test.ts"
+PLUGIN_MANIFEST_S7D="$REPO_ROOT/.claude-plugin/plugin.json"
+MCP_CONFIG_S7D="$REPO_ROOT/.mcp.json"
+CONFIG_DOC_S7D="$REPO_ROOT/docs/CONFIGURATION.md"
+
+# 1. Plugin manifest declares gitlab_base_url in userConfig.
+if jq -e '.userConfig | has("gitlab_base_url")' "$PLUGIN_MANIFEST_S7D" >/dev/null 2>&1; then
+  pass "[S7-D] plugin.json userConfig declares gitlab_base_url"
+else
+  fail "[S7-D] plugin.json userConfig declares gitlab_base_url"
+fi
+
+# 2. Plugin manifest declares gitlab_token as sensitive.
+if jq -e '.userConfig.gitlab_token.sensitive == true' "$PLUGIN_MANIFEST_S7D" >/dev/null 2>&1; then
+  pass "[S7-D] plugin.json userConfig declares gitlab_token as sensitive"
+else
+  fail "[S7-D] plugin.json userConfig declares gitlab_token as sensitive"
+fi
+
+# 3. .mcp.json passes GITLAB_BASE_URL env from userConfig.gitlab_base_url.
+if grep -q '"GITLAB_BASE_URL": "\${userConfig.gitlab_base_url}"' "$MCP_CONFIG_S7D"; then
+  pass "[S7-D] .mcp.json wires GITLAB_BASE_URL from userConfig.gitlab_base_url"
+else
+  fail "[S7-D] .mcp.json wires GITLAB_BASE_URL from userConfig.gitlab_base_url"
+fi
+
+# 4. .mcp.json passes GITLAB_TOKEN env from userConfig.gitlab_token.
+if grep -q '"GITLAB_TOKEN": "\${userConfig.gitlab_token}"' "$MCP_CONFIG_S7D"; then
+  pass "[S7-D] .mcp.json wires GITLAB_TOKEN from userConfig.gitlab_token"
+else
+  fail "[S7-D] .mcp.json wires GITLAB_TOKEN from userConfig.gitlab_token"
+fi
+
+# 5. dev-ops tools.ts reads process.env.GITLAB_BASE_URL as the
+#    baseUrl fallback when ci_provider=gitlab. Without this read,
+#    the env var is set but never consumed.
+if grep -q 'process.env.GITLAB_BASE_URL' "$DEV_OPS_TOOLS_S7D"; then
+  pass "[S7-D] dev-ops tools.ts reads process.env.GITLAB_BASE_URL"
+else
+  fail "[S7-D] dev-ops tools.ts reads process.env.GITLAB_BASE_URL"
+fi
+
+# 6. createGitlabClient treats empty-string baseUrl as "use default".
+#    Plugin userConfig values are strings; unset keys arrive as "".
+#    Without this coercion, a user who hasn't set gitlab_base_url
+#    would send requests to an empty host.
+if grep -q 'baseUrl.length > 0' "$DEV_OPS_CLIENT_S7D" \
+    || grep -q 'opts.baseUrl &&.*baseUrl.length' "$DEV_OPS_CLIENT_S7D"; then
+  pass "[S7-D] createGitlabClient coerces empty-string baseUrl to the default"
+else
+  fail "[S7-D] createGitlabClient coerces empty-string baseUrl to the default"
+fi
+
+# 7. gitlab-client.test.ts has the self-hosted baseUrl describe
+#    block.
+if grep -q "self-hosted baseUrl (S7-01)" "$DEV_OPS_TEST_S7D"; then
+  pass "[S7-D] gitlab-client.test.ts has the S7-01 self-hosted describe block"
+else
+  fail "[S7-D] gitlab-client.test.ts has the S7-01 self-hosted describe block"
+fi
+
+# 8. The test block must exercise at least one non-gitlab.com URL
+#    so we know the baseUrl is actually flowing to the fetch impl.
+if grep -q "gitlab.example.com/api/v4" "$DEV_OPS_TEST_S7D"; then
+  pass "[S7-D] gitlab-client.test.ts exercises a custom host URL"
+else
+  fail "[S7-D] gitlab-client.test.ts exercises a custom host URL"
+fi
+
+# 9. CONFIGURATION.md documents the new userConfig keys so users
+#    actually know the self-hosted option exists. Without docs, a
+#    self-hosted-GitLab user might never know to set it.
+if [[ -f "$CONFIG_DOC_S7D" ]]; then
+  if grep -q 'gitlab_base_url' "$CONFIG_DOC_S7D"; then
+    pass "[S7-D] CONFIGURATION.md documents gitlab_base_url"
+  else
+    fail "[S7-D] CONFIGURATION.md documents gitlab_base_url"
+  fi
+  if grep -q 'gitlab_token' "$CONFIG_DOC_S7D"; then
+    pass "[S7-D] CONFIGURATION.md documents gitlab_token"
+  else
+    fail "[S7-D] CONFIGURATION.md documents gitlab_token"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 echo "== [S7-Z] sprint-7.sh harness self-audit =="
 
 # Mirrors sprint-6.sh [S6-Z]. Catches section-deletion, chmod -x,
@@ -296,8 +396,8 @@ echo "== [S7-Z] sprint-7.sh harness self-audit =="
 
 SELF_S7Z="$REPO_ROOT/tests/integration/sprint-7.sh"
 
-# 1-4. Each expected section header must still be present.
-for sec_label in "S7-A" "S7-B" "S7-C" "S7-Z"; do
+# 1-5. Each expected section header must still be present.
+for sec_label in "S7-A" "S7-B" "S7-C" "S7-D" "S7-Z"; do
   if grep -q "echo \"== \[$sec_label\]" "$SELF_S7Z"; then
     pass "[S7-Z] [$sec_label] section header still present"
   else

@@ -297,6 +297,37 @@ describe("MCP tool handlers", () => {
       void mock;
     });
 
+    // Sprint 7 / S7-01: self-hosted GitLab — buildTools must read
+    // GITLAB_BASE_URL from env and pass it through to the client, so
+    // the dev-ops MCP hits the custom host rather than gitlab.com.
+    it("forwards GITLAB_BASE_URL to the GitLab client", async () => {
+      process.env.CI_PROVIDER = "gitlab";
+      process.env.GITLAB_BASE_URL = "https://gitlab.example.com/api/v4";
+      let seenUrl = "";
+      const tools = buildTools({
+        token: "glpat_fake",
+        fetchImpl: async (url) => {
+          seenUrl = url;
+          return {
+            ok: true,
+            status: 201,
+            statusText: "Created",
+            text: async () =>
+              JSON.stringify({ id: 1, status: "created" }),
+          };
+        },
+      });
+      await byName(tools, "do_trigger_pipeline").handler({
+        owner: "o",
+        repo: "r",
+        workflow: "ci",
+        ref: "main",
+      });
+      expect(seenUrl.startsWith("https://gitlab.example.com/api/v4/")).toBe(true);
+      expect(seenUrl).not.toContain("gitlab.com/api");
+      delete process.env.GITLAB_BASE_URL;
+    });
+
     it("raises CiConfigError on an unknown CI_PROVIDER value", async () => {
       process.env.CI_PROVIDER = "jenkins";
       const tools = buildTools({ token: "x" });

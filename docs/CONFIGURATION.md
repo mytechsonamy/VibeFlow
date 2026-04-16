@@ -139,6 +139,8 @@ and are typically secrets or personal preferences.
 | `figma_token` | **yes** | Figma personal access token for `design-bridge`. Create at figma.com → Settings → Personal access tokens. Empty disables Figma-dependent skills. |
 | `github_token` | **yes** | GitHub PAT for `dev-ops`. Needs `actions:write` + `contents:read` minimum. Empty disables CI-dependent skills. |
 | `ci_provider` | no | Which CI/CD system the `dev-ops` MCP targets: `"github"` (default — GitHub Actions via the `createGithubClient`) or `"gitlab"` (GitLab CI via the `createGitlabClient`, added in v1.0.1 / Sprint 5 / S5-02). Unknown values raise a loud `CiConfigError` at first call. For GitLab, the `owner`/`repo` tool arguments are collapsed into the GitLab "namespace/name" project path. |
+| `gitlab_base_url` | no | Custom GitLab API base URL for self-hosted instances (v1.2 / Sprint 7 / S7-01). Defaults to `https://gitlab.com/api/v4`. Examples: `https://gitlab.example.com/api/v4`, `https://gitlab.example.com:8443/api/v4` (custom port), `https://example.com/gitlab/api/v4` (sub-path install behind a reverse proxy), `http://localhost:8080/api/v4` (local dev). Trailing slash is stripped automatically. Empty string falls back to the default. Only consulted when `ci_provider=gitlab`. |
+| `gitlab_token` | no | Personal access token for GitLab CI, alternative to reusing `github_token` (which the client also accepts for convenience). If both are set, `gitlab_token` wins. Scopes: `api` + `read_repository` minimum. Only consulted when `ci_provider=gitlab`. |
 
 Set these via Claude Code's plugin settings UI, NOT by editing
 `.claude-plugin/plugin.json` by hand — that file is plugin source.
@@ -167,6 +169,8 @@ fast. This is the Bug #7 regression guard.
 | `FIGMA_TOKEN` | design-bridge MCP | Populated from `userConfig.figma_token` |
 | `GITHUB_TOKEN` | dev-ops MCP | Populated from `userConfig.github_token` |
 | `CI_PROVIDER` | dev-ops MCP | Populated from `userConfig.ci_provider`. Defaults to `github` when unset. |
+| `GITLAB_TOKEN` | dev-ops MCP | Populated from `userConfig.gitlab_token` (v1.2 / Sprint 7 / S7-01). When unset, the GitLab client falls back to `GITHUB_TOKEN` for backward compatibility with v1.0.1/v1.1.0 configurations that reused a single token. |
+| `GITLAB_BASE_URL` | dev-ops MCP | Populated from `userConfig.gitlab_base_url` (v1.2 / Sprint 7 / S7-01). Empty string or unset → `https://gitlab.com/api/v4`. Self-hosted instances override this. |
 
 Environment variables override `vibeflow.config.json` values when
 both are set. Use this only for one-off diagnostic runs — persistent
