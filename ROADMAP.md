@@ -61,17 +61,22 @@ MyVibe Framework (SDLC orchestration) + TruthLayer (requirements-first validatio
 **Status file:** docs/SPRINT-5.md
 **Result:** 1445 passing checks across 11 test layers. v1.0.1 shipped 2026-04-14 at https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.0.1 (`vibeflow-plugin-1.0.1.tar.gz` 418 KB, sha256 `be5bb4a...`). Second demo (`examples/nextjs-demo/`) ships alongside the TypeScript-only demo. `bin/release.sh` discipline automated + gated on user authorization for the push step. `tests/integration/sprint-5.sh` harness runs alongside sprint-2/3/4.
 
-### Sprint 6: v1.1 Scope TBD (Next)
-**Goal:** v1.1 hardening — pick up items deferred from Sprint 5 scope decisions + any new skill work that surfaced during v1.0.x usage. Scope to be confirmed with user before starting.
-**Candidate tickets** (seeded from Sprint 5 deferrals):
-- Concurrent-advance CAS stress test against real Postgres (deferred from S5-03)
-- Self-hosted GitLab integration + self-hosted Postgres version matrix (PG13/15/16, AWS RDS) (deferred from S5-02 + S5-03)
-- `next build` coverage for the Next.js demo + `"use client"` component surface (deferred from S5-05)
-- GPG-signed release tags + marketplace publish API integration (deferred from S5-04)
-- Automated prerelease / beta-channel workflow (deferred from S5-04)
-- sprint-5.sh [S5-C] runtime sentinel for release.sh CHANGELOG insertion regressions (see S5-07 Fixed entry)
-**Status file:** docs/SPRINT-6.md (seeded with candidate backlog — confirm scope before starting)
-**Targets:** v1.1.0
+### Sprint 6: v1.1 Hardening + Deferred Items ✅ COMPLETE
+**Goal:** v1.1 hardening — pick up items deferred from Sprint 5 scope decisions + fix the BSD awk bug surfaced during v1.0.1 release.
+**Tickets:** 5/9 shipped (S6-01 concurrent Postgres CAS stress, S6-04 Next.js `"use client"` + next build, S6-05 GPG-signed release tags + RELEASING.md, S6-07 release.sh CHANGELOG runtime sentinel, S6-08 sprint-6.sh closure + self-audit, S6-09 v1.1.0 closure). S6-02 / S6-03 / S6-06 deferred to Sprint 7.
+**Status file:** docs/SPRINT-6.md
+**Result:** 1489 passing checks across 12 test layers. **v1.1.0 shipped 2026-04-16** at https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.1.0 (`vibeflow-plugin-1.1.0.tar.gz`, sha256 `2e1beae...`). Second demo (nextjs-demo) grew from 41 → 66 vitest tests via the new `"use client"` RatingPicker + lib/rating.ts helpers. `bin/release.sh` now signs tags when `user.signingkey` is configured, with a three-step graceful fall-back ladder; full release workflow documented in `docs/RELEASING.md`.
+
+### Sprint 7: v1.2 TBD (Next)
+**Goal:** v1.2 scope TBD — pick up Sprint 6 deferrals + any new items that surface during v1.1 usage. Scope to be confirmed with user before starting.
+**Candidate tickets** (seeded from Sprint 6 deferrals):
+- Self-hosted GitLab integration (deferred from S6-02)
+- Postgres version matrix (PG13/15/16, AWS RDS) (deferred from S6-03)
+- Automated prerelease / beta-channel workflow (deferred from S6-06)
+- `bin/release.sh` pre-step-5 sanity check for pg installation (captured during S6-09 when build-all.sh failed mid-release)
+- `docs/RELEASING.md` Troubleshooting entry for mid-release build failures (captured during S6-09)
+**Status file:** docs/SPRINT-7.md (seeded with candidate backlog — confirm scope before starting)
+**Targets:** v1.2.0
 
 ---
 

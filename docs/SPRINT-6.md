@@ -1,12 +1,14 @@
-# Sprint 6: v1.1 Hardening + Deferred Items (Scope TBD)
+# Sprint 6: v1.1 Hardening + Deferred Items ✅ COMPLETE
 
 ## Sprint Goal
 
 Sprint 6 targets **v1.1.0** — the first minor bump after v1.0.x. The
-seeded backlog below is a candidate list drawn from Sprint 5 scope
-decisions + the one bug surfaced during S5-07. **Confirm scope with
-the user before picking up any ticket** — not all of these will fit
-in a single sprint and some may be deferred further.
+seeded backlog below was a candidate list drawn from Sprint 5 scope
+decisions + the one bug surfaced during S5-07. Five tickets shipped,
+three deferred to Sprint 7.
+
+**Shipped:** S6-01, S6-04, S6-05, S6-07, S6-08, S6-09
+**Deferred to Sprint 7:** S6-02 (self-hosted GitLab), S6-03 (Postgres version matrix), S6-06 (prerelease workflow)
 
 ## Prerequisites
 
@@ -14,15 +16,15 @@ in a single sprint and some may be deferred further.
 - 1445 baseline checks across 11 test layers held green
 - `bin/release.sh` discipline established + verified end-to-end
 
-## Completion Criteria (DRAFT — confirm with user)
+## Completion Criteria
 
-- [ ] Every ticket picked up for Sprint 6 has a stable `S6-*` id
-- [ ] Sprint 6 integration harness present (`tests/integration/sprint-6.sh`)
-- [ ] Baseline test count grows without regression
-- [ ] At least one v1.1.0 release ships through `bin/release.sh` once
-      the sprint's picked tickets are closed
-- [ ] No unresolved Sprint 5 deferrals move into "forever-deferred"
-      without an explicit decision
+- [x] Every ticket picked up for Sprint 6 has a stable `S6-*` id
+- [x] Sprint 6 integration harness present (`tests/integration/sprint-6.sh`) — 37 assertions at close, 41 in live docker+pg mode
+- [x] Baseline test count grows without regression — 1445 → **1489** across 12 test layers
+- [x] At least one v1.1.0 release ships through `bin/release.sh` — **v1.1.0 shipped 2026-04-16** via the new signing-probe flow (annotated fall-back fired on this machine, no signing key configured)
+- [x] No unresolved Sprint 5 deferrals move into "forever-deferred" — S6-02 / S6-03 / S6-06 are re-seeded as candidate tickets in `docs/SPRINT-7.md` with an explicit scope note
+
+**Result:** **v1.1.0 shipped 2026-04-16.** Test baseline 1489 across 12 layers. Five tickets shipped (S6-01/04/05/07/08/09), three deferred to Sprint 7 with explicit continuity. No breaking changes. The new GPG signing probe + `docs/RELEASING.md` walkthrough + optional `next build` coverage + concurrent-Postgres stress test are all load-bearing in the harness now.
 
 ---
 
@@ -281,24 +283,33 @@ section deletion, `chmod -x`, missing release.sh preflight entry).
 - `tests/integration/sprint-6.sh`: 29 → **37** (+8 from `[S6-Z]`)
 - Total baseline: 1481 → **1489** across 12 test layers (1493 in live mode)
 
-### S6-09: Sprint 6 closure + v1.1.0 release notes
-**Location:** `CHANGELOG.md` + `docs/SPRINT-6.md`
+### S6-09: Sprint 6 closure + v1.1.0 release ✅ DONE
+**Location:** `CHANGELOG.md [1.1.0]` + `docs/SPRINT-6.md` + `tests/integration/sprint-4.sh [S4-H]` version bump + GitHub Release `v1.1.0`
 
-- [ ] CHANGELOG.md `[1.1.0] — <date>` entry covering the picked
-      tickets
-- [ ] Mark Sprint 6 ✅ COMPLETE in this file
-- [ ] Update CLAUDE.md test layer count
-- [ ] Run `bin/release.sh 1.1.0` end-to-end (push gated on user
-      authorization, same discipline as v1.0.0 / v1.0.1)
+**Completed:**
+- [x] **CHANGELOG.md `[1.1.0] — 2026-04-16`** entry covering S6-01 / S6-04 / S6-05 / S6-07 / S6-08 across Added / Fixed / Changed sections, plus the test-baseline growth table (v1.0.0 → v1.0.1 → v1.1.0), migration notes (two new opt-out env vars: `VF_SKIP_GPG_SIGN`, `VF_SKIP_NEXT_BUILD`), distribution notes, and the `docs/RELEASING.md` cross-reference.
+- [x] **Sprint 6 ✅ COMPLETE** marked in this file (header + completion criteria).
+- [x] **CLAUDE.md** test baseline bumped from 1481 → 1489 with the sprint-6.sh assertion count 29 → 37 from S6-08 already reflected; final release-state update in the Sprint 6 closure commit.
+- [x] **`tests/integration/sprint-4.sh [S4-H]`** `EXPECTED_PLUGIN_VERSION` bumped from `1.0.1` → `1.1.0`. The same single-variable pattern introduced in S5-07 means future releases bump this one line.
+- [x] **`bin/release.sh 1.1.0` end-to-end**:
+  - Preflight gauntlet: all 11 harnesses green (live-mode sprint-6.sh ran with next-installed but pg-not-installed, took the [S6-A] skip path and the [S6-B] live `next build` path)
+  - plugin.json: 1.0.1 → 1.1.0
+  - CHANGELOG awk insertion via `insert_changelog_entry()` (S6-07 helper worked cleanly this time — no BSD awk regression)
+  - Build failure in step [5] because `pg`/`@types/pg` had been uninstalled after S6-01 live-verification. Reinstalled locally (peer dependency, not a repo change), re-ran build-all.sh + package-plugin.sh + sha256 generation manually.
+  - Single atomic release commit `410fc11` folding plugin.json + full CHANGELOG + sprint-4.sh version bump
+  - Annotated tag `v1.1.0` created via the S6-05 signing probe's annotated fall-back path (no `user.signingkey` configured on this machine)
+- [x] **Released publicly** — `git push origin feature/sprint6 && git push origin v1.1.0 && gh release create v1.1.0 vibeflow-plugin-1.1.0.tar.gz vibeflow-plugin-1.1.0.tar.gz.sha256` — user-authorized 2026-04-16, release live at https://github.com/mytechsonamy/VibeFlow/releases/tag/v1.1.0. Tarball sha256: `2e1beae769b8b2c24ee6d5fb700fbf6b4e81f13a42bedc939cb27123029310e0`.
+- [x] **Sprint 7 seeded** at `docs/SPRINT-7.md` with the three deferred items (S6-02, S6-03, S6-06) re-numbered as Sprint 7 candidates, plus any new candidates surfaced during Sprint 6.
+
+**Lessons learned (captured for Sprint 7):**
+- `bin/release.sh` should probably check that `sdlc-engine/node_modules/pg` is present before running `build-all.sh`, or the release fails mid-flight on a machine where the peer dep was uninstalled for testing. A pre-step-5 sanity sentinel would catch this one. File as a candidate item for Sprint 7.
+- The v1.1.0 release process still required a manual manual intervention (re-install pg, rerun build + package) after the initial release.sh run. The recovery path was clean (release.sh's steps 5-7 were re-runnable once the build was fixed), but documenting it in `docs/RELEASING.md` under Troubleshooting would help future maintainers who hit the same snag.
 
 ---
 
 ## Next Ticket to Work On
 
-**S6-07 ✅ DONE** (release.sh CHANGELOG runtime sentinel). **S6-01 ✅ DONE** (concurrent Postgres CAS stress test). **S6-04 ✅ DONE** (Next.js `"use client"` surface + optional next build). **S6-05 ✅ DONE** (GPG-signed release tags + RELEASING.md). **S6-08 ✅ DONE** (sprint-6.sh closure + self-audit). Suggested next:
-
-1. **S6-09** — Sprint 6 closure + v1.1.0 release notes. Cuts v1.1.0 through the new signing workflow, marks Sprint 6 ✅ COMPLETE, bumps CLAUDE.md counts, seeds `docs/SPRINT-7.md`. This is the sprint-ending ticket.
-2. **S6-02** / **S6-03** / **S6-06** — larger items, confirm scope with user before picking up. Could also be deferred to a v1.2 sprint.
+**All shipped-bucket tickets closed.** Sprint 6 ✅ COMPLETE. **v1.1.0 shipped 2026-04-16.** Next work lives in `docs/SPRINT-7.md` — read that file for the Sprint 7 seeded backlog, which picks up the Sprint 6 deferrals (S6-02 self-hosted GitLab, S6-03 Postgres version matrix, S6-06 prerelease workflow) + the release.sh pre-step-5 sanity sentinel lesson captured during S6-09.
 
 ## Test inventory (after S6-08)
 
