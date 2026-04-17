@@ -358,8 +358,21 @@ fi
 echo "passed on $CURRENT_BRANCH"
 GUARD_EOF
 
+  # The parent shell may have VF_RELEASE_ALLOW_BRANCH=1 or
+  # VF_SKIP_BRANCH_CHECK=1 set (for example when release.sh is invoked
+  # from an autopilot branch). Those would short-circuit the probes
+  # that are specifically testing the guard's reject path. Explicitly
+  # unset both for every runtime invocation below.
+  probe_guard() {
+    (
+      cd "$S9C_TMP"
+      unset VF_RELEASE_ALLOW_BRANCH VF_SKIP_BRANCH_CHECK
+      env -u VF_RELEASE_ALLOW_BRANCH -u VF_SKIP_BRANCH_CHECK "$@"
+    )
+  }
+
   # 11a. Stable cut on feature branch → exit 1.
-  S9C_OUT="$(cd "$S9C_TMP" && bash "$S9C_GUARD" 2>&1)"
+  S9C_OUT="$(probe_guard bash "$S9C_GUARD" 2>&1)"
   S9C_EXIT=$?
   if (( S9C_EXIT == 1 )) && grep -q 'guard fired on feature/foo' <<<"$S9C_OUT"; then
     pass "[S9-C] stable cut on feature branch refused (exit 1)"
@@ -368,7 +381,7 @@ GUARD_EOF
   fi
 
   # 11b. --prerelease on feature branch → pass.
-  S9C_PRE_OUT="$(cd "$S9C_TMP" && PRERELEASE=true bash "$S9C_GUARD" 2>&1)"
+  S9C_PRE_OUT="$(probe_guard env PRERELEASE=true bash "$S9C_GUARD" 2>&1)"
   S9C_PRE_EXIT=$?
   if (( S9C_PRE_EXIT == 0 )) && grep -q 'passed on feature/foo' <<<"$S9C_PRE_OUT"; then
     pass "[S9-C] --prerelease bypasses branch guard on feature branch"
@@ -377,7 +390,7 @@ GUARD_EOF
   fi
 
   # 11c. VF_RELEASE_ALLOW_BRANCH=1 overrides on feature branch → pass.
-  S9C_OV_OUT="$(cd "$S9C_TMP" && VF_RELEASE_ALLOW_BRANCH=1 bash "$S9C_GUARD" 2>&1)"
+  S9C_OV_OUT="$(probe_guard env VF_RELEASE_ALLOW_BRANCH=1 bash "$S9C_GUARD" 2>&1)"
   S9C_OV_EXIT=$?
   if (( S9C_OV_EXIT == 0 )) && grep -q 'passed on feature/foo' <<<"$S9C_OV_OUT"; then
     pass "[S9-C] VF_RELEASE_ALLOW_BRANCH=1 override works on feature branch"
@@ -387,7 +400,7 @@ GUARD_EOF
 
   # 11d. main branch → pass without any override.
   (cd "$S9C_TMP" && git checkout -qb main 2>/dev/null || git checkout -q main)
-  S9C_MAIN_OUT="$(cd "$S9C_TMP" && bash "$S9C_GUARD" 2>&1)"
+  S9C_MAIN_OUT="$(probe_guard bash "$S9C_GUARD" 2>&1)"
   S9C_MAIN_EXIT=$?
   if (( S9C_MAIN_EXIT == 0 )) && grep -q 'ok on main' <<<"$S9C_MAIN_OUT"; then
     pass "[S9-C] stable cut on main branch accepted (no override needed)"
