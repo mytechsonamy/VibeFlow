@@ -82,6 +82,7 @@ done
 # file, post-insertion verification failed).
 insert_changelog_entry() {
   local ver="$1"
+  local is_prerelease="${2:-false}"
   if [[ ! -f CHANGELOG.md ]]; then
     echo "release: CHANGELOG.md not found in $(pwd)" >&2
     return 1
@@ -108,6 +109,56 @@ None.
 ### Migration
 
 N/A."
+
+  if [[ "$is_prerelease" == "true" ]]; then
+    # Prerelease mode — insert under the "## Pre-releases" footer.
+    # The footer is laid down in CHANGELOG.md by Sprint 8 / S8-01;
+    # if it is missing we abort rather than silently re-insert at
+    # the top (that would defeat the point of "never become latest").
+    local prerel_header_line
+    prerel_header_line="$(grep -n '^## Pre-releases$' CHANGELOG.md | head -1 | cut -d: -f1)"
+    if [[ -z "$prerel_header_line" ]]; then
+      echo "release: CHANGELOG.md is missing '## Pre-releases' footer" >&2
+      echo "release: add it once per S8-01 before cutting prereleases" >&2
+      return 1
+    fi
+    # Insert AFTER the header comment block. We find the first
+    # "## [" entry line AFTER the Pre-releases header, and insert
+    # immediately before it. If there are no prior prerelease
+    # entries, append at end of file.
+    local insert_at_line
+    insert_at_line="$(awk -v start="$prerel_header_line" '
+      NR > start && /^## \[/ { print NR; exit }
+    ' CHANGELOG.md)"
+    if [[ -z "$insert_at_line" ]]; then
+      # No prior prerelease entries — append at end of file.
+      {
+        cat CHANGELOG.md
+        printf '%s\n' "$new_entry"
+      } > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+    else
+      local head_count=$((insert_at_line - 1))
+      {
+        head -n "$head_count" CHANGELOG.md
+        printf '%s\n\n' "$new_entry"
+        tail -n +"$insert_at_line" CHANGELOG.md
+      } > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+    fi
+    # Post-insert verify: new version header appears AFTER the
+    # Pre-releases header (not before).
+    local ver_line
+    ver_line="$(grep -n "^## \[$ver\]" CHANGELOG.md | head -1 | cut -d: -f1)"
+    local prerel_line_after
+    prerel_line_after="$(grep -n '^## Pre-releases$' CHANGELOG.md | head -1 | cut -d: -f1)"
+    if [[ -z "$ver_line" ]] || [[ -z "$prerel_line_after" ]] \
+        || (( ver_line <= prerel_line_after )); then
+      echo "release: CHANGELOG.md prerelease insertion failed — [$ver] not under ## Pre-releases" >&2
+      return 1
+    fi
+    return 0
+  fi
+
+  # Stable mode — prepend above the first existing "## [X.Y.Z]" entry.
   local first_heading_line
   first_heading_line="$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d: -f1)"
   if [[ -z "$first_heading_line" ]]; then
@@ -311,11 +362,19 @@ fi
 echo "== [4] CHANGELOG insertion =="
 
 if [[ "$DRY_RUN" == "true" ]]; then
-  echo "  [dry-run] would prepend a new [$VERSION] entry to CHANGELOG.md"
+  if [[ "$PRERELEASE" == "true" ]]; then
+    echo "  [dry-run] would insert a new [$VERSION] entry under ## Pre-releases in CHANGELOG.md"
+  else
+    echo "  [dry-run] would prepend a new [$VERSION] entry to CHANGELOG.md"
+  fi
 else
-  if insert_changelog_entry "$VERSION"; then
+  if insert_changelog_entry "$VERSION" "$PRERELEASE"; then
     TODAY="$(date -u +%Y-%m-%d)"
-    echo "  ok   CHANGELOG.md now leads with [$VERSION] — $TODAY"
+    if [[ "$PRERELEASE" == "true" ]]; then
+      echo "  ok   CHANGELOG.md gained [$VERSION] — $TODAY under ## Pre-releases"
+    else
+      echo "  ok   CHANGELOG.md now leads with [$VERSION] — $TODAY"
+    fi
     echo "  !    remember to fill in the entry before pushing"
   else
     echo "release: CHANGELOG insertion step failed — aborting release." >&2

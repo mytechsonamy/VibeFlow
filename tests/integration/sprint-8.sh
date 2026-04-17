@@ -266,6 +266,14 @@ else
   fail "[S8-C] CHANGELOG.md has a ## Pre-releases footer"
 fi
 
+# 6. release.sh calls insert_changelog_entry with prerelease mode arg.
+if grep -qE 'insert_changelog_entry ".*\$PRERELEASE"' "$RELEASE_SH_S8C" \
+    || grep -qE 'insert_changelog_entry .*\$PRERELEASE' "$RELEASE_SH_S8C"; then
+  pass "[S8-C] release.sh passes PRERELEASE into insert_changelog_entry"
+else
+  fail "[S8-C] release.sh passes PRERELEASE into insert_changelog_entry"
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [S8-Z] sprint-8.sh harness self-audit =="
 
