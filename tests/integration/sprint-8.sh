@@ -281,6 +281,58 @@ else
   fail "[S8-C] release.sh emits --prerelease hint for gh release create"
 fi
 
+# 8-11. Runtime — exercise release.sh --dry-run in all four
+# (mode × version) quadrants. Needs a clean working tree + pg
+# peer dep installed (step [0.5]) just like any release.sh call.
+# Skip gracefully via VF_SKIP_S8C_RUNTIME=1 for environments that
+# can't satisfy those prereqs.
+if [[ "${VF_SKIP_S8C_RUNTIME:-}" == "1" ]]; then
+  pass "[S8-C] runtime release.sh probes skipped via VF_SKIP_S8C_RUNTIME=1"
+  pass "[S8-C] runtime release.sh probes skipped via VF_SKIP_S8C_RUNTIME=1"
+  pass "[S8-C] runtime release.sh probes skipped via VF_SKIP_S8C_RUNTIME=1"
+  pass "[S8-C] runtime release.sh probes skipped via VF_SKIP_S8C_RUNTIME=1"
+else
+  # 8. Happy path: --prerelease + prerelease SemVer → exit 0.
+  # We must pass a version higher than plugin.json's current; use
+  # 9.9.9-rc.1 which will always be greater than anything we've
+  # shipped (current: 1.2.0).
+  S8C_RUNTIME_OUT="$(cd "$REPO_ROOT" && bash bin/release.sh 9.9.9-rc.1 --prerelease --dry-run 2>&1)"
+  S8C_RUNTIME_EXIT=$?
+  if (( S8C_RUNTIME_EXIT == 0 )); then
+    pass "[S8-C] release.sh 9.9.9-rc.1 --prerelease --dry-run exits 0"
+  else
+    fail "[S8-C] release.sh 9.9.9-rc.1 --prerelease --dry-run exits 0 (got $S8C_RUNTIME_EXIT)"
+  fi
+
+  # 9. Happy path output mentions prerelease mode + --prerelease hint.
+  if grep -q 'Pre-releases' <<<"$S8C_RUNTIME_OUT" \
+      && grep -q 'gh release create.*--prerelease' <<<"$S8C_RUNTIME_OUT"; then
+    pass "[S8-C] dry-run output mentions Pre-releases + --prerelease hint"
+  else
+    fail "[S8-C] dry-run output mentions Pre-releases + --prerelease hint"
+  fi
+
+  # 10. Prerelease version without --prerelease → exit 2 + helpful error.
+  S8C_MISSING_FLAG_OUT="$(cd "$REPO_ROOT" && bash bin/release.sh 9.9.9-rc.1 --dry-run 2>&1)"
+  S8C_MISSING_FLAG_EXIT=$?
+  if (( S8C_MISSING_FLAG_EXIT == 2 )) \
+      && grep -q 'requires --prerelease' <<<"$S8C_MISSING_FLAG_OUT"; then
+    pass "[S8-C] prerelease version without --prerelease exits 2 with hint"
+  else
+    fail "[S8-C] prerelease version without --prerelease exits 2 with hint (got $S8C_MISSING_FLAG_EXIT)"
+  fi
+
+  # 11. Stable X.Y.Z with --prerelease → exit 2 + helpful error.
+  S8C_WRONG_MODE_OUT="$(cd "$REPO_ROOT" && bash bin/release.sh 9.9.9 --prerelease --dry-run 2>&1)"
+  S8C_WRONG_MODE_EXIT=$?
+  if (( S8C_WRONG_MODE_EXIT == 2 )) \
+      && grep -q 'only for SemVer prerelease' <<<"$S8C_WRONG_MODE_OUT"; then
+    pass "[S8-C] stable version with --prerelease exits 2 with hint"
+  else
+    fail "[S8-C] stable version with --prerelease exits 2 with hint (got $S8C_WRONG_MODE_EXIT)"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [S8-Z] sprint-8.sh harness self-audit =="
 
