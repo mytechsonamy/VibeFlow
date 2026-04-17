@@ -9,24 +9,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.3.0] — 2026-04-17
 
-<!-- Edit this entry with the highlights of 1.3.0 before tagging. -->
+Third minor release. Sprint 8 delivered the long-deferred
+prerelease / beta-channel workflow (originally scoped for Sprint 6
+/ S6-06, twice punted to Sprint 7 / S7-03) plus two release-cycle
+hardening items captured during the v1.2.0 cut. 14 new commits,
+14 new [S8-C] sentinels, and the first release cut on a branch
+other than `main` — exercising the prerelease-aware promotion
+path end-to-end.
 
 ### Added
--
+
+- **`bin/release.sh --prerelease`** — opt-in mode that accepts
+  SemVer 2.0.0 prerelease identifiers (`1.3.0-rc.1`,
+  `1.3.0-beta.2`, `1.3.0-alpha`, `1.3.0-dev`). Strict
+  cross-validation refuses `--prerelease` + strict X.Y.Z and
+  prerelease X.Y.Z-id without `--prerelease`, each with a
+  specific remediation hint. (S8-01)
+- **CHANGELOG `## Pre-releases` footer** — prerelease entries
+  land under this section at the bottom of `CHANGELOG.md`
+  instead of the top. Stable releases continue to become
+  "latest"; prereleases never do. (S8-01)
+- **Two-mode `insert_changelog_entry`** — second positional arg
+  (`is_prerelease`) switches between prepending at the top
+  (stable) and inserting under the footer (prerelease). Post-
+  insert verify guards both paths. (S8-01)
+- **Conditional `gh release create --prerelease` hint** —
+  the Next-Steps block surfaces the `--prerelease` flag when the
+  release mode is prerelease, plus a warning line about GitHub's
+  "latest" semantics and package-manager default filtering.
+  Dry-run mode also prints a preview of the hint block. (S8-01)
+- **`VF_SKIP_GAUNTLET=1` escape hatch** — env-only (no CLI flag
+  so a human can't mis-skip the gauntlet) knob that short-
+  circuits `release.sh` step [2] when the S8-C runtime sentinels
+  recursively invoke `release.sh` from inside its own preflight.
+  Without this, running `release.sh` would infinitely recurse
+  through sprint-8.sh. (S8-01)
+- **`docs/RELEASING.md` Prereleases H2** — covers when-to-cut,
+  command syntax, CHANGELOG convention, rc → stable promotion
+  path, tag + tarball naming, GitHub release effect. (S8-01)
+- **`tests/integration/sprint-8.sh [S8-C]`** — 13 new sentinels
+  (9 static + 4 runtime dry-run probes) covering the full
+  prerelease surface. Runtime opt-out via `VF_SKIP_S8C_RUNTIME=1`
+  for environments with dirty trees or missing pg peer dep. (S8-01)
 
 ### Fixed
--
+
+- **`tests/integration/sprint-7.sh [S7-C]` multi-tarball
+  save/restore** — the determinism runtime sentinel used to save
+  only the FIRST pre-existing tarball (`ls … | head -1`) but
+  delete ALL of them (`rm -f vibeflow-plugin-*.tar.gz`). When
+  the harness ran with multiple version tarballs on disk — exactly
+  what happens right after a fresh `release.sh <newer>` produces
+  a new tarball alongside a stale older one — the new release
+  artifact got clobbered. This bit the v1.2.0 release during
+  Sprint 7 / S7-07. Rewritten save + restore loops that iterate
+  every match + matching `.sha256` sidecar; `mkdir -p` for the
+  save destination. Six new `[S8-A]` regression sentinels
+  including a runtime fixture test that seeds two fake tarballs
+  and verifies both survive. (S8-02)
 
 ### Changed
--
+
+- **`.github/workflows/release.yml` preflight** — now runs
+  `sprint-6.sh` + `sprint-7.sh` + `sprint-8.sh` alongside the
+  existing `sprint-5.sh` step. CI release runs exercise the full
+  14-layer gauntlet. `sprint-6.sh [S6-A]` concurrent-CAS walk
+  and `[S6-B]` next-build gate both skip in CI (no docker-in-
+  docker, no Next installed on fresh runners) via the existing
+  opt-out env vars. (S8-03)
+- **Baseline test count** — **1585 → 1599 offline / 1589 → 1603
+  live / 1601 → 1615** with `VF_RUN_PG_MATRIX=1`. New `sprint-
+  8.sh` layer contributes **33 assertions** (6 [S8-A] + 6 [S8-B] +
+  13 [S8-C] + 8 [S8-Z]).
 
 ### Breaking changes
 
-None.
+None. `bin/release.sh <ver>` continues to reject prerelease
+identifiers without `--prerelease` — a v1.2 consumer that doesn't
+use prereleases sees no behavioural change.
 
 ### Migration
 
-N/A.
+N/A. Existing stable-release muscle memory is untouched:
+
+```bash
+bash bin/release.sh 1.4.0   # same as before — stable release
+```
+
+For prereleases, opt in explicitly:
+
+```bash
+bash bin/release.sh 1.4.0-rc.1 --prerelease
+```
 
 ## [1.2.0] — 2026-04-16
 
