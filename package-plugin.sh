@@ -337,8 +337,17 @@ fi
 # -----------------------------------------------------------------------------
 echo "== [5] post-archive verification =="
 
-# The archive must contain the manifest at the expected path.
-if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "^.claude-plugin/plugin.json$"; then
+# Sprint 9 / S9-01 — fix a latent bug surfaced on the way in: the old
+# verification used `tar -tzf "$ARCHIVE" | grep -q <pattern>` per check.
+# On shells running `set -uo pipefail` (which this script does at
+# line 19), `grep -q` closes stdin on first match, tar receives
+# SIGPIPE (exit 141), and pipefail propagates the 141 — the `if`
+# branch evaluates false even though grep matched. This surfaced
+# reliably on fast tar implementations producing small listings.
+# Fix: read the listing once into a variable + grep the variable.
+ARCHIVE_LISTING="$(tar -tzf "$ARCHIVE" 2>/dev/null)"
+
+if echo "$ARCHIVE_LISTING" | grep -q "^.claude-plugin/plugin.json$"; then
   pass "archive contains .claude-plugin/plugin.json"
 else
   fail "archive contains .claude-plugin/plugin.json"
@@ -346,7 +355,7 @@ fi
 
 # Each MCP server dist/index.js must be in the archive.
 for mcp in sdlc-engine codebase-intel design-bridge dev-ops observability; do
-  if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "^mcp-servers/$mcp/dist/index.js$"; then
+  if echo "$ARCHIVE_LISTING" | grep -q "^mcp-servers/$mcp/dist/index.js$"; then
     pass "archive contains $mcp/dist/index.js"
   else
     fail "archive contains $mcp/dist/index.js"
@@ -354,14 +363,14 @@ for mcp in sdlc-engine codebase-intel design-bridge dev-ops observability; do
 done
 
 # No node_modules in the archive.
-if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "/node_modules/"; then
+if echo "$ARCHIVE_LISTING" | grep -q "/node_modules/"; then
   fail "archive contains node_modules — packaging leak"
 else
   pass "archive contains no node_modules"
 fi
 
 # No .DS_Store in the archive.
-if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "\\.DS_Store$"; then
+if echo "$ARCHIVE_LISTING" | grep -q "\\.DS_Store$"; then
   fail "archive contains .DS_Store"
 else
   pass "archive contains no .DS_Store"
