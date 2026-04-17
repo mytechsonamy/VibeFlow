@@ -220,12 +220,13 @@ echo "== [S8-C] prerelease / beta-channel release workflow =="
 # docs/superpowers/specs/2026-04-16-s8-01-prerelease-workflow-design.md
 #
 # Sentinels:
-#   1-7.  Static — grep release.sh + CHANGELOG.md + RELEASING.md for
-#         the required surface (flag parser, regex, two-mode insert,
-#         conditional hint, footer header, promotion docs).
-#   8-11. Runtime — exercise `release.sh <ver> --dry-run` in all four
-#         (mode × version) quadrants to catch behavioural regressions.
-#         Opt out via VF_SKIP_S8C_RUNTIME=1.
+#   1-9.   Static — grep release.sh + CHANGELOG.md + RELEASING.md for
+#          the required surface (flag parser, regex, two cross-validation
+#          error messages, two-mode insert, conditional gh hint, CHANGELOG
+#          footer, RELEASING.md Prereleases H2, promotion path docs).
+#   10-13. Runtime — exercise `release.sh <ver> --dry-run` in all four
+#          (mode × version) quadrants to catch behavioural regressions.
+#          Opt out via VF_SKIP_S8C_RUNTIME=1.
 
 RELEASE_SH_S8C="$REPO_ROOT/bin/release.sh"
 CHANGELOG_S8C="$REPO_ROOT/CHANGELOG.md"

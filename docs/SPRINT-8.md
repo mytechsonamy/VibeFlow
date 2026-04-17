@@ -29,28 +29,40 @@ user before picking up any ticket.**
 
 ## Candidate Tickets (draft — confirm scope before starting)
 
-### S8-01: Automated prerelease / beta-channel workflow
+### S8-01: Automated prerelease / beta-channel workflow ✅ DONE
 **Deferred from:** Sprint 7 / S7-03 (itself deferred from Sprint 6 / S6-06)
-**Location:** `bin/release.sh` (new `--prerelease` mode) + `docs/RELEASING.md`
+**Location:** `bin/release.sh` (new `--prerelease` mode) + `docs/RELEASING.md` + `CHANGELOG.md` (footer) + `tests/integration/sprint-8.sh [S8-C]`
 
-Sprint 5's `bin/release.sh` rejects prerelease SemVer suffixes
-(`1.2.1-beta`) by design. S8-01 adds a dedicated prerelease path
-with its own validation rules + the GitHub Releases
-`prerelease: true` flag.
+**Completed:**
+- [x] `bin/release.sh <version> --prerelease` accepts SemVer
+      prerelease identifiers via `SEMVER_PRERELEASE` regex
+      (SemVer 2.0.0 compliant: `[0-9A-Za-z][0-9A-Za-z.-]*` id).
+      Cross-validation refuses (mode × version) mismatches with
+      specific error messages. Accepts `1.3.0-rc.1`,
+      `1.3.0-beta.2`, `1.3.0-alpha`, `1.3.0-dev`.
+- [x] `CHANGELOG.md` gained a `## Pre-releases` footer section;
+      `insert_changelog_entry()` is now two-mode (stable = top,
+      prerelease = under footer). Stable releases continue to
+      become "latest"; prereleases never do.
+- [x] `gh release create` hint in the Next-Steps block surfaces
+      `--prerelease` conditionally, plus a warning line about
+      GitHub's "latest" semantics. Dry-run mode now also prints
+      the Next-Steps preview so the hint is verifiable without
+      a real release.
+- [x] `docs/RELEASING.md` gained a full "Prereleases" H2 covering
+      when-to-cut, command, CHANGELOG convention, rc → stable
+      promotion path, tag + tarball naming, GitHub release effect.
+      Troubleshooting paragraph refreshed away from the obsolete
+      Sprint 6 / S6-06 reference.
+- [x] `tests/integration/sprint-8.sh [S8-C]` — 13 new sentinels
+      (9 static + 4 runtime dry-run probes). Runtime opt-out via
+      `VF_SKIP_S8C_RUNTIME=1`; recursion break via env-only
+      `VF_SKIP_GAUNTLET=1` (release.sh skips step [2] when set,
+      so the sentinels don't trigger infinite loop).
 
-- [ ] `bin/release.sh <version>-<tag>.<n> --prerelease` accepts
-      SemVer prerelease identifiers (e.g. `1.3.0-rc.1`,
-      `1.3.0-beta.2`)
-- [ ] Separate release track that does NOT update the
-      `## [latest]` CHANGELOG pointer — the prerelease entry
-      sits below the latest stable entry
-- [ ] `gh release create` invocation adds `--prerelease` flag
-- [ ] `docs/RELEASING.md` gains a "Prereleases" section covering
-      when to cut one vs a normal release + promotion path
-      (prerelease → stable when confident)
-- [ ] Harness sentinel in `sprint-8.sh [S8-?]` with an opt-in
-      runtime check (invoke `release.sh 1.3.0-rc.1 --prerelease
-      --dry-run` and assert the expected dry-run output)
+**Live-verified:** `bash bin/release.sh 9.9.9-rc.1 --prerelease
+--dry-run` passes all preflight + surfaces the prerelease output;
+the three error-quadrant runs exit 2 with their specific hints.
 
 ### S8-02: Fix sprint-7.sh [S7-C] multi-tarball save/restore bug ✅ DONE
 **Captured during:** Sprint 7 / S7-07 (v1.2.0 release)
@@ -185,14 +197,14 @@ shipped S8-* ticket + closing [S8-Z] self-audit.
 
 ## Next Ticket to Work On
 
-**S8-02 ✅ DONE**. **S8-03 ✅ DONE** (workflow change staged, pending user push with workflow-scoped PAT). Suggested next:
+**S8-01 ✅ DONE**. **S8-02 ✅ DONE**. **S8-03 ✅ DONE** (workflow change staged, pending user push with workflow-scoped PAT). Suggested next:
 
-- **S8-01** (prerelease workflow) — Sprint 8 headline feature
-- **S8-07** + **S8-08** — harness + release closure, cuts v1.3.0
+- **S8-07** (sprint-8 harness self-audit extension — any new [S8-D]/[S8-E] sections if S8-04-06 land)
+- **S8-08** — CHANGELOG / SPRINT-8 closure, cuts v1.3.0 via `bin/release.sh`
 
 S8-04 / S8-05 / S8-06 stay deferred.
 
-## Test inventory (after S8-02 + S8-03)
+## Test inventory (after S8-01 + S8-02 + S8-03)
 
 - mcp-servers/sdlc-engine: **105 vitest tests**
 - mcp-servers/codebase-intel: **48 vitest tests**
@@ -207,8 +219,8 @@ S8-04 / S8-05 / S8-06 stay deferred.
 - tests/integration/sprint-5.sh: **98 bash assertions** (+1 from sprint-8.sh preflight entry)
 - tests/integration/sprint-6.sh: **37 bash assertions**
 - tests/integration/sprint-7.sh: **51 bash assertions**
-- tests/integration/sprint-8.sh: **19 bash assertions** (6 [S8-A] + 6 [S8-B] + 7 [S8-Z])
-- Total: **1585 passing checks** across **14 test layers**
+- tests/integration/sprint-8.sh: **33 bash assertions** (6 [S8-A] + 6 [S8-B] + 13 [S8-C] + 8 [S8-Z])
+- Total: **1599 passing checks** across **14 test layers**
 - Bonus (not in baseline): demo-app 45 vitest tests + nextjs-demo 66 vitest tests
 
 ## Test inventory (baseline from v1.2.0)
