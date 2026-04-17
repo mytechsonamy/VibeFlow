@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] — 2026-04-17
+
+<!-- Edit this entry with the highlights of 1.3.0 before tagging. -->
+
+### Added
+-
+
+### Fixed
+-
+
+### Changed
+-
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [1.2.0] — 2026-04-16
 
 Second minor release. Sprint 7 delivered v1.1's deferrals
