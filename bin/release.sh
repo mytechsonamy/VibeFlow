@@ -222,6 +222,61 @@ if [[ "$CHECK_CLEAN_ONLY" == "true" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+echo "== [0.25] release branch guard =="
+
+# Sprint 9 / S9-05 — stable releases must be cut from `main` (or an
+# allowlisted release/* branch) so the tagged commit is always the
+# canonical release state on the shared integration branch.
+#
+# Background: the v1.3.0 cut (Sprint 8 / S8-08) shipped from a feature
+# branch, which worked but left `origin/main` stale relative to the
+# release tag. Subsequent maintainers cloning fresh and running
+# `release.sh` from main would see drift between plugin.json's version
+# and the latest tag. S9-05 locks stable releases to main by default.
+#
+# Prerelease cuts (--prerelease) are exempt — they're explicit opt-ins
+# that never become the "latest" CHANGELOG entry, and typically ride
+# on a feature branch during an RC bake period.
+#
+# Escape hatches (both accepted, same behaviour):
+#   - VF_RELEASE_ALLOW_BRANCH=1   override for one-off situations
+#   - VF_SKIP_BRANCH_CHECK=1      alias (harness-friendly naming,
+#                                 mirrors VF_SKIP_GAUNTLET/VF_SKIP_GPG_SIGN)
+CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo '__detached__')"
+
+BRANCH_CHECK_REQUIRED=true
+if [[ "$PRERELEASE" == "true" ]]; then
+  BRANCH_CHECK_REQUIRED=false
+fi
+if [[ "${VF_RELEASE_ALLOW_BRANCH:-}" == "1" ]] \
+    || [[ "${VF_SKIP_BRANCH_CHECK:-}" == "1" ]]; then
+  BRANCH_CHECK_REQUIRED=false
+fi
+
+if [[ "$BRANCH_CHECK_REQUIRED" == "true" ]]; then
+  case "$CURRENT_BRANCH" in
+    main|release/*)
+      echo "  ok   HEAD is on '$CURRENT_BRANCH' (allowed for stable release)"
+      ;;
+    *)
+      echo "release: stable releases must be cut from 'main' or a release/* branch." >&2
+      echo "release: HEAD is on '$CURRENT_BRANCH'." >&2
+      echo "release: fix with one of:" >&2
+      echo "release:   1. Open a PR from this branch to main + merge, then run release.sh on main." >&2
+      echo "release:   2. Re-run with --prerelease to cut a prerelease tag from this branch." >&2
+      echo "release:   3. Set VF_RELEASE_ALLOW_BRANCH=1 to override (and reconcile main afterwards)." >&2
+      exit 1
+      ;;
+  esac
+else
+  if [[ "$PRERELEASE" == "true" ]]; then
+    echo "  ok   prerelease cut on '$CURRENT_BRANCH' — branch guard skipped"
+  else
+    echo "  !    HEAD is on '$CURRENT_BRANCH'; branch guard overridden via env — reconcile main afterwards"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
 echo "== [0.5] build-dependency sanity =="
 
 # Sprint 7 / S7-04 — pg is a peer dependency of sdlc-engine (Sprint 5
@@ -517,7 +572,15 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo
   echo "Next steps (what would print on a non-dry-run):"
   echo
-  echo "  git push origin main"
+  # Sprint 9 / S9-05 — only hint `git push origin main` when the
+  # release commit was actually cut from main. Printing it from a
+  # feature branch encouraged the stale-main drift S9-05 was cut to fix.
+  if [[ "$CURRENT_BRANCH" == "main" ]]; then
+    echo "  git push origin main"
+  else
+    echo "  # HEAD is on '$CURRENT_BRANCH' — push that branch, or merge it to main first."
+    echo "  git push origin $CURRENT_BRANCH"
+  fi
   echo "  git push origin v$VERSION"
   if [[ "$PRERELEASE" == "true" ]]; then
     echo "  gh release create v$VERSION $TARBALL $SHAFILE --prerelease \\"
@@ -541,7 +604,13 @@ else
   echo
   echo "Next steps (user-authorized public actions):"
   echo
-  echo "  git push origin main"
+  # Sprint 9 / S9-05 — same conditional as the dry-run block above.
+  if [[ "$CURRENT_BRANCH" == "main" ]]; then
+    echo "  git push origin main"
+  else
+    echo "  # HEAD is on '$CURRENT_BRANCH' — push that branch, or merge it to main first."
+    echo "  git push origin $CURRENT_BRANCH"
+  fi
   echo "  git push origin v$VERSION"
   if [[ "$PRERELEASE" == "true" ]]; then
     echo "  gh release create v$VERSION $TARBALL $SHAFILE --prerelease \\"

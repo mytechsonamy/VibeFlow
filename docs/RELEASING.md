@@ -22,6 +22,7 @@ step starts:
 | Step | What it does | Skipped in `--dry-run`? |
 |------|--------------|-------------------------|
 | **0** — working tree cleanliness | Refuses to run on a dirty tree. Commit or stash first. | No |
+| **0.25** — release branch guard | Stable releases refuse to run off `main` (or `release/*`). `--prerelease` cuts are exempt. Override: `VF_RELEASE_ALLOW_BRANCH=1`. (Sprint 9 / S9-05) | No |
 | **1** — version argument | Strict SemVer (`X.Y.Z`, no prerelease suffixes). Version must be strictly greater than `plugin.json`'s current version, and the tag must not already exist. | No |
 | **2** — preflight gauntlet | Runs every MCP vitest suite + hooks + all integration harnesses. Any failure aborts the release. Takes 2–5 minutes. | No |
 | **3** — `plugin.json` version bump | Rewrites `.claude-plugin/plugin.json` via `jq`. | Yes |
@@ -32,6 +33,45 @@ step starts:
 
 After step 7 the script prints the commands you run manually to
 push the tag + create the GitHub release.
+
+## Release branch policy (Sprint 9 / S9-05)
+
+Stable releases must be cut from `main` (or a `release/*` branch).
+The guard is enforced in step **0.25** — if `HEAD` is anywhere else,
+`release.sh` aborts with three suggested fixes:
+
+1. Open a PR from your branch → merge → run `release.sh` on `main`.
+2. Re-run with `--prerelease` to cut a prerelease tag instead.
+3. Set `VF_RELEASE_ALLOW_BRANCH=1` to override (one-off situations
+   only — remember to reconcile `main` afterwards).
+
+Prerelease cuts (`--prerelease`) skip the branch guard entirely.
+Prereleases never become the "latest" entry, so they can safely ride
+on whichever feature branch is carrying the RC bake.
+
+### Why
+
+During the v1.3.0 cut (Sprint 8 / S8-08) the release tag landed on a
+feature branch while `origin/main` went stale since Sprint 6. Anyone
+cloning fresh and running `release.sh` from main would see
+`plugin.json`'s version drift from the latest tag. S9-05 makes the
+expected model explicit: **feature branches ship changes, `main`
+always reflects the latest released state**.
+
+### Reconciling main after an override
+
+If you ran `release.sh` with `VF_RELEASE_ALLOW_BRANCH=1` from a
+feature branch, the Next-Steps block prints the branch-specific push
+command instead of `git push origin main`. After the tag is pushed,
+fast-forward main to the release commit so future releases pick up a
+clean main:
+
+```bash
+git checkout main
+git merge --ff-only <feature-branch>
+git push origin main
+git checkout <feature-branch>
+```
 
 ## Tag signing (Sprint 6 / S6-05)
 
