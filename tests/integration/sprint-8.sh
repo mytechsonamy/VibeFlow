@@ -274,6 +274,13 @@ else
   fail "[S8-C] release.sh passes PRERELEASE into insert_changelog_entry"
 fi
 
+# 7. release.sh emits --prerelease hint for gh release create.
+if grep -q 'gh release create.*--prerelease' "$RELEASE_SH_S8C"; then
+  pass "[S8-C] release.sh emits --prerelease hint for gh release create"
+else
+  fail "[S8-C] release.sh emits --prerelease hint for gh release create"
+fi
+
 # ---------------------------------------------------------------------------
 echo "== [S8-Z] sprint-8.sh harness self-audit =="
 

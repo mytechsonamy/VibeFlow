@@ -517,8 +517,16 @@ else
   echo
   echo "  git push origin main"
   echo "  git push origin v$VERSION"
-  echo "  gh release create v$VERSION $TARBALL $SHAFILE \\"
-  echo "    --title \"v$VERSION\" --notes-file <(awk '/^## \\[$VERSION\\]/{f=1} /^## \\[/{if(f&&NR>1)exit} f' CHANGELOG.md)"
+  if [[ "$PRERELEASE" == "true" ]]; then
+    echo "  gh release create v$VERSION $TARBALL $SHAFILE --prerelease \\"
+    echo "    --title \"v$VERSION\" --notes-file <(awk '/^## \\[$VERSION\\]/{f=1} /^## \\[/{if(f&&NR>1)exit} f' CHANGELOG.md)"
+    echo
+    echo "  ! this is a PRERELEASE — the GitHub Releases page will mark it so,"
+    echo "    and package managers watching 'latest' will skip it by default."
+  else
+    echo "  gh release create v$VERSION $TARBALL $SHAFILE \\"
+    echo "    --title \"v$VERSION\" --notes-file <(awk '/^## \\[$VERSION\\]/{f=1} /^## \\[/{if(f&&NR>1)exit} f' CHANGELOG.md)"
+  fi
   echo
   echo "If you change your mind, undo with:"
   echo "  git tag -d v$VERSION"
