@@ -1,12 +1,11 @@
-# Sprint 8: v1.3 Scope TBD (Seeded)
+# Sprint 8: v1.3.0 — prerelease workflow + release-cycle hardening ✅ COMPLETE
 
 ## Sprint Goal
 
-Sprint 8 targets **v1.3.0** — the next minor bump after v1.2. The
-seeded backlog below picks up the one deferred ticket from Sprint 7
-(S7-03 prerelease workflow) + the two lessons captured during the
-v1.2.0 release cycle (Sprint 7 / S7-07). **Confirm scope with the
-user before picking up any ticket.**
+Sprint 8 targeted **v1.3.0** — the next minor bump after v1.2. The
+backlog picked up the one deferred ticket from Sprint 7 (S7-03
+prerelease workflow) + the two lessons captured during the v1.2.0
+release cycle (Sprint 7 / S7-07). Shipped 2026-04-17.
 
 ## Prerequisites
 
@@ -16,14 +15,22 @@ user before picking up any ticket.**
 - `bin/release.sh` now covers 7 steps + pg sanity check (S7-04)
   and produces byte-reproducible tarballs (S7-05B)
 
-## Completion Criteria (DRAFT — confirm with user)
+## Completion Criteria
 
-- [ ] Every ticket picked up for Sprint 8 has a stable `S8-*` id
-- [ ] Sprint 8 integration harness present (`tests/integration/sprint-8.sh`)
-- [ ] Baseline test count grows without regression
-- [ ] At least one v1.3.0 release ships through `bin/release.sh`
-- [ ] No unresolved Sprint 7 deferrals move into
+- [x] Every ticket picked up for Sprint 8 has a stable `S8-*` id
+      (S8-01 + S8-02 + S8-03 shipped; S8-04-06 intentionally
+      deferred to future sprints with explicit rationale)
+- [x] Sprint 8 integration harness present
+      (`tests/integration/sprint-8.sh`, 33 assertions)
+- [x] Baseline test count grows without regression
+      (1585 → 1599 offline, 1589 → 1603 live, 1601 → 1615 with
+      `VF_RUN_PG_MATRIX=1`)
+- [x] At least one v1.3.0 release ships through `bin/release.sh`
+      (cut 2026-04-17 via the Sprint 8 / S8-01 prerelease-aware
+      release pipeline)
+- [x] No unresolved Sprint 7 deferrals move into
       "forever-deferred" without an explicit decision
+      (S7-03 absorbed into S8-01; S7-06 absorbed into S8-03)
 
 ---
 
@@ -197,12 +204,20 @@ shipped S8-* ticket + closing [S8-Z] self-audit.
 
 ## Next Ticket to Work On
 
-**S8-01 ✅ DONE**. **S8-02 ✅ DONE**. **S8-03 ✅ DONE** (workflow change staged, pending user push with workflow-scoped PAT). Suggested next:
+Sprint 8 ✅ COMPLETE. Open `docs/SPRINT-9.md` for the next sprint.
 
-- **S8-07** (sprint-8 harness self-audit extension — any new [S8-D]/[S8-E] sections if S8-04-06 land)
-- **S8-08** — CHANGELOG / SPRINT-8 closure, cuts v1.3.0 via `bin/release.sh`
-
-S8-04 / S8-05 / S8-06 stay deferred.
+**Sprint 8 outcome:**
+- S8-01 ✅ DONE — `bin/release.sh --prerelease` ships; 13 new
+  sentinels ([S8-C]) cover the feature end-to-end.
+- S8-02 ✅ DONE — sprint-7.sh [S7-C] multi-tarball save/restore
+  bug fixed, 6 regression sentinels added ([S8-A]).
+- S8-03 ✅ DONE — CI release workflow now runs sprint-6.sh +
+  sprint-7.sh + sprint-8.sh preflight ([S8-B]).
+- S8-04 / S8-05 / S8-06 — deferred to Sprint 9+ with explicit
+  rationale (see each ticket's `Scope not shipped` block).
+- S8-07 — no new sections landed so no new [S8-Z] entries needed;
+  self-audit stayed at the four existing sections.
+- S8-08 — v1.3.0 cut via `bin/release.sh` on 2026-04-17.
 
 ## Test inventory (after S8-01 + S8-02 + S8-03)
 
