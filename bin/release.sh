@@ -312,39 +312,50 @@ echo "  ok   tag v$VERSION does not exist yet"
 # -----------------------------------------------------------------------------
 echo "== [2] pre-flight test gauntlet =="
 
-PREFLIGHT_CMDS=(
-  "cd mcp-servers/sdlc-engine && npm test"
-  "cd mcp-servers/codebase-intel && npm test"
-  "cd mcp-servers/design-bridge && npm test"
-  "cd mcp-servers/dev-ops && npm test"
-  "cd mcp-servers/observability && npm test"
-  "bash hooks/tests/run.sh"
-  "bash tests/integration/run.sh"
-  "bash tests/integration/sprint-2.sh"
-  "bash tests/integration/sprint-3.sh"
-  "bash tests/integration/sprint-4.sh"
-  "bash tests/integration/sprint-5.sh"
-  "bash tests/integration/sprint-6.sh"
-  "bash tests/integration/sprint-7.sh"
-  "bash tests/integration/sprint-8.sh"
-)
+# Sprint 8 / S8-01 — sprint-8.sh [S8-C] runtime sentinels invoke
+# `release.sh <ver> --prerelease --dry-run` to exercise the flag
+# surface end-to-end. Without an escape hatch that recurses forever:
+# release.sh → sprint-8.sh (preflight) → release.sh → sprint-8.sh …
+# VF_SKIP_GAUNTLET=1 lets the caller short-circuit step [2]. The
+# escape is intentionally env-only (not a CLI flag) so a human
+# running `bin/release.sh` can never accidentally skip the gauntlet.
+if [[ "${VF_SKIP_GAUNTLET:-}" == "1" ]]; then
+  echo "  skip   VF_SKIP_GAUNTLET=1 — preflight gauntlet bypassed (self-test only)"
+else
+  PREFLIGHT_CMDS=(
+    "cd mcp-servers/sdlc-engine && npm test"
+    "cd mcp-servers/codebase-intel && npm test"
+    "cd mcp-servers/design-bridge && npm test"
+    "cd mcp-servers/dev-ops && npm test"
+    "cd mcp-servers/observability && npm test"
+    "bash hooks/tests/run.sh"
+    "bash tests/integration/run.sh"
+    "bash tests/integration/sprint-2.sh"
+    "bash tests/integration/sprint-3.sh"
+    "bash tests/integration/sprint-4.sh"
+    "bash tests/integration/sprint-5.sh"
+    "bash tests/integration/sprint-6.sh"
+    "bash tests/integration/sprint-7.sh"
+    "bash tests/integration/sprint-8.sh"
+  )
 
-PREFLIGHT_FAILED=0
-for cmd in "${PREFLIGHT_CMDS[@]}"; do
-  echo "  running: $cmd"
-  if ! (cd "$REPO_ROOT" && eval "$cmd" >/dev/null 2>&1); then
-    echo "  FAIL   $cmd" >&2
-    PREFLIGHT_FAILED=$((PREFLIGHT_FAILED + 1))
-  else
-    echo "  ok     $cmd"
+  PREFLIGHT_FAILED=0
+  for cmd in "${PREFLIGHT_CMDS[@]}"; do
+    echo "  running: $cmd"
+    if ! (cd "$REPO_ROOT" && eval "$cmd" >/dev/null 2>&1); then
+      echo "  FAIL   $cmd" >&2
+      PREFLIGHT_FAILED=$((PREFLIGHT_FAILED + 1))
+    else
+      echo "  ok     $cmd"
+    fi
+  done
+
+  if (( PREFLIGHT_FAILED > 0 )); then
+    echo "release: $PREFLIGHT_FAILED pre-flight check(s) failed — aborting." >&2
+    exit 1
   fi
-done
-
-if (( PREFLIGHT_FAILED > 0 )); then
-  echo "release: $PREFLIGHT_FAILED pre-flight check(s) failed — aborting." >&2
-  exit 1
+  echo "  ok   all 11 pre-flight harnesses passed"
 fi
-echo "  ok   all 11 pre-flight harnesses passed"
 
 # -----------------------------------------------------------------------------
 echo "== [3] plugin.json version bump =="

@@ -286,6 +286,13 @@ fi
 # peer dep installed (step [0.5]) just like any release.sh call.
 # Skip gracefully via VF_SKIP_S8C_RUNTIME=1 for environments that
 # can't satisfy those prereqs.
+#
+# VF_SKIP_GAUNTLET=1 is set on every child invocation to break a
+# recursion loop: release.sh step [2] runs sprint-8.sh in its
+# preflight gauntlet, and this [S8-C] block would otherwise re-
+# invoke release.sh (which would re-run the gauntlet, which would
+# re-run sprint-8.sh, ...). The escape hatch is env-only (no CLI
+# flag) so a human operator can't turn the gauntlet off by mistake.
 if [[ "${VF_SKIP_S8C_RUNTIME:-}" == "1" ]]; then
   pass "[S8-C] runtime release.sh probes skipped via VF_SKIP_S8C_RUNTIME=1"
   pass "[S8-C] runtime release.sh probes skipped via VF_SKIP_S8C_RUNTIME=1"
@@ -296,7 +303,7 @@ else
   # We must pass a version higher than plugin.json's current; use
   # 9.9.9-rc.1 which will always be greater than anything we've
   # shipped (current: 1.2.0).
-  S8C_RUNTIME_OUT="$(cd "$REPO_ROOT" && bash bin/release.sh 9.9.9-rc.1 --prerelease --dry-run 2>&1)"
+  S8C_RUNTIME_OUT="$(cd "$REPO_ROOT" && VF_SKIP_GAUNTLET=1 bash bin/release.sh 9.9.9-rc.1 --prerelease --dry-run 2>&1)"
   S8C_RUNTIME_EXIT=$?
   if (( S8C_RUNTIME_EXIT == 0 )); then
     pass "[S8-C] release.sh 9.9.9-rc.1 --prerelease --dry-run exits 0"
@@ -313,7 +320,7 @@ else
   fi
 
   # 10. Prerelease version without --prerelease → exit 2 + helpful error.
-  S8C_MISSING_FLAG_OUT="$(cd "$REPO_ROOT" && bash bin/release.sh 9.9.9-rc.1 --dry-run 2>&1)"
+  S8C_MISSING_FLAG_OUT="$(cd "$REPO_ROOT" && VF_SKIP_GAUNTLET=1 bash bin/release.sh 9.9.9-rc.1 --dry-run 2>&1)"
   S8C_MISSING_FLAG_EXIT=$?
   if (( S8C_MISSING_FLAG_EXIT == 2 )) \
       && grep -q 'requires --prerelease' <<<"$S8C_MISSING_FLAG_OUT"; then
@@ -323,7 +330,7 @@ else
   fi
 
   # 11. Stable X.Y.Z with --prerelease → exit 2 + helpful error.
-  S8C_WRONG_MODE_OUT="$(cd "$REPO_ROOT" && bash bin/release.sh 9.9.9 --prerelease --dry-run 2>&1)"
+  S8C_WRONG_MODE_OUT="$(cd "$REPO_ROOT" && VF_SKIP_GAUNTLET=1 bash bin/release.sh 9.9.9 --prerelease --dry-run 2>&1)"
   S8C_WRONG_MODE_EXIT=$?
   if (( S8C_WRONG_MODE_EXIT == 2 )) \
       && grep -q 'only for SemVer prerelease' <<<"$S8C_WRONG_MODE_OUT"; then
