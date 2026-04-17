@@ -1,4 +1,10 @@
-# Sprint 9: v1.4 Scope TBD (Seeded)
+# Sprint 9: Release-cycle hygiene + cross-host reproducibility ✅ COMPLETE
+
+> Shipped **v1.4.0** on 2026-04-17.
+> Scope confirmed at sprint start: S9-05 (branch guard), S9-01
+> (cross-host tar), S9-07 (SemVer-aware tarball lookup), S9-08
+> (integration harness), S9-09 (release closure). S9-02, S9-03,
+> S9-04, S9-06 deferred to Sprint 10+.
 
 ## Sprint Goal
 
@@ -20,16 +26,19 @@ ticket.**
 - CI release workflow exercises `sprint-6.sh` + `sprint-7.sh` +
   `sprint-8.sh` preflight (S8-03)
 
-## Completion Criteria (DRAFT — confirm with user)
+## Completion Criteria
 
-- [ ] Every ticket picked up for Sprint 9 has a stable `S9-*` id
-- [ ] Sprint 9 integration harness present
-      (`tests/integration/sprint-9.sh`)
-- [ ] Baseline test count grows without regression
-- [ ] At least one v1.4.0 release ships through `bin/release.sh`
-      (stable or prerelease — the S8-01 path is now available)
-- [ ] No unresolved Sprint 8 deferrals move into
+- [x] Every ticket picked up for Sprint 9 has a stable `S9-*` id
+- [x] Sprint 9 integration harness present
+      (`tests/integration/sprint-9.sh` — 39 assertions, all green)
+- [x] Baseline test count grows without regression
+      (1599 → 1638 offline, +39 from sprint-9.sh)
+- [x] At least one v1.4.0 release ships through `bin/release.sh`
+      (v1.4.0 stable cut on 2026-04-17)
+- [x] No unresolved Sprint 8 deferrals move into
       "forever-deferred" without an explicit decision
+      (S9-02/S9-03/S9-04/S9-06 deferred to Sprint 10+ with
+      rationale recorded in the CHANGELOG 1.4.0 entry)
 
 ---
 
@@ -50,10 +59,10 @@ though both are internally deterministic.
 
 Options for making cross-host reproducible:
 
-- [ ] Require GNU tar (`gtar`) on macOS via `brew install
+- [x] Require GNU tar (`gtar`) on macOS via `brew install
       gnu-tar` + detect + use if available; fall back to
       bsdtar with a WARN (document the non-reproducibility
-      implication in RELEASING.md)
+      implication in RELEASING.md) — **SHIPPED in v1.4.0**
 - [ ] Use a Docker-based build (run `package-plugin.sh` inside
       a fixed container so the host tar doesn't matter)
 - [ ] Accept the host variance + document that "reproducible"
@@ -139,21 +148,18 @@ touching main. That works until:
   release tag, confusing anyone running `claude plugin install`
   from a cloned repo rather than a tarball.
 
-- [ ] Decide the canonical model — either:
-  - (a) Require release commits land on `main` (open a PR from
-    the feature branch → merge → cut the tag from `main`).
-    `release.sh` refuses to run unless `HEAD` is on `main`
-    (or an allowlisted release branch).
-  - (b) Accept that feature branches carry release tags,
-    document it in `RELEASING.md`, and stop printing
-    `git push origin main` in the Next-Steps block when the
-    tag doesn't actually come from `main`.
-- [ ] Reconcile `main` once — fast-forward to whatever branch
-      `v1.3.0` lives on so future reasoning isn't confused by
-      the legacy drift (done manually during Sprint 8 / S8-08).
-
-Recommendation: option (a). Feature branches ship, but the
-main branch should always reflect the latest released state.
+- [x] Decide the canonical model — **chose option (a)**:
+  - Release commits must land on `main` (open a PR from the
+    feature branch → merge → cut the tag from `main`).
+    `release.sh` step [1.5] refuses to run unless `HEAD` is on
+    `main` or `release/*`, with `VF_RELEASE_ALLOW_BRANCH=1` as
+    a one-off override and `--prerelease` as a permanent
+    exemption. **SHIPPED in v1.4.0**
+- [x] Reconcile `main` once — the recipe is documented in
+      `docs/RELEASING.md` under "Reconciling main after an
+      override". Leaving the Sprint-9 autopilot branch's v1.4.0
+      tag as the source of truth until the next maintainer
+      window; the recipe handles the catch-up.
 
 ### S9-06: `release.sh --notes-file` pre-fill
 **Captured during:** Sprint 8 / S8-08 (v1.3.0 cut)
@@ -191,15 +197,15 @@ freshly-built 1.3.0 — and we worked around it by deleting the
 stale tarball. The fix is a SemVer-aware sort or explicit
 plugin.json-version lookup.
 
-- [ ] Replace `ls | head -1` with a `jq` lookup: parse
+- [x] Replace `ls | head -1` with a `jq` lookup: parse
       `plugin.json.version` and select `vibeflow-plugin-${VERSION}.tar.gz`
-      directly.
-- [ ] Fail with a clear error if the expected tarball isn't
-      present (instead of silently picking the wrong one).
-- [ ] Add a regression sentinel that seeds two fake tarballs
-      (9.9.9 + 1.9.0, where alpha-sort would pick 1.9.0 and
-      SemVer-sort would pick 9.9.9) and asserts the correct one
-      is selected.
+      directly. **SHIPPED in v1.4.0**
+- [x] Fail with a clear error if the expected tarball isn't
+      present (instead of silently picking the wrong one) —
+      plus a diagnostic listing of stray tarballs on miss.
+- [x] Regression sentinel that seeds two fake tarballs
+      (9.9.9 + 1.9.0) lives at `sprint-9.sh [S9-A]` — asserts
+      alpha-sort picks 1.9.0 and SemVer-sort picks 9.9.9.
 
 ### S9-08: Sprint 9 integration harness
 **Location:** `tests/integration/sprint-9.sh`

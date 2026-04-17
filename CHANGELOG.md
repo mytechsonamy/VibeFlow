@@ -7,6 +7,150 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] — 2026-04-17
+
+Fourth minor release. Sprint 9 picked up three tickets from the
+Sprint 8 carry-over backlog (cross-host tarball reproducibility,
+SemVer-aware tarball selection, stable-release branch guard) plus
+the integration harness + release closure. A narrow scope by
+design — S9-02 (pgbouncer probe), S9-03 (cloud postgres), S9-04
+(scheduled pg-matrix), and S9-06 (release.sh `--notes-file`) are
+explicitly deferred. 39 new integration assertions.
+
+### Added
+
+- **`bin/release.sh` step [1.5] branch guard** — stable releases
+  refuse to run unless `HEAD` is on `main` or `release/*`. Error
+  message names three recovery paths: (1) PR-and-merge to main,
+  (2) re-run with `--prerelease`, (3) `VF_RELEASE_ALLOW_BRANCH=1`
+  one-off override. `VF_SKIP_BRANCH_CHECK=1` is an accepted alias.
+  Placed after step [1] (version argument) so an invalid version
+  still exits with exit 2 regardless of branch state — preserves
+  sprint-8.sh [S8-C]'s contract. `--prerelease` is exempt. (S9-05)
+- **Branch-aware Next-Steps hint** — when HEAD is on main the
+  release script prints `git push origin main`; off main, it
+  prints the branch-specific push command plus a reminder to merge
+  to main. Printing a main-push hint from a feature branch
+  encouraged the stale-main drift S9-05 was cut to address. (S9-05)
+- **`package-plugin.sh` GNU-tar probe (`gtar`)** — prefer `gtar`
+  on `$PATH` → `tar --version` reports GNU → bsdtar fallback with
+  a WARN line that surfaces the `brew install gnu-tar` remediation.
+  GNU-tar path reports "cross-host reproducible"; bsdtar path
+  reports "host-local reproducible". Completes the S7-05B
+  reproducibility story: mac laptop + CI Linux runner now produce
+  byte-identical tarballs when gtar is installed on both. (S9-01)
+- **`docs/RELEASING.md` Release branch policy + Reproducible
+  tarballs H2s** — policy walkthrough for step [1.5], macOS setup
+  recipe for `brew install gnu-tar`, and a main-reconciliation
+  recipe for the override path. (S9-01 + S9-05)
+- **`tests/integration/sprint-9.sh`** — new 15th test layer with
+  four sections: SemVer-aware tarball selection [S9-A] (7 static +
+  2 runtime), gtar fallback [S9-B] (9 static + 1 runtime), branch
+  guard [S9-C] (10 static + 4 runtime), harness self-audit [S9-Z]
+  (8 assertions). Runtime opt-outs mirror Sprint 8's pattern:
+  `VF_SKIP_S9A_RUNTIME` / `VF_SKIP_S9B_RUNTIME` /
+  `VF_SKIP_S9C_RUNTIME`. (S9-08)
+
+### Fixed
+
+- **`tests/integration/sprint-4.sh [S4-H]/[S4-K]` tarball
+  selection** — the fresh-install simulation used `ls
+  vibeflow-plugin-*.tar.gz | head -1` which sorts alphabetically,
+  picking 1.10.0 before 1.9.0 and — the bug that tripped the
+  v1.3.0 cut during Sprint 8 / S8-08 — a stale 1.2.0 ahead of a
+  freshly-built 1.3.0. Replaced with a jq lookup on plugin.json's
+  version + explicit `vibeflow-plugin-${VERSION}.tar.gz` path
+  construction. Missing-tarball path now prints a diagnostic
+  listing of stray tarballs. (S9-07)
+- **`package-plugin.sh` [5] verification survives pipefail +
+  SIGPIPE** — per-check `tar -tzf "$ARCHIVE" | grep -q <pattern>`
+  lost every match under `set -uo pipefail` on fast tar
+  implementations: `grep -q` closed stdin on first match, tar
+  exited 141 on SIGPIPE, pipefail propagated the 141, and the
+  `if` branch evaluated false even though grep matched. Listing
+  is now captured once into `$ARCHIVE_LISTING` and echoed per
+  check. Same fix applied to `tests/integration/sprint-4.sh
+  [S4-H]`. (S9-01)
+- **`tests/integration/sprint-4.sh [S4-G]` userConfig docs check
+  compat with GNU grep 3.11+** — swapped `grep -qE "\\\`key\\\`"`
+  (which grep 3.11 silently no-matches, unlike earlier versions
+  that treated `\`` as literal backtick) for `grep -qF
+  "\`key\`"` so the pattern is always a literal match.
+  (Sprint 9 polish)
+- **`hooks/tests/run.sh` portable mtime read** — replaced
+  `stat -f '%m' ... || stat -c '%Y' ...` with an explicit
+  probe-once-then-pick pattern. GNU stat re-interprets
+  `-f '%m'` as a filesystem-info request, prints fs stats to
+  stdout, exits non-zero, and both sides of `||` land in the
+  command-substitution capture. (Sprint 9 polish)
+
+### Changed
+
+- **`bin/release.sh` preflight** — runs **15 harnesses** (added
+  `tests/integration/sprint-9.sh`). The "all N pre-flight
+  harnesses passed" summary count corrected to 15 (was a stale 11
+  — Sprint 8 forgot to rebase it when it added sprint-8.sh).
+- **Baseline test count** — **1599 → 1638 offline / 1603 → 1642
+  live / 1615 → 1654** with `VF_RUN_PG_MATRIX=1`. Sprint 9 adds
+  39 assertions (all from the new sprint-9.sh layer); sprint-5's
+  local floor also bumped from 94 → 96 to match the observed
+  offline count.
+
+### Breaking changes
+
+None. `bin/release.sh <ver>` now refuses stable cuts from non-main
+branches by default, but `VF_RELEASE_ALLOW_BRANCH=1` restores the
+v1.3 behaviour for one-off situations, and `--prerelease` is
+entirely exempt. Maintainers who have been cutting stable releases
+from `main` see no change.
+
+### Migration
+
+Stable-release muscle memory stays:
+
+```bash
+# From main — same as before
+git checkout main && git pull
+bash bin/release.sh 1.4.1   # passes branch guard
+```
+
+If you cut v1.3.x or earlier from a feature branch, either:
+
+```bash
+# Option A: merge to main first (recommended)
+gh pr create --base main --head <your-branch>
+# ... review + merge ...
+git checkout main && git pull && bash bin/release.sh 1.4.1
+
+# Option B: keep the feature-branch habit, flag it explicitly
+VF_RELEASE_ALLOW_BRANCH=1 bash bin/release.sh 1.4.1
+# Then reconcile main:
+git checkout main && git merge --ff-only <your-branch> && git push origin main
+```
+
+For cross-host reproducible tarballs, install GNU tar on macOS:
+
+```bash
+brew install gnu-tar   # adds gtar to PATH
+./package-plugin.sh    # the WARN line should be gone
+```
+
+### Distribution
+
+- **Tarball**: `vibeflow-plugin-1.4.0.tar.gz`
+- **Sha256 sidecar**: `vibeflow-plugin-1.4.0.tar.gz.sha256`
+- **Deterministic**: byte-identical on the same host AND
+  cross-host when both sides use GNU tar (S9-01).
+
+### Deferred to Sprint 10+
+
+- **S9-02** PgBouncer transaction-mode startup probe
+- **S9-03** Live RDS / Cloud SQL / Azure Database integration test
+- **S9-04** Scheduled pg-matrix weekly CI workflow
+- **S9-06** `release.sh --notes-file` pre-fill
+
+[1.4.0]: https://github.com/mytechsonamy/vibeflow/releases/tag/v1.4.0
+
 ## [1.3.0] — 2026-04-17
 
 Third minor release. Sprint 8 delivered the long-deferred
