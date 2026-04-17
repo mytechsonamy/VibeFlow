@@ -151,6 +151,88 @@ gh release create v1.2.3 vibeflow-plugin-1.2.3.tar.gz vibeflow-plugin-1.2.3.tar.
   --notes-file <(awk '/^## \[1.2.3\]/{f=1} /^## \[/{if(f&&NR>1)exit} f' CHANGELOG.md)
 ```
 
+## Prereleases
+
+> Introduced in Sprint 8 / S8-01.
+
+`bin/release.sh <version> --prerelease` opens a parallel release
+track for SemVer prerelease identifiers (`1.3.0-rc.1`,
+`1.3.0-beta.2`, `1.3.0-alpha`, …). Prereleases run the full test
+gauntlet, produce a real tarball + sha256 sidecar, and get a real
+git tag — but they never become the "latest" CHANGELOG entry and
+the GitHub release is marked `prerelease: true`.
+
+### When to cut a prerelease
+
+Good fit:
+
+- A risky API or schema change wants early community feedback
+  before it locks into a stable tag.
+- Multi-week RC bake period — ship `rc.1`, gather feedback, ship
+  `rc.2` a week later, eventually promote to stable.
+- Uncertainty about a design decision that shipped on `main` but
+  the maintainer wants external validation before the next minor
+  bump.
+
+Not a fit:
+
+- Routine patch releases — just cut stable.
+- "Beta" labels for marketing — the release track should reflect
+  what the artifact actually is.
+
+### Command
+
+```bash
+bash bin/release.sh 1.3.0-rc.1 --prerelease
+```
+
+Flag/version validation is strict:
+
+- `1.3.0-rc.1` without `--prerelease` → error, "requires
+  --prerelease".
+- `1.3.0` with `--prerelease` → error, "only for SemVer prerelease".
+- Anything that isn't SemVer 2.0.0 → error, same as stable.
+
+### CHANGELOG convention
+
+Prerelease entries land under the `## Pre-releases` footer at the
+BOTTOM of `CHANGELOG.md`. Stable entries continue to sit at the
+top. Each prerelease is a permanent record — the `rc.1` entry
+stays in the footer forever, even after `1.3.0` stable ships.
+
+### Promotion path (rc → stable)
+
+There is no automated promotion. Cut `rc.1`, `rc.2`, `rc.N` as
+many times as needed, each via a separate `release.sh` run. When
+ready to promote, run `bash bin/release.sh 1.3.0` (no flag) as a
+normal stable release. The stable CHANGELOG entry is fresh — copy
+the best highlights from the prerelease entries and rewrite for
+clarity.
+
+### Tag + tarball naming
+
+- Tag: `v1.3.0-rc.1` (SemVer-ordered; `git describe --tags`
+  handles prerelease sorting correctly).
+- Tarball: `vibeflow-plugin-1.3.0-rc.1.tar.gz` (plugin.json
+  version is used verbatim in the filename).
+- Sha256 sidecar: `vibeflow-plugin-1.3.0-rc.1.tar.gz.sha256`.
+
+Package managers and consumers checking `claude plugin install`
+against a prerelease tarball should work the same way as a
+stable tarball — the `-rc.1` suffix is just a filename fragment
+to Claude Code's install path.
+
+### gh release create
+
+The Next-Steps block printed by `release.sh --prerelease` adds
+the `--prerelease` flag to the `gh release create` hint. This
+causes GitHub to:
+
+- Mark the release with the "Pre-release" badge.
+- Exclude it from `gh release view --latest` / the API's "latest"
+  endpoint.
+- Skip it in package managers watching `latest` by default.
+
 ## Rollback
 
 If something went wrong BEFORE you pushed:
@@ -186,10 +268,12 @@ stash your local changes first. `bin/release.sh --check-clean`
 tells you exactly what it sees (exit 0 = clean, exit 1 = dirty).
 
 **"release: version 'X.Y.Z' is not a strict SemVer X.Y.Z"** —
-prerelease suffixes (`1.0.1-beta`) and build-metadata (`1.0.1+git`)
-are rejected by design. Cut a normal release and document the
-"beta" status in the CHANGELOG instead, or wait for Sprint 6 / S6-06
-to land the prerelease workflow.
+build-metadata suffixes (`1.0.1+git`) are rejected; they're not
+supported as release identifiers. For prerelease identifiers
+(`1.3.0-rc.1`, `1.3.0-beta.2`, …), re-run with `--prerelease` —
+see the "Prereleases" section above. (The Sprint 6 / S6-06
+reference in earlier revisions of this doc is obsolete;
+prereleases shipped in Sprint 8 / S8-01.)
 
 **"pre-flight check failed"** — one of the harnesses in the gauntlet
 is red. Run each harness directly to find the failing one:

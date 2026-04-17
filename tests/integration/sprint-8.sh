@@ -281,6 +281,20 @@ else
   fail "[S8-C] release.sh emits --prerelease hint for gh release create"
 fi
 
+# 7a. docs/RELEASING.md has a "Prereleases" H2.
+if grep -q '^## Prereleases$' "$RELEASING_S8C"; then
+  pass "[S8-C] RELEASING.md has Prereleases H2"
+else
+  fail "[S8-C] RELEASING.md has Prereleases H2"
+fi
+
+# 7b. docs/RELEASING.md documents the rc → stable promotion path.
+if grep -qE 'promotion|rc.*stable|Promoting' "$RELEASING_S8C"; then
+  pass "[S8-C] RELEASING.md documents rc → stable promotion"
+else
+  fail "[S8-C] RELEASING.md documents rc → stable promotion"
+fi
+
 # 8-11. Runtime — exercise release.sh --dry-run in all four
 # (mode × version) quadrants. Needs a clean working tree + pg
 # peer dep installed (step [0.5]) just like any release.sh call.
