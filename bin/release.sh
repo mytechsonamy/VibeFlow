@@ -30,6 +30,7 @@
 #   - `bash tests/integration/sprint-6.sh`
 #   - `bash tests/integration/sprint-7.sh`
 #   - `bash tests/integration/sprint-8.sh`
+#   - `bash tests/integration/sprint-9.sh`
 #
 # Artifacts on success:
 #   - vibeflow-plugin-<version>.tar.gz   (via package-plugin.sh)
@@ -392,6 +393,7 @@ else
     "bash tests/integration/sprint-6.sh"
     "bash tests/integration/sprint-7.sh"
     "bash tests/integration/sprint-8.sh"
+    "bash tests/integration/sprint-9.sh"
   )
 
   PREFLIGHT_FAILED=0
@@ -409,7 +411,7 @@ else
     echo "release: $PREFLIGHT_FAILED pre-flight check(s) failed — aborting." >&2
     exit 1
   fi
-  echo "  ok   all 11 pre-flight harnesses passed"
+  echo "  ok   all 15 pre-flight harnesses passed"
 fi
 
 # -----------------------------------------------------------------------------
