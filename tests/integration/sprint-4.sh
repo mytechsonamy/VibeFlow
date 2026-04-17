@@ -636,11 +636,17 @@ else
   fail "package-plugin.sh --skip-build produces a clean tarball"
 fi
 # The archive itself must exist after the previous step succeeded.
-if ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz >/dev/null 2>&1; then
-  pass "vibeflow-plugin-<version>.tar.gz exists"
+# Sprint 9 / S9-07 — select the tarball by plugin.json version rather
+# than `ls | head -1`, which sorts alphabetically and would pick
+# 1.10.0 before 1.9.0, or a stale 1.2.0 ahead of a freshly-built 1.3.0
+# (the exact bug that tripped the v1.3.0 cut during Sprint 8 / S8-08).
+S4H_EXPECTED_VERSION="$(jq -r '.version' "$REPO_ROOT/.claude-plugin/plugin.json" 2>/dev/null)"
+S4H_EXPECTED_ARCHIVE="$REPO_ROOT/vibeflow-plugin-${S4H_EXPECTED_VERSION}.tar.gz"
+if [[ -f "$S4H_EXPECTED_ARCHIVE" ]]; then
+  pass "vibeflow-plugin-${S4H_EXPECTED_VERSION}.tar.gz exists"
   # Spot-check: the archive must contain the manifest at the expected
   # path and at least one MCP server's dist/index.js.
-  ARCHIVE="$(ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz | head -1)"
+  ARCHIVE="$S4H_EXPECTED_ARCHIVE"
   if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "^.claude-plugin/plugin.json$"; then
     pass "tarball contains .claude-plugin/plugin.json"
   else
@@ -860,11 +866,26 @@ fi
 
 echo "== [S4-K] fresh-install end-to-end simulation =="
 
-ARCHIVE="$(ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz 2>/dev/null | head -1)"
-if [[ -z "$ARCHIVE" || ! -f "$ARCHIVE" ]]; then
-  fail "[S4-K] tarball not found — run ./package-plugin.sh first"
+# Sprint 9 / S9-07 — look up the tarball by plugin.json version rather
+# than alphabetic `ls | head -1`. The old approach silently picked
+# 1.2.0 over a freshly-built 1.3.0 (Sprint 8 / S8-08) and would pick
+# 1.10.0 over 1.9.0 under string sort. The version-based lookup fails
+# loudly if the expected tarball isn't present — far better than
+# extracting the wrong one.
+ARCHIVE="$REPO_ROOT/vibeflow-plugin-${EXPECTED_PLUGIN_VERSION}.tar.gz"
+if [[ ! -f "$ARCHIVE" ]]; then
+  fail "[S4-K] tarball vibeflow-plugin-${EXPECTED_PLUGIN_VERSION}.tar.gz not found — run ./package-plugin.sh first"
+  # Diagnostic: show what IS on disk so a stale tarball doesn't waste
+  # the maintainer's time.
+  STRAYS="$(ls "$REPO_ROOT"/vibeflow-plugin-*.tar.gz 2>/dev/null | head -5)"
+  if [[ -n "$STRAYS" ]]; then
+    echo "       diagnostic — found these tarballs instead:" >&2
+    echo "$STRAYS" | sed 's/^/         /' >&2
+    echo "       (delete stale tarballs + re-run package-plugin.sh)" >&2
+  fi
+  ARCHIVE=""
 else
-  pass "tarball located: $(basename "$ARCHIVE")"
+  pass "tarball located: $(basename "$ARCHIVE") (version-matched)"
 
   S4K_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/vf-s4k-XXXXXX")"
   S4K_PLUGIN="$S4K_ROOT/plugin"
