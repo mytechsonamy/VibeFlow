@@ -514,6 +514,21 @@ echo " Release v$VERSION prepared locally."
 echo "==============================================================="
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "  (dry-run — no files written, no git ops performed)"
+  echo
+  echo "Next steps (what would print on a non-dry-run):"
+  echo
+  echo "  git push origin main"
+  echo "  git push origin v$VERSION"
+  if [[ "$PRERELEASE" == "true" ]]; then
+    echo "  gh release create v$VERSION $TARBALL $SHAFILE --prerelease \\"
+    echo "    --title \"v$VERSION\" --notes-file <(awk '/^## \\[$VERSION\\]/{f=1} /^## \\[/{if(f&&NR>1)exit} f' CHANGELOG.md)"
+    echo
+    echo "  ! this is a PRERELEASE — the GitHub Releases page will mark it so,"
+    echo "    and package managers watching 'latest' will skip it by default."
+  else
+    echo "  gh release create v$VERSION $TARBALL $SHAFILE \\"
+    echo "    --title \"v$VERSION\" --notes-file <(awk '/^## \\[$VERSION\\]/{f=1} /^## \\[/{if(f&&NR>1)exit} f' CHANGELOG.md)"
+  fi
 else
   echo
   echo "Tag mode: $TAG_MODE"
