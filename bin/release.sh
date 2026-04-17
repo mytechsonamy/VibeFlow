@@ -585,9 +585,10 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo
   echo "Next steps (what would print on a non-dry-run):"
   echo
-  # Sprint 9 / S9-05 — only hint `git push origin main` when the
-  # release commit was actually cut from main. Printing it from a
-  # feature branch encouraged the stale-main drift S9-05 was cut to fix.
+  # Sprint 9 / S9-05 — branch-aware push hint. On main, print the
+  # main-push command; off main, print the branch-specific equivalent
+  # and a reminder. Printing a main-push hint from a feature branch
+  # encouraged the stale-main drift S9-05 was cut to fix.
   if [[ "$CURRENT_BRANCH" == "main" ]]; then
     echo "  git push origin main"
   else
