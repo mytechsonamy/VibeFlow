@@ -390,8 +390,12 @@ fi
 # the docs is a common regression — this catches it.
 CFG_DOC="$DOCS/CONFIGURATION.md"
 if [[ -f "$CFG_DOC" ]]; then
+  # Sprint 9 — GNU grep 3.11+ silently rejects `\`` as an undefined
+  # regex escape (earlier versions treated it as literal backtick).
+  # Use `-F` (fixed string) instead so the pattern is always a
+  # literal match.
   for key in "mode" "domain" "db_connection" "openai_model" "gemini_model" "figma_token" "github_token" "gitlab_token" "gitlab_base_url"; do
-    if grep -qE "\\\`${key}\\\`" "$CFG_DOC"; then
+    if grep -qF "\`${key}\`" "$CFG_DOC"; then
       pass "CONFIGURATION.md documents userConfig.${key}"
     else
       fail "CONFIGURATION.md documents userConfig.${key}"
@@ -646,27 +650,34 @@ if [[ -f "$S4H_EXPECTED_ARCHIVE" ]]; then
   pass "vibeflow-plugin-${S4H_EXPECTED_VERSION}.tar.gz exists"
   # Spot-check: the archive must contain the manifest at the expected
   # path and at least one MCP server's dist/index.js.
+  #
+  # Sprint 9 / S9-01 — listing is captured into a variable rather than
+  # piped per-check. Under `set -uo pipefail`, `grep -q` closes stdin
+  # on first match, tar receives SIGPIPE, and the pipeline's final
+  # exit propagates 141 — the `if` evaluates false even though grep
+  # matched. Same fix as package-plugin.sh [5].
   ARCHIVE="$S4H_EXPECTED_ARCHIVE"
-  if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "^.claude-plugin/plugin.json$"; then
+  ARCHIVE_LISTING="$(tar -tzf "$ARCHIVE" 2>/dev/null)"
+  if echo "$ARCHIVE_LISTING" | grep -q "^.claude-plugin/plugin.json$"; then
     pass "tarball contains .claude-plugin/plugin.json"
   else
     fail "tarball contains .claude-plugin/plugin.json"
   fi
-  if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "^mcp-servers/sdlc-engine/dist/index.js$"; then
+  if echo "$ARCHIVE_LISTING" | grep -q "^mcp-servers/sdlc-engine/dist/index.js$"; then
     pass "tarball contains sdlc-engine/dist/index.js"
   else
     fail "tarball contains sdlc-engine/dist/index.js"
   fi
   # And forbidden paths must NOT be in the tarball.
   for forbidden in "node_modules/" "/CLAUDE.md" "/docs/SPRINT-4.md" "/.git/" "src/index.ts"; do
-    if tar -tzf "$ARCHIVE" 2>/dev/null | grep -q "$forbidden"; then
+    if echo "$ARCHIVE_LISTING" | grep -q "$forbidden"; then
       fail "tarball contains forbidden path: $forbidden"
     else
       pass "tarball does NOT contain $forbidden"
     fi
   done
 else
-  fail "vibeflow-plugin-<version>.tar.gz exists"
+  fail "vibeflow-plugin-${S4H_EXPECTED_VERSION}.tar.gz exists"
 fi
 
 # ---------------------------------------------------------------------------
