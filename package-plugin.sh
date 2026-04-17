@@ -275,17 +275,58 @@ done < "$SORTED_LIST"
 # the universal "zero time" convention.
 find "$STAGING" -exec touch -t 197001010000.00 {} +
 
-# Detect tar variant for the ownership flags.
-if tar --version 2>&1 | grep -qi "bsdtar\|libarchive"; then
-  TAR_OWNER_ARGS=(--uid=0 --gid=0)
+# Sprint 9 / S9-01 — cross-host deterministic tarball.
+#
+# S7-05B made the tarball byte-identical across consecutive runs on
+# the SAME host, but bsdtar (macOS default) and GNU tar write subtly
+# different extended-attribute + PAX header blocks, so a tarball
+# packaged on a macOS maintainer's laptop does NOT byte-match one
+# packaged on a Linux CI runner. Both are internally reproducible,
+# but sha256 diverges across host classes.
+#
+# S9-01 fix: prefer GNU tar when available. Many macOS users install
+# it as `gtar` via Homebrew (`brew install gnu-tar`) for exactly this
+# reason. We probe `gtar` first, fall back to `tar` if its --version
+# identifies as GNU, and only drop to bsdtar with a WARN if no GNU tar
+# is reachable. The WARN surfaces the `brew install gnu-tar` remediation
+# so the maintainer can fix it once + get cross-host reproducibility
+# from then on.
+#
+# Detection + selection:
+if command -v gtar >/dev/null 2>&1 && gtar --version 2>&1 | grep -qi "gnu tar"; then
+  TAR_BIN="gtar"
+  TAR_VARIANT="gnu"
+elif tar --version 2>&1 | grep -qi "gnu tar"; then
+  TAR_BIN="tar"
+  TAR_VARIANT="gnu"
+elif tar --version 2>&1 | grep -qi "bsdtar\|libarchive"; then
+  TAR_BIN="tar"
+  TAR_VARIANT="bsd"
 else
+  TAR_BIN="tar"
+  TAR_VARIANT="unknown"
+fi
+
+if [[ "$TAR_VARIANT" == "gnu" ]]; then
   TAR_OWNER_ARGS=(--owner=0 --group=0 --numeric-owner)
+  pass "using GNU tar ($TAR_BIN) — cross-host reproducible"
+else
+  TAR_OWNER_ARGS=(--uid=0 --gid=0)
+  if [[ "$TAR_VARIANT" == "bsd" ]]; then
+    echo "  WARN bsdtar detected — tarball is reproducible on THIS host only." >&2
+    echo "  WARN cross-host sha256 will diverge from a GNU-tar host." >&2
+    echo "  WARN fix on macOS: brew install gnu-tar (adds 'gtar' to PATH)." >&2
+  else
+    echo "  WARN unknown tar variant — reproducibility guarantees are host-only." >&2
+    echo "  WARN install GNU tar for cross-host reproducible tarballs." >&2
+  fi
+  pass "tar variant '$TAR_VARIANT' — archive will build (host-local reproducible)"
 fi
 
 # Create uncompressed tar from staging in sorted order, pipe through
 # gzip -n for a deterministic final archive. `cd "$STAGING"` ensures
 # the tar paths are relative to the repo root (no `./` prefix).
-if (cd "$STAGING" && tar -c "${TAR_OWNER_ARGS[@]}" -T "$SORTED_LIST" -f - 2>/dev/null) \
+if (cd "$STAGING" && "$TAR_BIN" -c "${TAR_OWNER_ARGS[@]}" -T "$SORTED_LIST" -f - 2>/dev/null) \
     | gzip -n > "$ARCHIVE"; then
   ARCHIVE_SIZE="$(du -h "$ARCHIVE" | awk '{print $1}')"
   pass "archive written ($ARCHIVE_SIZE, deterministic)"

@@ -73,6 +73,46 @@ git push origin main
 git checkout <feature-branch>
 ```
 
+## Reproducible tarballs (Sprint 7 / S7-05B + Sprint 9 / S9-01)
+
+`package-plugin.sh` produces a byte-identical tarball across
+consecutive runs against the same input tree — file list sorted,
+mtimes normalised to epoch 0, gzip header stripped (`gzip -n`).
+
+Cross-host reproducibility depends on which `tar` variant the host
+carries:
+
+- **GNU tar** (Linux default; macOS via `brew install gnu-tar` →
+  `gtar`) → cross-host deterministic. CI runner and maintainer
+  laptop produce the same sha256.
+- **bsdtar** (macOS default `tar`) → same-host deterministic only.
+  Cross-host sha256 will diverge because bsdtar writes subtly
+  different extended-attribute + PAX header blocks.
+
+`package-plugin.sh` probes for GNU tar in this order: `gtar` in
+`$PATH` → `tar --version` reports GNU → fall back to bsdtar with a
+WARN. The WARN surfaces the `brew install gnu-tar` remediation so a
+one-time setup gives the maintainer cross-host reproducibility from
+then on.
+
+### macOS setup
+
+```bash
+# One-time install
+brew install gnu-tar
+
+# Verify
+gtar --version | head -1
+# → tar (GNU tar) 1.35 (or newer)
+
+# Re-run the package script — the WARN line should be gone
+./package-plugin.sh
+```
+
+Once `gtar` is on PATH, the sha256 of tarballs built on the
+maintainer's Mac matches the sha256 of tarballs built by the CI
+Linux runner. This closes the last gap from the S7-05B work.
+
 ## Tag signing (Sprint 6 / S6-05)
 
 Signed tags let downstream consumers verify a release against the
