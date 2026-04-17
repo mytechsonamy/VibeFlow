@@ -362,7 +362,18 @@ assert_eq "second run hint has same candidate count" "1" "$COUNT2"
 # the new mtime (not still pointing at the old value).
 sleep 1                                   # ensure mtime granularity
 touch "$DIR/src/foo.ts"
-NEW_MTIME="$(stat -f '%m' "$DIR/src/foo.ts" 2>/dev/null || stat -c '%Y' "$DIR/src/foo.ts")"
+# Sprint 9 — portable mtime read. BSD stat (macOS) accepts `-f '%m'`;
+# GNU stat (Linux) accepts `-c '%Y'`. The old `stat -f '%m' || stat -c
+# '%Y'` relied on GNU stat failing cleanly on `-f '%m'`, but GNU stat
+# actually RE-interprets the argument as a filesystem-info request,
+# prints filesystem stats to stdout, then exits non-zero — both sides
+# of `||` land in the command-substitution capture. Probe once + pick
+# the right invocation.
+if stat -f '%m' "$DIR/src/foo.ts" >/dev/null 2>&1; then
+  NEW_MTIME="$(stat -f '%m' "$DIR/src/foo.ts")"
+else
+  NEW_MTIME="$(stat -c '%Y' "$DIR/src/foo.ts")"
+fi
 bash "$SCRIPTS/test-optimizer.sh" < /dev/null >/dev/null
 CACHED_MTIME="$(jq -r --arg s "$DIR/src/foo.ts" '.[$s].mtime // empty' "$CACHE")"
 assert_eq "cache invalidates on source mtime change" "$NEW_MTIME" "$CACHED_MTIME"
