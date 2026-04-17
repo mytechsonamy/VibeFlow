@@ -230,11 +230,13 @@ echo "== [S9-C] release.sh branch guard (stable cuts off main refused) =="
 RELEASE_SH_S9C="$REPO_ROOT/bin/release.sh"
 RELEASING_S9C="$REPO_ROOT/docs/RELEASING.md"
 
-# 1. Step [0.25] branch guard header exists.
-if grep -q '\[0\.25\] release branch guard' "$RELEASE_SH_S9C"; then
-  pass "[S9-C] release.sh has step [0.25] branch guard"
+# 1. Step [1.5] branch guard header exists (runs after [1] version
+#    argument parse so a bad version exits with exit 2 regardless of
+#    branch — see sprint-8.sh [S8-C] expectation).
+if grep -q '\[1\.5\] release branch guard' "$RELEASE_SH_S9C"; then
+  pass "[S9-C] release.sh has step [1.5] branch guard"
 else
-  fail "[S9-C] release.sh has step [0.25] branch guard"
+  fail "[S9-C] release.sh has step [1.5] branch guard"
 fi
 
 # 2. Allowlist case covers main + release/*.

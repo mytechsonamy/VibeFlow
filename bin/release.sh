@@ -222,60 +222,11 @@ if [[ "$CHECK_CLEAN_ONLY" == "true" ]]; then
   exit 0
 fi
 
-# -----------------------------------------------------------------------------
-echo "== [0.25] release branch guard =="
-
-# Sprint 9 / S9-05 — stable releases must be cut from `main` (or an
-# allowlisted release/* branch) so the tagged commit is always the
-# canonical release state on the shared integration branch.
-#
-# Background: the v1.3.0 cut (Sprint 8 / S8-08) shipped from a feature
-# branch, which worked but left `origin/main` stale relative to the
-# release tag. Subsequent maintainers cloning fresh and running
-# `release.sh` from main would see drift between plugin.json's version
-# and the latest tag. S9-05 locks stable releases to main by default.
-#
-# Prerelease cuts (--prerelease) are exempt — they're explicit opt-ins
-# that never become the "latest" CHANGELOG entry, and typically ride
-# on a feature branch during an RC bake period.
-#
-# Escape hatches (both accepted, same behaviour):
-#   - VF_RELEASE_ALLOW_BRANCH=1   override for one-off situations
-#   - VF_SKIP_BRANCH_CHECK=1      alias (harness-friendly naming,
-#                                 mirrors VF_SKIP_GAUNTLET/VF_SKIP_GPG_SIGN)
+# Current branch — computed here so the step [1.5] branch guard and the
+# end-of-script "Next steps" hint both reference the same value. The
+# guard logic itself runs AFTER step [1] so a bad version argument
+# still fails with its specific error regardless of branch state.
 CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo '__detached__')"
-
-BRANCH_CHECK_REQUIRED=true
-if [[ "$PRERELEASE" == "true" ]]; then
-  BRANCH_CHECK_REQUIRED=false
-fi
-if [[ "${VF_RELEASE_ALLOW_BRANCH:-}" == "1" ]] \
-    || [[ "${VF_SKIP_BRANCH_CHECK:-}" == "1" ]]; then
-  BRANCH_CHECK_REQUIRED=false
-fi
-
-if [[ "$BRANCH_CHECK_REQUIRED" == "true" ]]; then
-  case "$CURRENT_BRANCH" in
-    main|release/*)
-      echo "  ok   HEAD is on '$CURRENT_BRANCH' (allowed for stable release)"
-      ;;
-    *)
-      echo "release: stable releases must be cut from 'main' or a release/* branch." >&2
-      echo "release: HEAD is on '$CURRENT_BRANCH'." >&2
-      echo "release: fix with one of:" >&2
-      echo "release:   1. Open a PR from this branch to main + merge, then run release.sh on main." >&2
-      echo "release:   2. Re-run with --prerelease to cut a prerelease tag from this branch." >&2
-      echo "release:   3. Set VF_RELEASE_ALLOW_BRANCH=1 to override (and reconcile main afterwards)." >&2
-      exit 1
-      ;;
-  esac
-else
-  if [[ "$PRERELEASE" == "true" ]]; then
-    echo "  ok   prerelease cut on '$CURRENT_BRANCH' — branch guard skipped"
-  else
-    echo "  !    HEAD is on '$CURRENT_BRANCH'; branch guard overridden via env — reconcile main afterwards"
-  fi
-fi
 
 # -----------------------------------------------------------------------------
 echo "== [0.5] build-dependency sanity =="
@@ -364,6 +315,66 @@ if git rev-parse "v$VERSION" >/dev/null 2>&1; then
   exit 1
 fi
 echo "  ok   tag v$VERSION does not exist yet"
+
+# -----------------------------------------------------------------------------
+echo "== [1.5] release branch guard =="
+
+# Sprint 9 / S9-05 — stable releases must be cut from `main` (or an
+# allowlisted release/* branch) so the tagged commit is always the
+# canonical release state on the shared integration branch.
+#
+# Background: the v1.3.0 cut (Sprint 8 / S8-08) shipped from a feature
+# branch, which worked but left `origin/main` stale relative to the
+# release tag. Subsequent maintainers cloning fresh and running
+# `release.sh` from main would see drift between plugin.json's version
+# and the latest tag. S9-05 locks stable releases to main by default.
+#
+# The guard runs AFTER step [1] (version argument + SemVer validation)
+# so an invalid version argument still exits with exit 2 + its
+# specific error regardless of branch state. That preserves the
+# sprint-8.sh [S8-C] contract: `release.sh 9.9.9-rc.1 --dry-run`
+# (no --prerelease) must still exit 2 with "requires --prerelease",
+# not exit 1 with "branch guard".
+#
+# Prerelease cuts (--prerelease) are exempt — they're explicit opt-ins
+# that never become the "latest" CHANGELOG entry, and typically ride
+# on a feature branch during an RC bake period.
+#
+# Escape hatches (both accepted, same behaviour):
+#   - VF_RELEASE_ALLOW_BRANCH=1   override for one-off situations
+#   - VF_SKIP_BRANCH_CHECK=1      alias (harness-friendly naming,
+#                                 mirrors VF_SKIP_GAUNTLET/VF_SKIP_GPG_SIGN)
+BRANCH_CHECK_REQUIRED=true
+if [[ "$PRERELEASE" == "true" ]]; then
+  BRANCH_CHECK_REQUIRED=false
+fi
+if [[ "${VF_RELEASE_ALLOW_BRANCH:-}" == "1" ]] \
+    || [[ "${VF_SKIP_BRANCH_CHECK:-}" == "1" ]]; then
+  BRANCH_CHECK_REQUIRED=false
+fi
+
+if [[ "$BRANCH_CHECK_REQUIRED" == "true" ]]; then
+  case "$CURRENT_BRANCH" in
+    main|release/*)
+      echo "  ok   HEAD is on '$CURRENT_BRANCH' (allowed for stable release)"
+      ;;
+    *)
+      echo "release: stable releases must be cut from 'main' or a release/* branch." >&2
+      echo "release: HEAD is on '$CURRENT_BRANCH'." >&2
+      echo "release: fix with one of:" >&2
+      echo "release:   1. Open a PR from this branch to main + merge, then run release.sh on main." >&2
+      echo "release:   2. Re-run with --prerelease to cut a prerelease tag from this branch." >&2
+      echo "release:   3. Set VF_RELEASE_ALLOW_BRANCH=1 to override (and reconcile main afterwards)." >&2
+      exit 1
+      ;;
+  esac
+else
+  if [[ "$PRERELEASE" == "true" ]]; then
+    echo "  ok   prerelease cut on '$CURRENT_BRANCH' — branch guard skipped"
+  else
+    echo "  !    HEAD is on '$CURRENT_BRANCH'; branch guard overridden via env — reconcile main afterwards"
+  fi
+fi
 
 # -----------------------------------------------------------------------------
 echo "== [2] pre-flight test gauntlet =="

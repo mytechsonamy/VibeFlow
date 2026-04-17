@@ -22,8 +22,8 @@ step starts:
 | Step | What it does | Skipped in `--dry-run`? |
 |------|--------------|-------------------------|
 | **0** — working tree cleanliness | Refuses to run on a dirty tree. Commit or stash first. | No |
-| **0.25** — release branch guard | Stable releases refuse to run off `main` (or `release/*`). `--prerelease` cuts are exempt. Override: `VF_RELEASE_ALLOW_BRANCH=1`. (Sprint 9 / S9-05) | No |
 | **1** — version argument | Strict SemVer (`X.Y.Z`, no prerelease suffixes). Version must be strictly greater than `plugin.json`'s current version, and the tag must not already exist. | No |
+| **1.5** — release branch guard | Stable releases refuse to run off `main` (or `release/*`). `--prerelease` cuts are exempt. Override: `VF_RELEASE_ALLOW_BRANCH=1`. (Sprint 9 / S9-05) | No |
 | **2** — preflight gauntlet | Runs every MCP vitest suite + hooks + all integration harnesses. Any failure aborts the release. Takes 2–5 minutes. | No |
 | **3** — `plugin.json` version bump | Rewrites `.claude-plugin/plugin.json` via `jq`. | Yes |
 | **4** — CHANGELOG insertion | Prepends a new `## [<version>] — <today>` stub above the previous entry. Uses the `insert_changelog_entry()` helper (portable `head`/`tail`/`grep` — no BSD awk gotcha; see v1.0.1 CHANGELOG). | Yes |
@@ -37,7 +37,7 @@ push the tag + create the GitHub release.
 ## Release branch policy (Sprint 9 / S9-05)
 
 Stable releases must be cut from `main` (or a `release/*` branch).
-The guard is enforced in step **0.25** — if `HEAD` is anywhere else,
+The guard is enforced in step **1.5** — if `HEAD` is anywhere else,
 `release.sh` aborts with three suggested fixes:
 
 1. Open a PR from your branch → merge → run `release.sh` on `main`.
