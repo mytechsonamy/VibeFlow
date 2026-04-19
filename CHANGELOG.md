@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.1] — 2026-04-19
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Fixed
+- **Release workflow test-count regex (v1.5.1).** `tests/integration/sprint-4.sh
+  [S4-C]` was failing on all 5 MCP servers in the GitHub Actions release
+  workflow with "could not parse test count". Root cause: a hardcoded
+  `Tests  [0-9]+ passed` pattern (double space) didn't match vitest's
+  single-space variant in the GHA runner. The v1.4.0 + v1.5.0 release
+  jobs both tripped on this and the public release pages had to be
+  stitched together manually. The regex now strips ANSI escapes, isolates
+  the "Tests" summary line, and extracts `<N> passed` tolerantly —
+  including from vitest's partial-pass format (`Tests  1 failed | 47
+  passed`). With this fix the release.yml workflow completes end-to-end
+  and the tarball + sha256 are uploaded automatically.
+
+### Changed
+
+None.
+
+### Added
+
+None.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [1.5.0] — 2026-04-19
 
 <!-- Notes pre-filled from --notes-file. -->
