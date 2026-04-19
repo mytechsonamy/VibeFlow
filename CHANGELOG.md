@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] — 2026-04-19
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Added
+- **PgBouncer transaction-mode startup probe (S10-01).**
+  `PostgresStateStore.init()` now opens a single client and runs two
+  explicit transactions on it, comparing the backend pid via
+  `pg_backend_pid()`. If the pid changes between the two transactions
+  the pool is in transaction mode and `pg_advisory_xact_lock` cannot
+  serialize writes — the probe throws with a clear pointer to
+  `docs/TEAM-MODE.md` and the two fix paths (switch the pool to
+  session mode OR connect to the direct Postgres endpoint).
+  Opt-out via `VF_SKIP_POOLER_CHECK=1` for operators who run
+  transaction mode deliberately and accept the advisory-lock caveat.
+- **Scheduled pg-matrix weekly CI workflow (S10-03).** New
+  `.github/workflows/pg-matrix.yml` runs `sprint-7.sh` with
+  `VF_RUN_PG_MATRIX=1` every Monday 03:00 UTC against `main`. Manual
+  re-runs via `workflow_dispatch`. Failures open a tracking issue
+  (labels: `ci-failure`, `pg-matrix`) instead of emailing.
+- **`release.sh --notes-file` pre-fill (S10-04).** Both
+  `--notes-file <path>` and `--notes-file=<path>` accepted; the file
+  body replaces the empty Added/Fixed/Changed stub block during
+  CHANGELOG insertion. Missing or empty path → exit 2 with a clear
+  error. New post-release warning fires when the previous CHANGELOG
+  entry has empty stub sections (signal that the prior release
+  shipped without notes).
+- **Sprint 10 integration harness (S10-05).**
+  `tests/integration/sprint-10.sh` ships 45 assertions across
+  `[S10-A]` / `[S10-C]` / `[S10-D]` / `[S10-Z]`. There is no
+  `[S10-B]` — that letter is reserved for a future S10-02 (managed
+  cloud Postgres) reopen.
+
+### Fixed
+- `tests/integration/sprint-5.sh` release-script preflight loop now
+  expects `sprint-9.sh` and `sprint-10.sh` (was: `...sprint-8.sh`).
+  Catches a regression where a new sprint harness ships without
+  being wired into the release gauntlet.
+
+### Changed
+- Test inventory: 15 → **16 layers**; baseline 1638 → **1694**
+  passing checks offline (1698 live, 1710 with
+  `VF_RUN_PG_MATRIX=1`). `sdlc-engine` vitest grew 105 → 114
+  (+9 from S10-01 probe tests). `sprint-5.sh` grew 96 → 98
+  (+2 from sprint-9 + sprint-10 in the preflight loop).
+- `bin/release.sh` preflight gauntlet wording bumped from "all 15
+  pre-flight harnesses passed" to "all 16 pre-flight harnesses
+  passed".
+- `docs/RELEASING.md` Quickstart gains a `--notes-file` tip block.
+- `docs/TEAM-MODE.md` PgBouncer caveat updated to describe the
+  live S10-01 probe + the `VF_SKIP_POOLER_CHECK=1` escape hatch.
+
+### Dropped
+- **S10-02 (live RDS / Cloud SQL / Azure Database integration test).**
+  Dropped after explicit scope review — there is no managed-cloud
+  deployment target, no operator volunteering AWS credentials, and
+  the vanilla PG13/14/15/16 matrix (S7-02) covers the SQL surface
+  we actually use today. This is a *dropped* ticket, not a
+  *deferred* one — it does not carry forward to Sprint 11+ as a
+  dead item. Reopen with a fresh ticket id if managed-cloud
+  testing becomes relevant.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [1.4.0] — 2026-04-17
 
 Fourth minor release. Sprint 9 picked up three tickets from the
