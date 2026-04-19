@@ -110,7 +110,25 @@ for pair in "${TEST_FLOORS[@]}"; do
   # Count `Tests  N passed` line from vitest's summary output.
   OUT="$(npx --no-install vitest run 2>&1)"
   popd >/dev/null
-  count="$(echo "$OUT" | grep -oE 'Tests  [0-9]+ passed' | grep -oE '[0-9]+' | head -1)"
+  # v1.5.1 — regex widened from `Tests  [0-9]+ passed` (hardcoded
+  # double-space, fragile under any whitespace variation). The v1.4.0
+  # + v1.5.0 release workflows both tripped on this: vitest in the
+  # GitHub Actions runner emits a single-space variant the old regex
+  # missed, producing "could not parse test count" for all 5 MCP
+  # servers and failing the release job.
+  # New approach: (1) strip ANSI escapes so a future vitest
+  # --color=auto flip doesn't re-open the bug, (2) isolate the
+  # summary "Tests" line first, (3) extract the `<N> passed` count
+  # from that line even when the line also contains `<M> failed`
+  # (vitest's partial-pass format: `Tests  1 failed | 47 passed`).
+  TESTS_LINE="$(echo "$OUT" \
+    | sed 's/\x1b\[[0-9;]*m//g' \
+    | grep -E '^[[:space:]]*Tests[[:space:]]+' \
+    | head -1)"
+  count="$(echo "$TESTS_LINE" \
+    | grep -oE '[0-9]+ passed' \
+    | head -1 \
+    | grep -oE '[0-9]+')"
   if [[ -z "$count" ]]; then
     fail "$mcp: could not parse test count"
     continue
