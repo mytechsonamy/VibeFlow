@@ -1,4 +1,4 @@
-# Sprint 10: v1.5 Scope TBD (Seeded)
+# Sprint 10: v1.5.0 ✅ COMPLETE
 
 ## Sprint Goal
 
@@ -23,16 +23,21 @@ before picking up any ticket.**
 - Autopilot flow proven: Sprint 9 shipped end-to-end via a remote
   Claude Code session + maintainer-gated merge/tag push
 
-## Completion Criteria (DRAFT — confirm with user)
+## Completion Criteria
 
-- [ ] Every ticket picked up for Sprint 10 has a stable `S10-*` id
-- [ ] Sprint 10 integration harness present
-      (`tests/integration/sprint-10.sh`)
-- [ ] Baseline test count grows without regression
-- [ ] At least one v1.5.0 release ships through `bin/release.sh`
-      (stable from `main` per S9-05 guard, or `--prerelease`)
-- [ ] No unresolved Sprint 9 deferrals move into
-      "forever-deferred" without an explicit decision
+- [x] Every ticket picked up for Sprint 10 has a stable `S10-*` id
+- [x] Sprint 10 integration harness present
+      (`tests/integration/sprint-10.sh` — 45 assertions)
+- [x] Baseline test count grows without regression
+      (1638 → **1694** offline; +9 sdlc-engine vitest, +45 sprint-10.sh,
+      +2 sprint-5.sh)
+- [x] At least one v1.5.0 release ships through `bin/release.sh`
+      (cut on the autopilot branch with VF_RELEASE_ALLOW_BRANCH=1;
+      maintainer merges to main + pushes the tag, mirroring the
+      Sprint 9 / v1.4.0 flow)
+- [x] No unresolved Sprint 9 deferrals move into
+      "forever-deferred" without an explicit decision (S10-02
+      DROPPED with rationale; S10-01/03/04 SHIPPED)
 
 ---
 
@@ -171,17 +176,28 @@ shipped S10-* ticket + closing `[S10-Z]` self-audit.
 
 ## Next Ticket to Work On
 
-**Scope confirmed 2026-04-19.** Sprint 10 ships:
+Sprint 10 ✅ COMPLETE. Sprint 11 (`docs/SPRINT-11.md`) seeded
+when the next sprint kicks off.
 
-- **S10-01** (pgbouncer probe) — team-mode correctness; the
-  check is ~20 lines of SQL + a throw.
-- **S10-03** (scheduled pg-matrix weekly CI) — cost/benefit
-  now clear enough: weekly run on vanilla PG13-16 Alpine
-  images catches driver/dialect drift early, and the issue-
-  creation-on-failure pattern keeps noise bounded.
-- **S10-04** (`release.sh --notes-file`) — smallest surface,
-  fixes the brittle "fill the stub by hand" step directly.
-- **S10-05** + **S10-06** — harness + release closure.
+**Shipped (2026-04-19):**
+
+- **S10-01** ✅ (pgbouncer probe) — `probePoolerMode()` runs in
+  `PostgresStateStore.init()`, throws with a `TEAM-MODE.md`
+  pointer when the backend pid changes between two transactions
+  on a single client. `VF_SKIP_POOLER_CHECK=1` opt-out for
+  operators who run transaction mode deliberately.
+- **S10-03** ✅ (scheduled pg-matrix weekly CI) —
+  `.github/workflows/pg-matrix.yml` runs Mondays 03:00 UTC
+  against `main`, opens a `ci-failure` + `pg-matrix` issue on
+  failure rather than emailing.
+- **S10-04** ✅ (`release.sh --notes-file`) — both `--notes-file
+  <path>` and `--notes-file=<path>` accepted; missing/empty path
+  exits 2 with a clear error. Empty-prior-entry warning fires
+  when the most recent CHANGELOG entry has empty stub sections.
+- **S10-05** ✅ (sprint-10.sh harness) — 45 assertions across
+  `[S10-A]` / `[S10-C]` / `[S10-D]` / `[S10-Z]`. No `[S10-B]`:
+  reserved for a future S10-02 reopen.
+- **S10-06** ✅ (closure + v1.5.0 release).
 
 **Out of scope:**
 
