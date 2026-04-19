@@ -6,7 +6,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { SqliteStateStore } from "../src/state/sqlite.js";
+import { FilesystemStateStore } from "../src/state/filesystem.js";
 import { createServer } from "../src/server.js";
 
 // The MCP SDK Server doesn't expose a public request-dispatch method, so we
@@ -27,11 +27,11 @@ function invoke(
 
 describe("createServer — MCP request dispatch", () => {
   let tmpDir: string;
-  let store: SqliteStateStore;
+  let store: FilesystemStateStore;
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sdlc-engine-srv-"));
-    store = new SqliteStateStore(path.join(tmpDir, "state.db"));
+    store = new FilesystemStateStore(tmpDir);
     await store.init();
   });
 

@@ -4,8 +4,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { resolveConfig } from "./config.js";
 import { createServer } from "./server.js";
-import { SqliteStateStore } from "./state/sqlite.js";
-import { PostgresStateStore } from "./state/postgres.js";
 import { FilesystemStateStore } from "./state/filesystem.js";
 import { StateStore } from "./state/store.js";
 
@@ -34,42 +32,13 @@ async function main(): Promise<void> {
   process.on("SIGTERM", shutdown);
 
   process.stderr.write(
-    `[sdlc-engine] started mode=${config.mode} project=${config.project}\n`,
+    `[sdlc-engine] started project=${config.project} stateDir=${config.stateStore.dir ?? "<default>"}\n`,
   );
 }
 
 async function openStore(
   config: ReturnType<typeof resolveConfig>,
 ): Promise<StateStore> {
-  // Sprint 11-D: filesystem is the default backend. Legacy stores are
-  // still reachable by setting VIBEFLOW_STATE_BACKEND explicitly:
-  //   VIBEFLOW_STATE_BACKEND=sqlite    → SqliteStateStore (solo legacy)
-  //   VIBEFLOW_STATE_BACKEND=postgres  → PostgresStateStore (team legacy)
-  //   VIBEFLOW_STATE_BACKEND=filesystem → FilesystemStateStore (default)
-  // Sprint 11-E removes sqlite/postgres entirely and drops this switch.
-  const backendOverride = (process.env.VIBEFLOW_STATE_BACKEND ?? "")
-    .trim()
-    .toLowerCase();
-
-  if (backendOverride === "postgres") {
-    const url = config.stateStore.postgresUrl;
-    if (!url) {
-      throw new Error(
-        "VIBEFLOW_STATE_BACKEND=postgres requires VIBEFLOW_POSTGRES_URL " +
-          "or stateStore.postgresUrl",
-      );
-    }
-    return PostgresStateStore.create(url);
-  }
-
-  if (backendOverride === "sqlite") {
-    const sqlitePath =
-      config.stateStore.sqlitePath ??
-      path.join(process.cwd(), ".vibeflow", "state.db");
-    fs.mkdirSync(path.dirname(sqlitePath), { recursive: true });
-    return new SqliteStateStore(sqlitePath);
-  }
-
   const stateDir =
     config.stateStore.dir ??
     process.env.VIBEFLOW_STATE_DIR ??

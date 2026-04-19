@@ -2,10 +2,7 @@
   "mcpServers": {
     "sdlc-engine": {
       "command": "node",
-      "args": ["./mcp-servers/sdlc-engine/dist/index.js"],
-      "env": {
-        "VIBEFLOW_MODE": "solo"
-      }
+      "args": ["./mcp-servers/sdlc-engine/dist/index.js"]
     },
     "codebase-intel": {
       "command": "node",

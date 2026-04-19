@@ -1,6 +1,5 @@
 {
   "project": "demo-catalog",
-  "mode": "solo",
   "domain": "e-commerce",
   "currentPhase": "DEVELOPMENT",
   "tech": {

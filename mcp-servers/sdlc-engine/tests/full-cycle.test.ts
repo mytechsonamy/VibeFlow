@@ -2,20 +2,20 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { SqliteStateStore } from "../src/state/sqlite.js";
+import { FilesystemStateStore } from "../src/state/filesystem.js";
 import { SdlcEngine, PhaseTransitionError } from "../src/engine.js";
 import { PhaseRegistry, PhaseId } from "../src/phases.js";
 import { ConsensusStatus } from "../src/consensus.js";
 
 describe("SdlcEngine full phase cycle", () => {
   let tmpDir: string;
-  let store: SqliteStateStore;
+  let store: FilesystemStateStore;
   let engine: SdlcEngine;
   const registry = new PhaseRegistry();
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sdlc-engine-cycle-"));
-    store = new SqliteStateStore(path.join(tmpDir, "state.db"));
+    store = new FilesystemStateStore(tmpDir);
     await store.init();
     engine = new SdlcEngine(store, registry);
   });
@@ -129,9 +129,7 @@ describe("SdlcEngine full phase cycle", () => {
     await advanceWithGates("p1", "REQUIREMENTS", "DESIGN");
     await store.close();
 
-    const store2 = new SqliteStateStore(
-      path.join(tmpDir, "state.db"),
-    );
+    const store2 = new FilesystemStateStore(tmpDir);
     await store2.init();
     const engine2 = new SdlcEngine(store2, registry);
     const reread = await engine2.read("p1");
@@ -139,7 +137,7 @@ describe("SdlcEngine full phase cycle", () => {
     expect(reread?.lastConsensus?.status).toBe(ConsensusStatus.APPROVED);
     await store2.close();
     // Reopen original handle for afterEach.
-    store = new SqliteStateStore(path.join(tmpDir, "state.db"));
+    store = new FilesystemStateStore(tmpDir);
     await store.init();
   });
 

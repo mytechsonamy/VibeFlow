@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] — 2026-04-20
+
+**Breaking change — state store is filesystem-only.**
+
+Sprint 11 retired the SQLite (solo) and PostgreSQL (team) backends in
+favour of a single file-backed store. Every state mutation now lands in
+`.vibeflow/state/<project>/project.json` alongside an append-only event
+log under `events/` and archived per-phase bundles under `archive/`.
+Git versions the whole thing for free and `cat` is enough to read it.
+
+### Removed
+- `mcp-servers/sdlc-engine/src/state/sqlite.ts` + `postgres.ts` —
+  replaced by `filesystem.ts`.
+- `bin/with-postgres.sh`, `bin/with-postgres-matrix.sh`,
+  `.github/workflows/pg-matrix.yml`, `docs/TEAM-MODE.md` — all
+  Postgres-specific infrastructure.
+- `mode` + `db_connection` from `.claude-plugin/plugin.json` userConfig.
+- `VIBEFLOW_MODE` env from `.mcp.json` and the legacy
+  `ModeSchema` / `stateStore.{sqlitePath,postgresUrl}` fields from
+  `src/config.ts`.
+- `better-sqlite3` (dependency) and `pg` (peer dependency) from
+  `mcp-servers/sdlc-engine/package.json`.
+- Integration blocks `sprint-5.sh [S5-B]`, `sprint-6.sh [S6-A]`,
+  `sprint-7.sh [S7-E]`, `sprint-10.sh [S10-A]` — the behaviours they
+  guarded are now covered by filesystem parity suites.
+
+### Added
+- `src/state/filesystem.ts` — `FilesystemStateStore` implements the
+  unchanged `StateStore` interface. Cross-process safety via
+  `proper-lockfile`; in-process safety via the existing
+  `KeyedAsyncLock`. Atomic `writeFile + fsync + rename` per payload.
+- `src/state/events.ts` — `StateEvent` discriminated union plus
+  `deriveEvent`, `renderEventMd`, `parseEventMd`, `serializeEventJson`,
+  `parseEventJson`. Every transact emits one numbered JSON+MD pair.
+- Archive mechanism — on phase advance, the completed phase's events
+  migrate from `events/` to `archive/NN-<PHASE>/` inside the same
+  transact lock window. `read()` never touches archive.
+- `VIBEFLOW_STATE_DIR` env (falls back to `.vibeflow/state`).
+  `VIBEFLOW_STATE_FSYNC=off` disables fsync for CI.
+- Backend-agnostic hook helpers in `hooks/scripts/_lib.sh`:
+  `vf_current_phase` / `vf_last_consensus_status` /
+  `vf_satisfied_criteria` read `project.json` first.
+
+### Changed
+- Plugin version: `1.5.2 → 2.0.0`.
+- Engine version: `0.1.0 → 1.0.0`.
+
+### Migration
+Existing `.vibeflow/state.db` users can either start fresh
+(recommended if the project history isn't load-bearing) or run the
+one-shot `bin/migrate-state-db-to-fs.sh` (shipped in a follow-up
+minor) to import the existing rollup into a `project.json` seed.
+
+---
+
 ## [1.5.2] — 2026-04-19
 
 <!-- Notes pre-filled from --notes-file. -->

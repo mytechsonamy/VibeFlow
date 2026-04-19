@@ -2,19 +2,19 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { SqliteStateStore } from "../src/state/sqlite.js";
+import { FilesystemStateStore } from "../src/state/filesystem.js";
 import { SdlcEngine, PhaseTransitionError } from "../src/engine.js";
 import { PhaseRegistry } from "../src/phases.js";
 import { ConsensusStatus } from "../src/consensus.js";
 
 describe("SdlcEngine integration", () => {
   let tmpDir: string;
-  let store: SqliteStateStore;
+  let store: FilesystemStateStore;
   let engine: SdlcEngine;
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sdlc-engine-int-"));
-    store = new SqliteStateStore(path.join(tmpDir, "state.db"));
+    store = new FilesystemStateStore(tmpDir);
     await store.init();
     engine = new SdlcEngine(store, new PhaseRegistry());
   });

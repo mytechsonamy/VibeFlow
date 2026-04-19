@@ -125,7 +125,6 @@ WHITELIST=(
   "docs/HOOKS.md"
   "docs/MCP-SERVERS.md"
   "docs/TROUBLESHOOTING.md"
-  "docs/TEAM-MODE.md"
 )
 
 # MCP servers: ship dist/ + package.json + tsconfig.json. Source files,

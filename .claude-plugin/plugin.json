@@ -1,6 +1,6 @@
 {
   "name": "vibeflow",
-  "version": "1.5.2",
+  "version": "2.0.0",
   "description": "AI-Orchestrated Vibe Coding Framework with Multi-AI Consensus and Truth Validation. Combines SDLC orchestration with requirements-first quality assurance.",
   "author": {
     "name": "Musti",
@@ -27,23 +27,11 @@
   ],
   "skills": "./skills/",
   "userConfig": {
-    "mode": {
-      "title": "Workflow Mode",
-      "description": "Workflow mode: 'solo' (single developer, SQLite, lighter hooks) or 'team' (multi-dev, PostgreSQL, full consensus)",
-      "type": "string",
-      "sensitive": false
-    },
     "domain": {
       "title": "Project Domain",
       "description": "Project domain: 'financial', 'e-commerce', 'healthcare', or 'general'. Affects quality thresholds and release decision weights.",
       "type": "string",
       "sensitive": false
-    },
-    "db_connection": {
-      "title": "Database Connection",
-      "description": "PostgreSQL connection string for project state (team mode only). Leave empty for solo mode (uses SQLite).",
-      "type": "string",
-      "sensitive": true
     },
     "openai_model": {
       "title": "OpenAI Model",

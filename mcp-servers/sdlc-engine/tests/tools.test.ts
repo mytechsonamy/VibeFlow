@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { z } from "zod";
-import { SqliteStateStore } from "../src/state/sqlite.js";
+import { FilesystemStateStore } from "../src/state/filesystem.js";
 import { SdlcEngine } from "../src/engine.js";
 import { PhaseRegistry } from "../src/phases.js";
 import { buildTools, ToolDefinition } from "../src/tools.js";
@@ -18,13 +18,13 @@ function byName(tools: ToolDefinition[], name: string): ToolDefinition {
 
 describe("MCP tool handlers", () => {
   let tmpDir: string;
-  let store: SqliteStateStore;
+  let store: FilesystemStateStore;
   let engine: SdlcEngine;
   let tools: ToolDefinition[];
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sdlc-engine-tools-"));
-    store = new SqliteStateStore(path.join(tmpDir, "state.db"));
+    store = new FilesystemStateStore(tmpDir);
     await store.init();
     engine = new SdlcEngine(store, new PhaseRegistry());
     tools = buildTools(engine);

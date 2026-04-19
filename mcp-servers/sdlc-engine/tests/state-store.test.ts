@@ -1,14 +1,9 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import * as fs from "node:fs";
-import * as os from "node:os";
-import * as path from "node:path";
+import { describe, expect, it } from "vitest";
 import {
   KeyedAsyncLock,
   assertRevisionIncrement,
   ProjectState,
 } from "../src/state/store.js";
-import { SqliteStateStore } from "../src/state/sqlite.js";
-import { ConsensusStatus } from "../src/consensus.js";
 
 describe("KeyedAsyncLock", () => {
   it("serializes concurrent calls under the same key", async () => {
@@ -114,120 +109,5 @@ describe("assertRevisionIncrement", () => {
         "p1",
       ),
     ).toThrow(/cannot change projectId/);
-  });
-});
-
-describe("SqliteStateStore edge cases", () => {
-  let tmpDir: string;
-  let dbPath: string;
-
-  beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sdlc-engine-store-"));
-    dbPath = path.join(tmpDir, "state.db");
-  });
-
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("init() is idempotent (safe to call twice)", async () => {
-    const store = new SqliteStateStore(dbPath);
-    await store.init();
-    await store.init();
-    expect(await store.read("missing")).toBeNull();
-    await store.close();
-  });
-
-  it("read() returns null for unknown project", async () => {
-    const store = new SqliteStateStore(dbPath);
-    await store.init();
-    expect(await store.read("nope")).toBeNull();
-    await store.close();
-  });
-
-  it("transact() creates new row, then updates it, persisting revision + consensus", async () => {
-    const store = new SqliteStateStore(dbPath);
-    await store.init();
-
-    await store.transact("p1", (current) => {
-      expect(current).toBeNull();
-      const next: ProjectState = {
-        projectId: "p1",
-        currentPhase: "REQUIREMENTS",
-        satisfiedCriteria: ["a"],
-        lastConsensus: {
-          phase: "REQUIREMENTS",
-          status: ConsensusStatus.APPROVED,
-          agreement: 0.92,
-          criticalIssues: 0,
-          recordedAt: new Date().toISOString(),
-        },
-        updatedAt: new Date().toISOString(),
-        revision: 1,
-      };
-      return { next, result: null };
-    });
-
-    await store.transact("p1", (current) => {
-      expect(current).not.toBeNull();
-      const next: ProjectState = {
-        ...current!,
-        satisfiedCriteria: [...current!.satisfiedCriteria, "b"],
-        updatedAt: new Date().toISOString(),
-        revision: current!.revision + 1,
-      };
-      return { next, result: null };
-    });
-
-    const final = await store.read("p1");
-    expect(final?.revision).toBe(2);
-    expect(final?.satisfiedCriteria).toEqual(["a", "b"]);
-    expect(final?.lastConsensus?.status).toBe(ConsensusStatus.APPROVED);
-    expect(final?.lastConsensus?.agreement).toBe(0.92);
-    await store.close();
-  });
-
-  it("transact() rejects a mutator that returns the wrong revision", async () => {
-    const store = new SqliteStateStore(dbPath);
-    await store.init();
-    await expect(
-      store.transact("p1", () => {
-        const bad: ProjectState = {
-          projectId: "p1",
-          currentPhase: "REQUIREMENTS",
-          satisfiedCriteria: [],
-          lastConsensus: null,
-          updatedAt: new Date().toISOString(),
-          revision: 99,
-        };
-        return { next: bad, result: null };
-      }),
-    ).rejects.toThrow(/increment by exactly 1/);
-    await store.close();
-  });
-
-  it("data survives closing and reopening the store", async () => {
-    const s1 = new SqliteStateStore(dbPath);
-    await s1.init();
-    await s1.transact("p1", (current) => {
-      expect(current).toBeNull();
-      const next: ProjectState = {
-        projectId: "p1",
-        currentPhase: "DESIGN",
-        satisfiedCriteria: ["c1"],
-        lastConsensus: null,
-        updatedAt: new Date().toISOString(),
-        revision: 1,
-      };
-      return { next, result: null };
-    });
-    await s1.close();
-
-    const s2 = new SqliteStateStore(dbPath);
-    await s2.init();
-    const reread = await s2.read("p1");
-    expect(reread?.currentPhase).toBe("DESIGN");
-    expect(reread?.satisfiedCriteria).toEqual(["c1"]);
-    await s2.close();
   });
 });

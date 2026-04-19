@@ -1988,19 +1988,19 @@ cleanup_e2e() { rm -rf "$E2E_DIR"; }
 trap cleanup_e2e EXIT
 
 cat > "$E2E_DIR/vibeflow.config.json" <<'JSON'
-{"project":"e2e","mode":"solo","domain":"general","currentPhase":"REQUIREMENTS"}
+{"project":"e2e","domain":"general","currentPhase":"REQUIREMENTS"}
 JSON
-mkdir -p "$E2E_DIR/.vibeflow"
+mkdir -p "$E2E_DIR/.vibeflow/state"
 
 # Drive the engine through one full advance via a tiny node script that uses
 # the same modules the MCP server wires up. Tests the engine from the same
 # entry point the tool handlers use.
 node - <<NODE >/dev/null 2>&1
-import { SqliteStateStore } from "$REPO_ROOT/mcp-servers/sdlc-engine/dist/state/sqlite.js";
+import { FilesystemStateStore } from "$REPO_ROOT/mcp-servers/sdlc-engine/dist/state/filesystem.js";
 import { SdlcEngine } from "$REPO_ROOT/mcp-servers/sdlc-engine/dist/engine.js";
 import { PhaseRegistry } from "$REPO_ROOT/mcp-servers/sdlc-engine/dist/phases.js";
 
-const store = new SqliteStateStore("$E2E_DIR/.vibeflow/state.db");
+const store = new FilesystemStateStore("$E2E_DIR/.vibeflow/state");
 await store.init();
 const engine = new SdlcEngine(store, new PhaseRegistry());
 await engine.getOrInit("e2e");

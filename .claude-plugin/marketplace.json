@@ -1,0 +1,15 @@
+{
+  "name": "vibeflow-local",
+  "owner": {
+    "name": "Musti",
+    "email": "mustafa.yildirim@dgpays.com"
+  },
+  "plugins": [
+    {
+      "name": "vibeflow",
+      "source": "./",
+      "description": "AI-Orchestrated Vibe Coding Framework with Multi-AI Consensus and Truth Validation.",
+      "version": "1.5.2"
+    }
+  ]
+}

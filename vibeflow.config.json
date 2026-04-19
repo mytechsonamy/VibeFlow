@@ -1,7 +1,6 @@
 {
   "project": "vibeflow",
   "version": "1.0.0",
-  "mode": "solo",
   "domain": "general",
   "platform": "all",
   "riskTolerance": "medium",

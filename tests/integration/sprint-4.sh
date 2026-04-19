@@ -303,7 +303,6 @@ declare -a USER_DOCS=(
   "HOOKS.md"
   "MCP-SERVERS.md"
   "TROUBLESHOOTING.md"
-  "TEAM-MODE.md"
 )
 for doc in "${USER_DOCS[@]}"; do
   if [[ -f "$DOCS/$doc" ]]; then
@@ -324,7 +323,6 @@ declare -a DOC_HEADERS=(
   "HOOKS.md:# Hooks"
   "MCP-SERVERS.md:# MCP Servers"
   "TROUBLESHOOTING.md:# Troubleshooting"
-  "TEAM-MODE.md:# Team Mode"
 )
 for pair in "${DOC_HEADERS[@]}"; do
   doc="${pair%%:*}"
@@ -412,7 +410,7 @@ if [[ -f "$CFG_DOC" ]]; then
   # regex escape (earlier versions treated it as literal backtick).
   # Use `-F` (fixed string) instead so the pattern is always a
   # literal match.
-  for key in "mode" "domain" "db_connection" "openai_model" "gemini_model" "figma_token" "github_token" "gitlab_token" "gitlab_base_url"; do
+  for key in "domain" "openai_model" "gemini_model" "figma_token" "github_token" "gitlab_token" "gitlab_base_url"; do
     if grep -qF "\`${key}\`" "$CFG_DOC"; then
       pass "CONFIGURATION.md documents userConfig.${key}"
     else
@@ -425,7 +423,7 @@ fi
 # can navigate the doc set from a single entry point.
 GS_DOC="$DOCS/GETTING-STARTED.md"
 if [[ -f "$GS_DOC" ]]; then
-  for link in "CONFIGURATION.md" "SKILLS-REFERENCE.md" "PIPELINES.md" "HOOKS.md" "MCP-SERVERS.md" "TROUBLESHOOTING.md" "TEAM-MODE.md"; do
+  for link in "CONFIGURATION.md" "SKILLS-REFERENCE.md" "PIPELINES.md" "HOOKS.md" "MCP-SERVERS.md" "TROUBLESHOOTING.md"; do
     if grep -qF "$link" "$GS_DOC"; then
       pass "GETTING-STARTED links to $link"
     else
@@ -470,7 +468,7 @@ done
 # preflight runs it on every new release, so the expected version
 # has to be bumped here as part of the release commit.
 PLUGIN_VERSION="$(jq -r '.version' "$PLUGIN")"
-EXPECTED_PLUGIN_VERSION="1.5.2"
+EXPECTED_PLUGIN_VERSION="2.0.0"
 if [[ "$PLUGIN_VERSION" == "$EXPECTED_PLUGIN_VERSION" ]]; then
   pass "plugin.json version == $EXPECTED_PLUGIN_VERSION"
 else
@@ -511,7 +509,8 @@ else
 fi
 
 # Every userConfig key must have title + description + type + sensitive.
-USER_CONFIG_KEYS=(mode domain db_connection openai_model gemini_model figma_token github_token ci_provider gitlab_token gitlab_base_url)
+# Sprint 11-E removed `mode` and `db_connection` — state is filesystem-only.
+USER_CONFIG_KEYS=(domain openai_model gemini_model figma_token github_token ci_provider gitlab_token gitlab_base_url)
 for key in "${USER_CONFIG_KEYS[@]}"; do
   if jq -e --arg k "$key" '.userConfig | has($k)' "$PLUGIN" >/dev/null 2>&1; then
     pass "userConfig declares '$key'"
@@ -527,8 +526,9 @@ for key in "${USER_CONFIG_KEYS[@]}"; do
   done
 done
 
-# Sensitive flag for the three secret-bearing keys.
-for key in db_connection figma_token github_token; do
+# Sensitive flag for the two secret-bearing keys that remain (Sprint 11-E
+# removed db_connection along with the rest of the legacy backends).
+for key in figma_token github_token; do
   if jq -e --arg k "$key" '.userConfig[$k].sensitive == true' "$PLUGIN" >/dev/null 2>&1; then
     pass "userConfig.$key is marked sensitive"
   else
@@ -969,7 +969,6 @@ else
   cat > "$S4K_PROJECT/vibeflow.config.json" <<'JSON'
 {
   "project": "s4k-e2e",
-  "mode": "solo",
   "domain": "general",
   "currentPhase": "REQUIREMENTS"
 }

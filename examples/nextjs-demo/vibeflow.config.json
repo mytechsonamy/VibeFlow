@@ -1,6 +1,5 @@
 {
   "project": "nextjs-review-demo",
-  "mode": "solo",
   "domain": "e-commerce",
   "currentPhase": "DEVELOPMENT",
   "tech": {
