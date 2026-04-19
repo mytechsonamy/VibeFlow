@@ -29,6 +29,27 @@ vf_state_dir() {
   echo "$d"
 }
 
+# Sprint 11-C: filesystem backend per-project directory.
+# <cwd>/.vibeflow/state/<projectId>/project.json is the rollup target.
+# Prints nothing (returns 1) if the project id can't be resolved yet.
+vf_state_project_dir() {
+  local project
+  project="$(vf_project_id)"
+  [[ -n "$project" ]] || return 1
+  echo "$(vf_cwd)/.vibeflow/state/$project"
+}
+
+# Path to the filesystem-backend rollup file. Returns 1 if the file
+# doesn't exist — callers fall back to the sqlite path for
+# backend-agnostic behaviour during the Sprint 11 transition.
+vf_project_json() {
+  local pdir f
+  pdir="$(vf_state_project_dir 2>/dev/null)" || return 1
+  f="$pdir/project.json"
+  [[ -f "$f" ]] || return 1
+  echo "$f"
+}
+
 vf_traces_dir() {
   local d
   d="$(vf_cwd)/.vibeflow/traces"
@@ -65,11 +86,28 @@ vf_mode() {
   echo "${m:-solo}"
 }
 
-# Read the authoritative current phase from state.db. Falls back to the value
-# in vibeflow.config.json when the db or sqlite3 is unavailable.
+# Read the authoritative current phase.
+#
+# Backend precedence (Sprint 11-C):
+#   1. Filesystem rollup at .vibeflow/state/<project>/project.json
+#   2. Legacy SQLite db at .vibeflow/state.db (kept until Sprint 11-E)
+#   3. currentPhase field in vibeflow.config.json
+#   4. "REQUIREMENTS" fallback
 vf_current_phase() {
-  local project db phase
+  local project db pjson phase
   project="$(vf_project_id)"
+
+  # 1. filesystem rollup
+  pjson="$(vf_project_json 2>/dev/null)" || pjson=""
+  if [[ -n "$pjson" ]] && vf_have_jq; then
+    phase="$(jq -r '.currentPhase // empty' "$pjson" 2>/dev/null || true)"
+    if [[ -n "$phase" ]]; then
+      echo "$phase"
+      return 0
+    fi
+  fi
+
+  # 2. legacy sqlite
   db="$(vf_state_db)"
   if [[ -n "$project" && -f "$db" ]] && vf_have_sqlite3; then
     phase="$(sqlite3 "$db" \
@@ -79,12 +117,24 @@ vf_current_phase() {
       return 0
     fi
   fi
+
+  # 3 + 4
   vf_config_get ".currentPhase" || echo "REQUIREMENTS"
 }
 
-# Read the last consensus status from state.db ('' when absent).
+# Read the last consensus status. Prefers project.json, falls back to state.db.
 vf_last_consensus_status() {
-  local project db row
+  local project db pjson row
+
+  pjson="$(vf_project_json 2>/dev/null)" || pjson=""
+  if [[ -n "$pjson" ]] && vf_have_jq; then
+    row="$(jq -r '.lastConsensus.status // empty' "$pjson" 2>/dev/null || true)"
+    if [[ -n "$row" ]]; then
+      echo "$row"
+      return 0
+    fi
+  fi
+
   project="$(vf_project_id)"
   db="$(vf_state_db)"
   [[ -n "$project" && -f "$db" ]] || return 1
@@ -96,10 +146,19 @@ vf_last_consensus_status() {
   echo "$row" | jq -r '.status // empty'
 }
 
-# Read satisfied criteria (JSON array) for the current project. Prints '[]'
-# when absent.
+# Read satisfied criteria (JSON array). Prefers project.json, falls back to state.db.
 vf_satisfied_criteria() {
-  local project db row
+  local project db pjson row
+
+  pjson="$(vf_project_json 2>/dev/null)" || pjson=""
+  if [[ -n "$pjson" ]] && vf_have_jq; then
+    row="$(jq -c '.satisfiedCriteria // []' "$pjson" 2>/dev/null || true)"
+    if [[ -n "$row" ]]; then
+      echo "$row"
+      return 0
+    fi
+  fi
+
   project="$(vf_project_id)"
   db="$(vf_state_db)"
   if [[ -z "$project" || ! -f "$db" ]] || ! vf_have_sqlite3; then

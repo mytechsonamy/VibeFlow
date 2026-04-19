@@ -492,6 +492,111 @@ rm -rf "$DIR"
 
 unset VIBEFLOW_CWD
 
+# -----------------------------------------------------------------------------
+# Sprint 11-C: filesystem backend compatibility.
+# Verifies that vf_current_phase / vf_last_consensus_status / vf_satisfied_criteria
+# prefer project.json over state.db, and fall back gracefully when only one of
+# the two is present.
+# -----------------------------------------------------------------------------
+echo
+echo "== _lib.sh filesystem backend [S11-C] =="
+
+make_fs_project() {
+  local phase="$1"
+  local dir
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-fs-XXXXXX")"
+  cat > "$dir/vibeflow.config.json" <<EOF
+{
+  "project": "testproj",
+  "mode": "solo",
+  "domain": "general",
+  "currentPhase": "$phase"
+}
+EOF
+  mkdir -p "$dir/.vibeflow/state/testproj/events"
+  cat > "$dir/.vibeflow/state/testproj/project.json" <<EOF
+{
+  "projectId": "testproj",
+  "currentPhase": "$phase",
+  "satisfiedCriteria": ["fs.criterion.one"],
+  "lastConsensus": {
+    "phase": "REQUIREMENTS",
+    "status": "NEEDS_REVISION",
+    "agreement": 0.72,
+    "criticalIssues": 1,
+    "recordedAt": "2026-04-20T00:00:00Z"
+  },
+  "updatedAt": "2026-04-20T00:00:00Z",
+  "revision": 2,
+  "schemaVersion": 1
+}
+EOF
+  echo "$dir"
+}
+
+# 1. project.json alone → helpers read filesystem backend.
+DIR="$(make_fs_project ARCHITECTURE)"
+export VIBEFLOW_CWD="$DIR"
+PHASE="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_current_phase")"
+assert_eq "[S11-C] project.json drives vf_current_phase" "ARCHITECTURE" "$PHASE"
+
+STATUS="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_last_consensus_status" || true)"
+assert_eq "[S11-C] project.json drives vf_last_consensus_status" "NEEDS_REVISION" "$STATUS"
+
+CRITERIA="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_satisfied_criteria")"
+assert_contains "[S11-C] project.json drives vf_satisfied_criteria" "fs.criterion.one" "$CRITERIA"
+rm -rf "$DIR"
+
+# 2. Both backends present → filesystem wins (project.json takes precedence over state.db).
+DIR="$(make_fs_project TESTING)"
+export VIBEFLOW_CWD="$DIR"
+sqlite3 "$DIR/.vibeflow/state.db" <<SQL
+CREATE TABLE project_state (
+  project_id TEXT PRIMARY KEY,
+  current_phase TEXT NOT NULL,
+  satisfied_criteria TEXT NOT NULL,
+  last_consensus TEXT,
+  updated_at TEXT NOT NULL,
+  revision INTEGER NOT NULL
+);
+INSERT INTO project_state VALUES (
+  'testproj',
+  'DEPLOYMENT',
+  '["sqlite.criterion"]',
+  '{"phase":"TESTING","status":"APPROVED","agreement":0.95,"criticalIssues":0,"recordedAt":"2026-04-01T00:00:00Z"}',
+  '2026-04-01T00:00:00Z',
+  2
+);
+SQL
+PHASE="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_current_phase")"
+assert_eq "[S11-C] filesystem wins over sqlite for vf_current_phase" "TESTING" "$PHASE"
+
+STATUS="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_last_consensus_status" || true)"
+assert_eq "[S11-C] filesystem wins over sqlite for vf_last_consensus_status" "NEEDS_REVISION" "$STATUS"
+
+CRITERIA="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_satisfied_criteria")"
+assert_contains "[S11-C] filesystem wins over sqlite for vf_satisfied_criteria" "fs.criterion.one" "$CRITERIA"
+rm -rf "$DIR"
+
+# 3. No project.json, sqlite only → helpers still return legacy data (backwards compat).
+DIR="$(make_project DESIGN)"
+export VIBEFLOW_CWD="$DIR"
+PHASE="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_current_phase")"
+assert_eq "[S11-C] sqlite-only path still works for vf_current_phase" "DESIGN" "$PHASE"
+rm -rf "$DIR"
+
+# 4. No project.json, no sqlite → fallback to config.currentPhase.
+DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-empty-XXXXXX")"
+cat > "$DIR/vibeflow.config.json" <<EOF
+{ "project": "testproj", "mode": "solo", "currentPhase": "PLANNING" }
+EOF
+export VIBEFLOW_CWD="$DIR"
+PHASE="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_current_phase")"
+assert_eq "[S11-C] empty state → config.currentPhase fallback" "PLANNING" "$PHASE"
+rm -rf "$DIR"
+
+unset VIBEFLOW_CWD
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then
