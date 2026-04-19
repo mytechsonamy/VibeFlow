@@ -7,12 +7,21 @@ export declare const EngineConfigSchema: z.ZodObject<{
     stateStore: z.ZodDefault<z.ZodObject<{
         sqlitePath: z.ZodOptional<z.ZodString>;
         postgresUrl: z.ZodOptional<z.ZodString>;
+        /**
+         * Filesystem backend directory. When set, the engine uses the
+         * FilesystemStateStore (Sprint 11) regardless of mode. In Sprint
+         * 11-D this becomes the default; in Sprint 11-E the other two
+         * fields are deleted.
+         */
+        dir: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         sqlitePath?: string | undefined;
         postgresUrl?: string | undefined;
+        dir?: string | undefined;
     }, {
         sqlitePath?: string | undefined;
         postgresUrl?: string | undefined;
+        dir?: string | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
@@ -20,6 +29,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
     stateStore: {
         sqlitePath?: string | undefined;
         postgresUrl?: string | undefined;
+        dir?: string | undefined;
     };
 }, {
     project: string;
@@ -27,6 +37,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
     stateStore?: {
         sqlitePath?: string | undefined;
         postgresUrl?: string | undefined;
+        dir?: string | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

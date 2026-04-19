@@ -12,6 +12,13 @@ export const EngineConfigSchema = z.object({
     .object({
       sqlitePath: z.string().optional(),
       postgresUrl: z.string().optional(),
+      /**
+       * Filesystem backend directory. When set, the engine uses the
+       * FilesystemStateStore (Sprint 11) regardless of mode. In Sprint
+       * 11-D this becomes the default; in Sprint 11-E the other two
+       * fields are deleted.
+       */
+      dir: z.string().optional(),
     })
     .default({}),
 });
@@ -38,10 +45,13 @@ export function resolveConfig(cwd: string = process.cwd()): EngineConfig {
   const postgresUrl =
     process.env.VIBEFLOW_POSTGRES_URL ?? fileConfig.stateStore?.postgresUrl;
 
+  const dir =
+    process.env.VIBEFLOW_STATE_DIR ?? fileConfig.stateStore?.dir;
+
   return EngineConfigSchema.parse({
     project,
     mode,
-    stateStore: { sqlitePath, postgresUrl },
+    stateStore: { sqlitePath, postgresUrl, dir },
   });
 }
 
@@ -55,11 +65,27 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
     >;
     const mode = raw.mode;
     const project = raw.project;
+    const storeRaw =
+      typeof raw.stateStore === "object" && raw.stateStore !== null
+        ? (raw.stateStore as Record<string, unknown>)
+        : {};
+    const dir = typeof storeRaw.dir === "string" ? storeRaw.dir : undefined;
+    const sqlitePath =
+      typeof storeRaw.sqlitePath === "string" ? storeRaw.sqlitePath : undefined;
+    const postgresUrl =
+      typeof storeRaw.postgresUrl === "string"
+        ? storeRaw.postgresUrl
+        : undefined;
     return {
       ...(typeof project === "string" ? { project } : {}),
       ...(typeof mode === "string" && (mode === "solo" || mode === "team")
         ? { mode }
         : {}),
+      stateStore: {
+        ...(sqlitePath ? { sqlitePath } : {}),
+        ...(postgresUrl ? { postgresUrl } : {}),
+        ...(dir ? { dir } : {}),
+      },
     };
   } catch {
     return {};

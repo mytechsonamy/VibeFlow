@@ -6,6 +6,7 @@ import { resolveConfig } from "./config.js";
 import { createServer } from "./server.js";
 import { SqliteStateStore } from "./state/sqlite.js";
 import { PostgresStateStore } from "./state/postgres.js";
+import { FilesystemStateStore } from "./state/filesystem.js";
 async function main() {
     const config = resolveConfig();
     const store = await openStore(config);
@@ -30,6 +31,18 @@ async function main() {
     process.stderr.write(`[sdlc-engine] started mode=${config.mode} project=${config.project}\n`);
 }
 async function openStore(config) {
+    // Opt-in filesystem backend. When VIBEFLOW_STATE_BACKEND=filesystem is
+    // set, or stateStore.dir is configured, use FilesystemStateStore
+    // regardless of mode. This is the Sprint 11 migration path — Sprint
+    // 11-D will flip the default; Sprint 11-E will remove sqlite/postgres.
+    const backendOverride = (process.env.VIBEFLOW_STATE_BACKEND ?? "").trim();
+    if (backendOverride === "filesystem" || config.stateStore.dir) {
+        const stateDir = config.stateStore.dir ??
+            process.env.VIBEFLOW_STATE_DIR ??
+            path.join(process.cwd(), ".vibeflow", "state");
+        fs.mkdirSync(stateDir, { recursive: true });
+        return new FilesystemStateStore(stateDir);
+    }
     if (config.mode === "team") {
         const url = config.stateStore.postgresUrl;
         if (!url) {
