@@ -9,9 +9,11 @@
 # release in Sprint 4 / S4-07).
 #
 # Usage:
-#   bin/release.sh <version>            # full release prep
-#   bin/release.sh <version> --dry-run  # run everything except file writes + git ops
-#   bin/release.sh --check-clean        # exit 0 iff the working tree is clean
+#   bin/release.sh <version>                            # full release prep
+#   bin/release.sh <version> --dry-run                  # run everything except file writes + git ops
+#   bin/release.sh <version> --notes-file <path>        # pre-fill CHANGELOG entry from a markdown file (S10-04)
+#   bin/release.sh <version> --prerelease               # cut a SemVer prerelease (X.Y.Z-rc.N)
+#   bin/release.sh --check-clean                        # exit 0 iff the working tree is clean
 #
 # <version> must be in SemVer form X.Y.Z. Pre-release / build-metadata
 # suffixes are rejected by design — v1.0.x releases are strict
@@ -31,6 +33,7 @@
 #   - `bash tests/integration/sprint-7.sh`
 #   - `bash tests/integration/sprint-8.sh`
 #   - `bash tests/integration/sprint-9.sh`
+#   - `bash tests/integration/sprint-10.sh`
 #
 # Artifacts on success:
 #   - vibeflow-plugin-<version>.tar.gz   (via package-plugin.sh)
@@ -50,18 +53,36 @@ DRY_RUN=false
 CHECK_CLEAN_ONLY=false
 TEST_CHANGELOG_INSERT=false
 PRERELEASE=false
+NOTES_FILE=""
 
-for arg in "$@"; do
+# Sprint 10 / S10-04 — accept --notes-file <path>. The flag eats the
+# next positional, so the parser handles "key value" instead of
+# "key=value". We keep "--notes-file=path" working too because git
+# users expect both forms.
+ARGS=("$@")
+i=0
+while (( i < ${#ARGS[@]} )); do
+  arg="${ARGS[$i]}"
   case "$arg" in
     --dry-run)                DRY_RUN=true ;;
     --check-clean)            CHECK_CLEAN_ONLY=true ;;
     --test-changelog-insert)  TEST_CHANGELOG_INSERT=true ;;
     "--prerelease")           PRERELEASE=true ;;
+    --notes-file)
+      i=$((i + 1))
+      if (( i >= ${#ARGS[@]} )); then
+        echo "release: --notes-file requires a path argument" >&2
+        exit 2
+      fi
+      NOTES_FILE="${ARGS[$i]}"
+      ;;
+    --notes-file=*)           NOTES_FILE="${arg#--notes-file=}" ;;
     -*)                       echo "unknown flag: $arg" >&2; exit 2 ;;
     *)                        if [[ -z "$VERSION" ]]; then VERSION="$arg"; else
                                 echo "unexpected argument: $arg" >&2; exit 2
                               fi ;;
   esac
+  i=$((i + 1))
 done
 
 # ----- insert_changelog_entry <version> -------------------------------------
@@ -84,13 +105,35 @@ done
 insert_changelog_entry() {
   local ver="$1"
   local is_prerelease="${2:-false}"
+  local notes_body="${3:-}"
   if [[ ! -f CHANGELOG.md ]]; then
     echo "release: CHANGELOG.md not found in $(pwd)" >&2
     return 1
   fi
   local today
   today="$(date -u +%Y-%m-%d)"
-  local new_entry="## [$ver] — $today
+  local new_entry
+  if [[ -n "$notes_body" ]]; then
+    # S10-04 — --notes-file body supplied. Replace the empty
+    # Added/Fixed/Changed stub block with the file contents. The
+    # heading comment + Breaking changes / Migration tail remain as
+    # the default boilerplate (the notes file can override them by
+    # including the matching headings).
+    new_entry="## [$ver] — $today
+
+<!-- Notes pre-filled from --notes-file. -->
+
+$notes_body
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A."
+  else
+    new_entry="## [$ver] — $today
 
 <!-- Edit this entry with the highlights of $ver before tagging. -->
 
@@ -110,6 +153,7 @@ None.
 ### Migration
 
 N/A."
+  fi
 
   if [[ "$is_prerelease" == "true" ]]; then
     # Prerelease mode — insert under the "## Pre-releases" footer.
@@ -197,7 +241,22 @@ if [[ "$TEST_CHANGELOG_INSERT" == "true" ]]; then
     echo "release --test-changelog-insert: version '$VERSION' is not a strict SemVer X.Y.Z" >&2
     exit 2
   fi
-  if insert_changelog_entry "$VERSION"; then
+  # S10-04 — --notes-file is honoured in test mode too so the
+  # sprint-10.sh runtime probe can exercise the body-pasting path
+  # against a fixture without spinning up the full release pipeline.
+  NOTES_BODY=""
+  if [[ -n "$NOTES_FILE" ]]; then
+    if [[ ! -f "$NOTES_FILE" ]]; then
+      echo "release: --notes-file path does not exist: $NOTES_FILE" >&2
+      exit 2
+    fi
+    if [[ ! -s "$NOTES_FILE" ]]; then
+      echo "release: --notes-file is empty: $NOTES_FILE" >&2
+      exit 2
+    fi
+    NOTES_BODY="$(cat "$NOTES_FILE")"
+  fi
+  if insert_changelog_entry "$VERSION" "false" "$NOTES_BODY"; then
     echo "  ok   CHANGELOG.md leads with [$VERSION]"
     exit 0
   else
@@ -405,6 +464,7 @@ else
     "bash tests/integration/sprint-7.sh"
     "bash tests/integration/sprint-8.sh"
     "bash tests/integration/sprint-9.sh"
+    "bash tests/integration/sprint-10.sh"
   )
 
   PREFLIGHT_FAILED=0
@@ -422,7 +482,7 @@ else
     echo "release: $PREFLIGHT_FAILED pre-flight check(s) failed — aborting." >&2
     exit 1
   fi
-  echo "  ok   all 15 pre-flight harnesses passed"
+  echo "  ok   all 16 pre-flight harnesses passed"
 fi
 
 # -----------------------------------------------------------------------------
@@ -440,21 +500,72 @@ fi
 # -----------------------------------------------------------------------------
 echo "== [4] CHANGELOG insertion =="
 
+# S10-04 — load --notes-file body (or fail loud if absent/empty).
+NOTES_BODY=""
+if [[ -n "$NOTES_FILE" ]]; then
+  if [[ ! -f "$NOTES_FILE" ]]; then
+    echo "release: --notes-file path does not exist: $NOTES_FILE" >&2
+    exit 2
+  fi
+  if [[ ! -s "$NOTES_FILE" ]]; then
+    echo "release: --notes-file is empty: $NOTES_FILE" >&2
+    exit 2
+  fi
+  NOTES_BODY="$(cat "$NOTES_FILE")"
+  echo "  ok   --notes-file: $NOTES_FILE ($(wc -l < "$NOTES_FILE") lines)"
+fi
+
+# S10-04 — empty-prior-entry warning. If the most recent stable entry
+# in CHANGELOG.md still has an empty Added/Fixed/Changed block (the
+# default stub), the previous release likely shipped with empty notes.
+# Surface a warning so the maintainer can decide to push amended notes.
+PREV_ENTRY_LINE="$(grep -n '^## \[' CHANGELOG.md | head -1 | cut -d: -f1)"
+if [[ -n "$PREV_ENTRY_LINE" ]]; then
+  PREV_END_LINE="$(awk -v start="$PREV_ENTRY_LINE" '
+    NR > start && /^## \[/ { print NR - 1; exit }
+  ' CHANGELOG.md)"
+  if [[ -z "$PREV_END_LINE" ]]; then
+    PREV_END_LINE="$(wc -l < CHANGELOG.md)"
+  fi
+  PREV_BODY="$(sed -n "${PREV_ENTRY_LINE},${PREV_END_LINE}p" CHANGELOG.md)"
+  PREV_HEADER="$(echo "$PREV_BODY" | head -1)"
+  # An "empty stub" looks like the Added/Fixed/Changed sections each
+  # carry just a single bare "-" bullet. Match the three together
+  # instead of any one — a real note may legitimately have a single
+  # bullet in one section.
+  if echo "$PREV_BODY" \
+      | awk '/^### Added$/{found_added=1; next} found_added && /^-$/ {empty_added=1} \
+             /^### Fixed$/{found_fixed=1; next} found_fixed && /^-$/ {empty_fixed=1} \
+             /^### Changed$/{found_changed=1; next} found_changed && /^-$/ {empty_changed=1} \
+             END{exit !(empty_added && empty_fixed && empty_changed)}'; then
+    echo "  !    WARN: previous CHANGELOG entry $PREV_HEADER has empty stub sections" >&2
+    echo "  !    WARN: 'git push origin <prev-tag>' may have landed without notes" >&2
+    echo "  !    WARN: consider amending the GitHub release notes after this cut" >&2
+  fi
+fi
+
 if [[ "$DRY_RUN" == "true" ]]; then
   if [[ "$PRERELEASE" == "true" ]]; then
     echo "  [dry-run] would insert a new [$VERSION] entry under ## Pre-releases in CHANGELOG.md"
   else
     echo "  [dry-run] would prepend a new [$VERSION] entry to CHANGELOG.md"
   fi
+  if [[ -n "$NOTES_BODY" ]]; then
+    echo "  [dry-run] would pre-fill the entry body from $NOTES_FILE"
+  fi
 else
-  if insert_changelog_entry "$VERSION" "$PRERELEASE"; then
+  if insert_changelog_entry "$VERSION" "$PRERELEASE" "$NOTES_BODY"; then
     TODAY="$(date -u +%Y-%m-%d)"
     if [[ "$PRERELEASE" == "true" ]]; then
       echo "  ok   CHANGELOG.md gained [$VERSION] — $TODAY under ## Pre-releases"
     else
       echo "  ok   CHANGELOG.md now leads with [$VERSION] — $TODAY"
     fi
-    echo "  !    remember to fill in the entry before pushing"
+    if [[ -n "$NOTES_BODY" ]]; then
+      echo "  ok   entry pre-filled from $NOTES_FILE — review before pushing"
+    else
+      echo "  !    remember to fill in the entry before pushing"
+    fi
   else
     echo "release: CHANGELOG insertion step failed — aborting release." >&2
     exit 1

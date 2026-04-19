@@ -215,6 +215,15 @@ bash bin/release.sh 1.2.3
 #    inserts an empty stub with Added/Fixed/Changed sections — fill
 #    in the real highlights before pushing.
 $EDITOR CHANGELOG.md
+#
+# Tip (Sprint 10 / S10-04): you can pre-fill the entry from a markdown
+# file with --notes-file, which sidesteps the "edit-then-amend" dance:
+#
+#   bash bin/release.sh 1.2.3 --notes-file release-notes/1.2.3.md
+#
+# The file body replaces the empty Added/Fixed/Changed stub block.
+# release.sh aborts (exit 2) if the path is missing or the file is
+# empty.
 
 # 4. If you edit the CHANGELOG, amend the release commit so the
 #    tag points at the final CHANGELOG state:
