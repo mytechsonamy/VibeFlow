@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   PostgresStateStore,
   PgPoolLike,
@@ -39,10 +39,23 @@ class FakeClient implements PgClientLike {
     const injected = findInjectedError(this.injectErrorOn, normalizedSql);
     if (injected) throw injected;
 
-    if (/^BEGIN/i.test(normalizedSql)) return emptyResult<R>();
+    if (/^BEGIN/i.test(normalizedSql)) {
+      // S10-01 — track every BEGIN so the pool can simulate
+      // PgBouncer transaction-mode rebinding (PID changes per BEGIN).
+      this.pool.recordBegin(this);
+      return emptyResult<R>();
+    }
     if (/^COMMIT/i.test(normalizedSql)) return emptyResult<R>();
     if (/^ROLLBACK/i.test(normalizedSql)) return emptyResult<R>();
     if (/pg_advisory_xact_lock/i.test(sql)) return emptyResult<R>();
+    if (/^SHOW search_path/i.test(sql)) return emptyResult<R>();
+    if (/^SELECT pg_backend_pid\(\)/i.test(sql)) {
+      const pid = this.pool.currentPidFor(this);
+      return {
+        rows: [{ pid } as unknown] as unknown as readonly R[],
+        rowCount: 1,
+      };
+    }
 
     if (/^SELECT \* FROM project_state WHERE project_id/i.test(sql)) {
       const pid = String(params?.[0] ?? "");
@@ -128,6 +141,30 @@ class FakePool implements PgPoolLike {
   public ended = false;
   public connectShouldThrow = false;
 
+  // S10-01 — backend PID simulation. `pidSequencePerClient` returns the
+  // next PID each BEGIN should observe on a given client. Default:
+  // every BEGIN on every client returns the same pid (12345 = "session
+  // mode safe"). Tests opt in to transaction-mode behavior by setting
+  // `transactionModeRebinds = true`, which steps the per-client pid
+  // counter on every BEGIN.
+  public sessionPid = 12345;
+  public transactionModeRebinds = false;
+  private readonly pidByClient: WeakMap<FakeClient, number> = new WeakMap();
+  private nextRebindPid = 9000;
+
+  recordBegin(client: FakeClient): void {
+    if (this.transactionModeRebinds) {
+      this.pidByClient.set(client, this.nextRebindPid);
+      this.nextRebindPid += 1;
+    } else {
+      this.pidByClient.set(client, this.sessionPid);
+    }
+  }
+
+  currentPidFor(client: FakeClient): number {
+    return this.pidByClient.get(client) ?? this.sessionPid;
+  }
+
   async query<R = unknown>(
     sql: string,
     _params?: readonly unknown[],
@@ -192,9 +229,17 @@ describe("PostgresStateStore — Bug #4 pool leak", () => {
   let store: PostgresStateStore;
 
   beforeEach(async () => {
+    // Bypass the S10-01 startup probe in this block — these tests
+    // assert checkout/release accounting around transact() and are not
+    // about the probe. The probe gets its own dedicated test block.
+    process.env.VF_SKIP_POOLER_CHECK = "1";
     pool = new FakePool();
     store = PostgresStateStore.fromPool(pool);
     await store.init();
+  });
+
+  afterEach(() => {
+    delete process.env.VF_SKIP_POOLER_CHECK;
   });
 
   it("registers an error handler on the pool at construction time", () => {
@@ -361,9 +406,17 @@ describe("PostgresStateStore — Bug #4 pool leak (S2-11 load regression)", () =
   let store: PostgresStateStore;
 
   beforeEach(async () => {
+    // Same rationale as the Bug #4 block above — the load regression
+    // test counts checkouts and would mis-count the probe client as
+    // an extra. The probe gets its own dedicated test block.
+    process.env.VF_SKIP_POOLER_CHECK = "1";
     pool = new FakePool();
     store = PostgresStateStore.fromPool(pool);
     await store.init();
+  });
+
+  afterEach(() => {
+    delete process.env.VF_SKIP_POOLER_CHECK;
   });
 
   /**
@@ -468,6 +521,91 @@ describe("PostgresStateStore — Bug #4 pool leak (S2-11 load regression)", () =
     // mid-lock would still show up here as a gap.
     observed.sort((a, b) => a - b);
     expect(observed).toEqual(Array.from({ length: N }, (_, i) => i + 2));
+  });
+});
+
+describe("PostgresStateStore — S10-01 PgBouncer transaction-mode startup probe", () => {
+  let pool: FakePool;
+  let store: PostgresStateStore;
+
+  beforeEach(() => {
+    pool = new FakePool();
+    store = PostgresStateStore.fromPool(pool);
+  });
+
+  afterEach(() => {
+    delete process.env.VF_SKIP_POOLER_CHECK;
+  });
+
+  it("init() succeeds when both transactions report the same backend pid (session mode)", async () => {
+    pool.transactionModeRebinds = false;
+    await expect(store.init()).resolves.toBeUndefined();
+    // A single client was checked out + released cleanly.
+    expect(pool.clients).toHaveLength(1);
+    expect(pool.clients[0]!.released).toBe(true);
+    expect(pool.clients[0]!.destroyed).toBe(false);
+  });
+
+  it("init() throws with a TEAM-MODE.md pointer when backend pid changes between transactions", async () => {
+    pool.transactionModeRebinds = true;
+    await expect(store.init()).rejects.toThrow(
+      /PgBouncer transaction-mode pooling detected/,
+    );
+    await expect(store.init()).rejects.toThrow(
+      /docs\/TEAM-MODE\.md/,
+    );
+  });
+
+  it("error message names both fix paths (session mode + direct endpoint)", async () => {
+    pool.transactionModeRebinds = true;
+    await expect(store.init()).rejects.toThrow(/session mode/);
+    await expect(store.init()).rejects.toThrow(/direct Postgres endpoint/);
+  });
+
+  it("error message advertises VF_SKIP_POOLER_CHECK=1 escape hatch", async () => {
+    pool.transactionModeRebinds = true;
+    await expect(store.init()).rejects.toThrow(/VF_SKIP_POOLER_CHECK=1/);
+  });
+
+  it("VF_SKIP_POOLER_CHECK=1 bypasses the probe even when pids differ", async () => {
+    process.env.VF_SKIP_POOLER_CHECK = "1";
+    pool.transactionModeRebinds = true;
+    await expect(store.init()).resolves.toBeUndefined();
+    // No client was checked out for the probe.
+    expect(pool.clients).toHaveLength(0);
+  });
+
+  it("probe runs each BEGIN inside an explicit COMMIT (not a half-transaction)", async () => {
+    pool.transactionModeRebinds = false;
+    await store.init();
+    const client = pool.clients[0]!;
+    const begins = client.queries.filter((q) => /^BEGIN/i.test(q.sql)).length;
+    const commits = client.queries.filter((q) => /^COMMIT/i.test(q.sql)).length;
+    expect(begins).toBe(2);
+    expect(commits).toBe(2);
+  });
+
+  it("probe queries SHOW search_path before each pg_backend_pid call (canary)", async () => {
+    pool.transactionModeRebinds = false;
+    await store.init();
+    const sqls = pool.clients[0]!.queries.map((q) => q.sql);
+    const showCount = sqls.filter((s) => /^SHOW search_path/i.test(s)).length;
+    const pidCount = sqls.filter((s) => /pg_backend_pid/i.test(s)).length;
+    expect(showCount).toBe(2);
+    expect(pidCount).toBe(2);
+  });
+
+  it("probe failure does NOT leak the checked-out client", async () => {
+    pool.transactionModeRebinds = true;
+    await expect(store.init()).rejects.toThrow(/PgBouncer/);
+    expect(pool.clients).toHaveLength(1);
+    expect(pool.clients[0]!.released).toBe(true);
+  });
+
+  it("probe survives a corrupt pid response (NaN-safe)", async () => {
+    // Patch the pool to return an unparseable pid value.
+    pool.sessionPid = Number.NaN as unknown as number;
+    await expect(store.init()).rejects.toThrow(/pg_backend_pid/);
   });
 });
 

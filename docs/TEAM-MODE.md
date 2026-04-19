@@ -142,10 +142,18 @@ services run it unchanged, with three specific caveats:
      PgBouncer pooler. RDS and Cloud SQL both expose a direct
      endpoint alongside the pooler endpoint.
 
-   The v1.2 state store does NOT detect this misconfiguration at
-   runtime — you only see its effects as occasional stale-read
-   failures under concurrent load. A follow-up ticket will add a
-   startup probe that rejects transaction-mode poolers explicitly.
+   **As of v1.5 (Sprint 10 / S10-01), VibeFlow detects this
+   misconfiguration at startup.** `PostgresStateStore.init()` now
+   runs a probe that opens two transactions on a single pool client
+   and compares the backend PIDs returned by `pg_backend_pid()`. In
+   session mode both transactions land on the same backend → same
+   PID → probe passes. In transaction mode the second BEGIN may
+   re-bind to a different backend → different PID → probe throws
+   with a pointer back to this section.
+
+   To bypass the probe deliberately (you understand the
+   advisory-lock caveat and accept it for a read-mostly workload),
+   set `VF_SKIP_POOLER_CHECK=1` in the environment.
 
 3. **IAM / OIDC authentication.** Currently out of scope — the
    v1.2 client authenticates with a username + password only. If

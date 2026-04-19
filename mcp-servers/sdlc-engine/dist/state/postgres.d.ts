@@ -61,6 +61,28 @@ export declare class PostgresStateStore implements StateStore {
      */
     static fromPool(pool: PgPoolLike): PostgresStateStore;
     init(): Promise<void>;
+    /**
+     * S10-01 — detect PgBouncer transaction-mode pooling.
+     *
+     * `pg_advisory_xact_lock` (used by transact()) only serializes writes
+     * if every statement inside a single transaction lands on the same
+     * backend. PgBouncer in `transaction` pool mode breaks that invariant
+     * by re-binding the client connection to a different backend on every
+     * BEGIN, which silently defeats the lock. The caveat was documented
+     * in `docs/TEAM-MODE.md` since v1.2 but never detected at runtime —
+     * operators only saw it as occasional stale-read failures.
+     *
+     * Mechanism: acquire ONE client from the pool and run two explicit
+     * transactions on it. Inside each transaction, ask the backend for
+     * its PID. In session mode the same backend services both → same
+     * PID. In transaction mode a different backend may service the
+     * second BEGIN → different PID → abort.
+     *
+     * Opt-out: `VF_SKIP_POOLER_CHECK=1` for operators who run transaction
+     * mode deliberately and accept the advisory-lock caveat (typically a
+     * read-mostly workload where contention is rare).
+     */
+    private probePoolerMode;
     read(projectId: string): Promise<ProjectState | null>;
     transact<T>(projectId: string, mutator: StateMutator<T>): Promise<T>;
     close(): Promise<void>;

@@ -65,6 +65,67 @@ export class PostgresStateStore {
         revision INTEGER NOT NULL
       );
     `);
+        // S10-01 — PgBouncer transaction-mode startup probe. Must run AFTER
+        // the table CREATE so a fresh database still gets bootstrapped, but
+        // BEFORE the first transact() call so a misconfigured pooler is
+        // caught at boot rather than as flaky stale-read failures under load.
+        await this.probePoolerMode();
+    }
+    /**
+     * S10-01 — detect PgBouncer transaction-mode pooling.
+     *
+     * `pg_advisory_xact_lock` (used by transact()) only serializes writes
+     * if every statement inside a single transaction lands on the same
+     * backend. PgBouncer in `transaction` pool mode breaks that invariant
+     * by re-binding the client connection to a different backend on every
+     * BEGIN, which silently defeats the lock. The caveat was documented
+     * in `docs/TEAM-MODE.md` since v1.2 but never detected at runtime —
+     * operators only saw it as occasional stale-read failures.
+     *
+     * Mechanism: acquire ONE client from the pool and run two explicit
+     * transactions on it. Inside each transaction, ask the backend for
+     * its PID. In session mode the same backend services both → same
+     * PID. In transaction mode a different backend may service the
+     * second BEGIN → different PID → abort.
+     *
+     * Opt-out: `VF_SKIP_POOLER_CHECK=1` for operators who run transaction
+     * mode deliberately and accept the advisory-lock caveat (typically a
+     * read-mostly workload where contention is rare).
+     */
+    async probePoolerMode() {
+        if (process.env.VF_SKIP_POOLER_CHECK === "1")
+            return;
+        let client;
+        try {
+            client = await this.pool.connect();
+        }
+        catch (err) {
+            throw new Error(`PgBouncer probe failed during pool.connect(): ${err.message}`);
+        }
+        try {
+            const pid1 = await readBackendPid(client);
+            const pid2 = await readBackendPid(client);
+            if (pid1 !== pid2) {
+                throw new Error("PgBouncer transaction-mode pooling detected " +
+                    `(backend pid changed ${pid1} → ${pid2} across two ` +
+                    "transactions on the same pool client). " +
+                    "pg_advisory_xact_lock cannot serialize writes when each " +
+                    "BEGIN may bind a different backend. " +
+                    "Fix: switch the pool to session mode, OR point VibeFlow at " +
+                    "the direct Postgres endpoint instead of the PgBouncer pooler. " +
+                    'See docs/TEAM-MODE.md § "PgBouncer transaction-pool caveat". ' +
+                    "To bypass this check (accepting the advisory-lock caveat), " +
+                    "set VF_SKIP_POOLER_CHECK=1.");
+            }
+        }
+        finally {
+            try {
+                client.release();
+            }
+            catch (relErr) {
+                process.stderr.write(`[sdlc-engine] pg client.release() failed during PgBouncer probe: ${relErr.message}\n`);
+            }
+        }
     }
     async read(projectId) {
         const res = await this.pool.query("SELECT * FROM project_state WHERE project_id = $1", [projectId]);
@@ -180,6 +241,32 @@ export class PostgresStateStore {
             idleCount: this.pool.idleCount,
             waitingCount: this.pool.waitingCount,
         };
+    }
+}
+/**
+ * S10-01 helper — runs `SHOW search_path; SELECT pg_backend_pid()` inside
+ * an explicit BEGIN/COMMIT transaction on the supplied client and returns
+ * the backend PID. Extracted from `probePoolerMode` so the two-transaction
+ * comparison reads as a straight pid1/pid2 diff. SHOW search_path is the
+ * canary sanity-check from the spec — its result is discarded but its
+ * presence forces the pooler to actually open a session if it deferred
+ * the bind on BEGIN alone.
+ */
+async function readBackendPid(client) {
+    await client.query("BEGIN");
+    try {
+        await client.query("SHOW search_path");
+        const res = await client.query("SELECT pg_backend_pid() AS pid");
+        const pid = Number(res.rows[0]?.pid);
+        if (!Number.isFinite(pid) || pid <= 0) {
+            throw new Error(`PgBouncer probe could not read pg_backend_pid (got '${res.rows[0]?.pid}')`);
+        }
+        await client.query("COMMIT");
+        return pid;
+    }
+    catch (err) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw err;
     }
 }
 function rowToState(row) {
