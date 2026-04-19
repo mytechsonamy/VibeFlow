@@ -1,0 +1,112 @@
+name: pg-matrix
+
+# Sprint 10 / S10-03 — scheduled weekly Postgres-version matrix run.
+#
+# The release workflow (release.yml) defaults to NOT running the
+# four-image PG matrix because spinning up 13-/14-/15-/16-alpine
+# containers serially adds ~5 minutes to the gauntlet, and the matrix
+# mostly catches driver / dialect drift rather than first-touch
+# regressions in our code. That cost/benefit is good for a weekly run,
+# bad for a per-release run.
+#
+# This workflow runs every Monday at 03:00 UTC against `main` and exposes
+# a workflow_dispatch trigger for manual re-runs (after a Postgres image
+# update or a `pg` driver bump). On failure it opens a tracking issue
+# rather than emailing — silent failures are worse than the noise of a
+# "ci-failure" issue, but inbox flooding is worse than that.
+#
+# The job runs ONLY `tests/integration/sprint-7.sh` with the matrix
+# opt-in env set (VF_RUN_PG_MATRIX=1). The release.yml workflow already
+# covers the rest of the 15-layer gauntlet.
+
+on:
+  schedule:
+    # Monday 03:00 UTC — early morning Pacific, end of business EU,
+    # so a fresh failure issue is in the maintainer queue at the start
+    # of the work week.
+    - cron: "0 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write  # needed to open the failure-tracking issue
+
+jobs:
+  pg-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install jq + sqlite3 (safety net for non-default runners)
+        run: |
+          which jq sqlite3 || sudo apt-get update && sudo apt-get install -y jq sqlite3
+
+      - name: Install MCP server dependencies
+        run: |
+          for mcp in sdlc-engine codebase-intel design-bridge dev-ops observability; do
+            (cd "mcp-servers/$mcp" && npm ci)
+          done
+
+      - name: Build all MCP server dists
+        run: ./build-all.sh
+
+      - name: Run Postgres version matrix (PG13/14/15/16)
+        # VF_RUN_PG_MATRIX=1 flips the opt-in matrix block in
+        # sprint-7.sh [S7-E] from "structural-only" to "live containers".
+        # The runner has docker preinstalled so with-postgres-matrix.sh
+        # works out of the box; if a future image is removed from Docker
+        # Hub the failure surfaces here, not in the release workflow.
+        run: |
+          set -e
+          VF_RUN_PG_MATRIX=1 bash tests/integration/sprint-7.sh
+
+      - name: Open issue on failure
+        if: failure()
+        # The cron schedule means a flaky run silently slips past
+        # without an issue. We accept that — the alternative is
+        # auto-closing/reopening logic that adds churn. A maintainer
+        # who notices two consecutive failures can run the workflow
+        # manually via workflow_dispatch.
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().slice(0, 10);
+            const title = `pg-matrix workflow failed (${today})`;
+            const body = [
+              `The scheduled \`pg-matrix\` workflow failed on \`main\`.`,
+              ``,
+              `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `**Trigger:** ${context.eventName}`,
+              ``,
+              `Most common causes:`,
+              `1. A Postgres alpine image was removed from Docker Hub.`,
+              `2. The \`pg\` driver shipped a regression that breaks one PG version.`,
+              `3. A SQL change in \`mcp-servers/sdlc-engine/src/state/postgres.ts\` is`,
+              `   incompatible with one of the supported PG versions (13–16).`,
+              ``,
+              `Reproduce locally with:`,
+              ``,
+              "```",
+              `VF_RUN_PG_MATRIX=1 bash tests/integration/sprint-7.sh`,
+              "```",
+              ``,
+              `(Filed automatically by .github/workflows/pg-matrix.yml — Sprint 10 / S10-03.)`,
+            ].join("\n");
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["ci-failure", "pg-matrix"],
+            });
