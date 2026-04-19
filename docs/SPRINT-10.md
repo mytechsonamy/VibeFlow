@@ -66,35 +66,32 @@ but the code doesn't detect it.
 - [ ] Harness sentinel in `sprint-10.sh [S10-A]` that structurally
       verifies the probe exists + env opt-out is honoured.
 
-### S10-02: Live RDS / Cloud SQL / Azure Database integration test
+### S10-02: ~~Live RDS / Cloud SQL / Azure Database integration test~~ — **DROPPED**
 **Carried from:** Sprint 9 / S9-03 (originally Sprint 8 / S8-06)
-**Location:** `.github/workflows/cloud-postgres.yml` (new) +
-`tests/integration/sprint-10.sh [S10-B]`
 
-Sprint 7 / S7-02 added the PG13/14/15/16 matrix using vanilla
-Postgres Alpine images. Managed-cloud variants were scoped out —
-they need external account credentials in CI. S10-02 wires one
-(start with AWS RDS) into a conditional CI path.
+**Dropped 2026-04-19** after explicit scope review with user:
 
-- [ ] New GitHub Actions workflow gated on repository secrets
-      (`AWS_RDS_HOST` + `AWS_RDS_USER` + `AWS_RDS_PASS`).
-- [ ] Skip gracefully when secrets are not set (so external
-      contributors' PRs still pass CI without needing the
-      managed-cloud path).
-- [ ] Workflow runs `bash tests/integration/run.sh` +
-      `bash tests/integration/sprint-5.sh` (team-mode walks)
-      against the managed endpoint — the engine code treats it
-      the same as any other Postgres, so the diff from the
-      matrix workflow is only the connection string.
-- [ ] Harness sentinel structurally verifies the workflow step +
-      secret gating exists.
-- [ ] `docs/TEAM-MODE.md` gains a "Running against managed cloud
-      Postgres" section citing the secrets + the workflow.
+- The project is not deployed against a managed cloud Postgres
+  (AWS RDS / Google Cloud SQL / Azure Database) at the moment,
+  and there's no concrete timeline to change that.
+- Implementing it would cost: (a) a live RDS instance (~$15-30/
+  month minimum), (b) repo secrets (`AWS_RDS_HOST` / `USER` /
+  `PASS`), (c) a public-endpoint configuration that survives
+  CI runner network egress — none of which anyone is volunteering.
+- The team-mode engine code treats any Postgres the same via
+  the pg peer-dep; divergence points (TLS-only, RDS Proxy
+  pooler, IAM auth) are real but only matter if we actually
+  deploy there. Testing vanilla PG13/14/15/16 (via S7-02
+  matrix) covers the SQL surface we use today.
+- Correct response when the need arises: reopen as a Sprint-N
+  ticket with a concrete deployment target + an operator who
+  owns the AWS credentials. Don't carry it forward every sprint
+  as a dead item.
 
-**Prerequisite:** user provisions the AWS RDS instance + sets the
-three repo secrets before we can live-verify. Purely structural
-ship is possible without the secrets (harness + workflow YAML);
-runtime verification waits for the secrets.
+This is a **dropped** ticket, not a **deferred** one — the
+distinction matters. S10-02 doesn't carry forward to Sprint 11+;
+if managed-cloud testing becomes relevant, it gets a fresh ticket
+id in the sprint that picks it up.
 
 ### S10-03: Scheduled pg-matrix weekly CI workflow
 **Carried from:** Sprint 9 / S9-04 (originally Sprint 8 / S8-03
@@ -174,28 +171,23 @@ shipped S10-* ticket + closing `[S10-Z]` self-audit.
 
 ## Next Ticket to Work On
 
-**Suggested scope confirmation first.** S10-01 through S10-04
-are all direct carry-overs from Sprint 9 deferrals. Pick two or
-three that matter most for v1.5 + commit to deferring the rest
-explicitly.
+**Scope confirmed 2026-04-19.** Sprint 10 ships:
 
-**Recommended minimum scope:**
-
+- **S10-01** (pgbouncer probe) — team-mode correctness; the
+  check is ~20 lines of SQL + a throw.
+- **S10-03** (scheduled pg-matrix weekly CI) — cost/benefit
+  now clear enough: weekly run on vanilla PG13-16 Alpine
+  images catches driver/dialect drift early, and the issue-
+  creation-on-failure pattern keeps noise bounded.
 - **S10-04** (`release.sh --notes-file`) — smallest surface,
   fixes the brittle "fill the stub by hand" step directly.
-- **S10-01** (pgbouncer probe) — team-mode correctness; low-
-  effort since the check is ~20 lines of SQL + a throw.
 - **S10-05** + **S10-06** — harness + release closure.
 
-**Defer candidates:**
+**Out of scope:**
 
-- **S10-02** (cloud postgres) — needs user-provisioned AWS RDS
-  before runtime verification is possible. Structural ship
-  is fine but without live verify the sentinel is thin.
-- **S10-03** (scheduled pg-matrix) — weekly CI cost vs signal
-  tradeoff still unclear; probably worth a "try it for a
-  month then decide" experiment but that's a Sprint-11-plus
-  conversation.
+- **S10-02** dropped (see ticket block above) — not carrying
+  forward to Sprint 11+ as a dead item. Reopen with a fresh
+  ticket id if managed-cloud testing becomes relevant.
 
 ## Test inventory (baseline from v1.4.0)
 
@@ -223,19 +215,22 @@ explicitly.
 
 ## Sprint 10 vs Sprint 9 differences
 
-- **Two external-dep tickets.** S10-02 (AWS RDS) + S10-03
-  (scheduled pg-matrix) both need things outside the repo —
-  AWS credentials + longer CI wall time — which pushes them
-  to "ship structurally, live-verify later" mode. Plan the
-  scope with that caveat.
+- **One dropped carry-over.** S10-02 (managed cloud Postgres)
+  was dropped rather than deferred because there's no deployment
+  target that would make it actionable. Sprint 10 doesn't pay
+  the "dead ticket" tax on it.
 - **Autopilot now proven.** Sprint 9 was the first sprint
-  shipped via the remote autopilot session. If we're in a
-  time crunch, Sprint 10 is a good candidate for the same
-  flow — the tickets are concrete enough that autopilot can
-  make progress without constant checkpoint reviews.
+  shipped via the remote autopilot session. Sprint 10 is a
+  good candidate for the same flow — the remaining tickets
+  are concrete and autopilot can make progress without
+  constant checkpoint reviews.
 - **Release flow tightened.** S9-05 branch guard + S9-07
   SemVer-aware tarball lookup + S9-01 gtar probe mean the
   v1.5.0 cut itself should be lower-drama than v1.4.0 was.
+- **CI wall time grows.** S10-03's weekly pg-matrix workflow
+  adds ~5 min to the CI footprint every Monday. Acceptable,
+  but watch it — if we end up running it on PR pushes too
+  (separate ticket) the cost balloons.
 
 ## Versioning
 
