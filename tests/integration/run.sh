@@ -1792,9 +1792,10 @@ assert_contains "get_state starts at REQUIREMENTS" 'REQUIREMENTS' "$GET_STATE_LI
 #      expected post-walk phase (DESIGN).
 
 BUG13_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-int-bug13-XXXXXX")"
-export VIBEFLOW_SQLITE_PATH="$BUG13_DIR/state.db"
+export VIBEFLOW_STATE_DIR="$BUG13_DIR/state"
 export VIBEFLOW_PROJECT="bug13"
-export VIBEFLOW_MODE="solo"
+# Sprint 11-D: filesystem is the default backend — no mode/backend env
+# needed. state/<project>/project.json becomes the persisted rollup.
 
 # Phase 1: write the project into existence.
 node "$ENGINE_DIST" <<'EOF' >/dev/null 2>&1
@@ -1807,11 +1808,11 @@ node "$ENGINE_DIST" <<'EOF' >/dev/null 2>&1
 EOF
 assert_eq "bug #13 reproducer: phase-1 writes completed" "0" "$?"
 
-# state.db must exist on disk now — this proves the writes landed.
-if [[ -f "$BUG13_DIR/state.db" ]]; then
-  pass "bug #13 reproducer: state.db persisted after phase-1 writes"
+# project.json must exist on disk now — this proves the writes landed.
+if [[ -f "$BUG13_DIR/state/bug13/project.json" ]]; then
+  pass "bug #13 reproducer: project.json persisted after phase-1 writes"
 else
-  fail "bug #13 reproducer: state.db persisted after phase-1 writes"
+  fail "bug #13 reproducer: project.json persisted after phase-1 writes"
 fi
 
 # Phase 2: read-after-write. The failing path in Bug #13.
@@ -1840,7 +1841,7 @@ fi
 assert_contains "bug #13 reproducer: get_state returns DESIGN after advance" 'DESIGN' "$BUG13_LINE"
 
 rm -rf "$BUG13_DIR"
-unset VIBEFLOW_SQLITE_PATH VIBEFLOW_PROJECT VIBEFLOW_MODE
+unset VIBEFLOW_STATE_DIR VIBEFLOW_PROJECT
 
 # Restore the smoke env for the rest of [4].
 export VIBEFLOW_SQLITE_PATH="$SMOKE_DIR/state.db"

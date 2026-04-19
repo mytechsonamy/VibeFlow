@@ -395,6 +395,157 @@ describe("FilesystemStateStore", () => {
     expect(archived).toContain("0002-phase_advanced.json");
   });
 
+  it("two consecutive phase advances produce two archive buckets", async () => {
+    // Create, advance to DESIGN, advance to ARCHITECTURE.
+    await store.transact(
+      PROJECT_ID,
+      () => ({ next: makeState({ revision: 1 }), result: null }),
+      { context: { actor: "test" } },
+    );
+    await store.transact(
+      PROJECT_ID,
+      (current) => ({
+        next: {
+          ...current!,
+          revision: 2,
+          currentPhase: "DESIGN",
+          updatedAt: ISO,
+        },
+        result: null,
+      }),
+      { context: { actor: "test" } },
+    );
+    await store.transact(
+      PROJECT_ID,
+      (current) => ({
+        next: {
+          ...current!,
+          revision: 3,
+          currentPhase: "ARCHITECTURE",
+          updatedAt: ISO,
+        },
+        result: null,
+      }),
+      { context: { actor: "test" } },
+    );
+    const archiveRoot = path.join(store.projectDir(PROJECT_ID), "archive");
+    const buckets = (await fsp.readdir(archiveRoot)).sort();
+    expect(buckets).toContain("01-REQUIREMENTS");
+    expect(buckets).toContain("02-DESIGN");
+    const reqBucket = await fsp.readdir(
+      path.join(archiveRoot, "01-REQUIREMENTS"),
+    );
+    const designBucket = await fsp.readdir(path.join(archiveRoot, "02-DESIGN"));
+    expect(reqBucket).toContain("0002-phase_advanced.json");
+    expect(designBucket).toContain("0003-phase_advanced.json");
+  });
+
+  it("read() ignores archive — rollup stays authoritative after archive moves", async () => {
+    await store.transact(
+      PROJECT_ID,
+      () => ({ next: makeState({ revision: 1 }), result: null }),
+      { context: { actor: "test" } },
+    );
+    await store.transact(
+      PROJECT_ID,
+      (current) => ({
+        next: {
+          ...current!,
+          revision: 2,
+          currentPhase: "DESIGN",
+          updatedAt: ISO,
+        },
+        result: null,
+      }),
+      { context: { actor: "test" } },
+    );
+    const archiveDir = path.join(
+      store.projectDir(PROJECT_ID),
+      "archive",
+      "01-REQUIREMENTS",
+    );
+    // Corrupt every JSON in the archive. read() must not care.
+    for (const f of await fsp.readdir(archiveDir)) {
+      if (f.endsWith(".json")) {
+        await fsp.writeFile(path.join(archiveDir, f), "not json at all", "utf8");
+      }
+    }
+    const state = await store.read(PROJECT_ID);
+    expect(state?.currentPhase).toBe("DESIGN");
+    expect(state?.revision).toBe(2);
+  });
+
+  it("archive MD front-matter stays intact after move", async () => {
+    await store.transact(
+      PROJECT_ID,
+      () => ({ next: makeState({ revision: 1 }), result: null }),
+      { context: { actor: "sdlc_get_state" } },
+    );
+    await store.transact(
+      PROJECT_ID,
+      (current) => ({
+        next: {
+          ...current!,
+          revision: 2,
+          currentPhase: "DESIGN",
+          updatedAt: ISO,
+        },
+        result: null,
+      }),
+      { context: { actor: "sdlc_advance_phase" } },
+    );
+    const mdPath = path.join(
+      store.projectDir(PROJECT_ID),
+      "archive",
+      "01-REQUIREMENTS",
+      "0001-project_created.md",
+    );
+    const md = await fsp.readFile(mdPath, "utf8");
+    expect(md).toMatch(/^---\n/);
+    expect(md).toMatch(/type: project_created/);
+    expect(md).toMatch(/actor: "sdlc_get_state"/);
+    expect(md).toMatch(/# Project created/);
+  });
+
+  it("rebuildRollup includes archived events", async () => {
+    await store.transact(
+      PROJECT_ID,
+      () => ({ next: makeState({ revision: 1 }), result: null }),
+      { context: { actor: "test" } },
+    );
+    await store.transact(
+      PROJECT_ID,
+      (current) => ({
+        next: {
+          ...current!,
+          revision: 2,
+          satisfiedCriteria: ["prd.approved"],
+          updatedAt: ISO,
+        },
+        result: null,
+      }),
+      { context: { actor: "test" } },
+    );
+    await store.transact(
+      PROJECT_ID,
+      (current) => ({
+        next: {
+          ...current!,
+          revision: 3,
+          currentPhase: "DESIGN",
+          updatedAt: ISO,
+        },
+        result: null,
+      }),
+      { context: { actor: "test" } },
+    );
+    const rebuilt = await store.rebuildRollup(PROJECT_ID);
+    const direct = await store.read(PROJECT_ID);
+    expect(rebuilt).toEqual(direct);
+    expect(rebuilt?.currentPhase).toBe("DESIGN");
+    expect(rebuilt?.satisfiedCriteria).toEqual(["prd.approved"]);
+  });
+
   it("disables fsync when VIBEFLOW_STATE_FSYNC=off", async () => {
     const prev = process.env.VIBEFLOW_STATE_FSYNC;
     process.env.VIBEFLOW_STATE_FSYNC = "off";

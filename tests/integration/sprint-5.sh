@@ -632,9 +632,10 @@ else
   pass "[S5-E] sdlc-engine dist present"
 
   S5E_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-s5e-bug13-XXXXXX")"
-  export VIBEFLOW_SQLITE_PATH="$S5E_DIR/state.db"
+  # Sprint 11-D: filesystem is the default backend, so the reproducer
+  # now verifies project.json persistence rather than state.db.
+  export VIBEFLOW_STATE_DIR="$S5E_DIR/state"
   export VIBEFLOW_PROJECT="s5e-bug13"
-  export VIBEFLOW_MODE="solo"
 
   # Phase 1: writes — satisfy criteria, record consensus, advance to
   # DESIGN. The stdout/stderr are discarded; we only care about the
@@ -654,12 +655,12 @@ S5E_PHASE1
     fail "[S5-E] phase-1 writes completed (engine exit $S5E_PHASE1_RC)"
   fi
 
-  # state.db must exist on disk — proves the writes landed and that a
-  # fresh process will see them.
-  if [[ -f "$S5E_DIR/state.db" ]]; then
-    pass "[S5-E] state.db persisted after phase-1 writes"
+  # project.json must exist on disk — proves the writes landed and that
+  # a fresh process will see them.
+  if [[ -f "$S5E_DIR/state/s5e-bug13/project.json" ]]; then
+    pass "[S5-E] project.json persisted after phase-1 writes"
   else
-    fail "[S5-E] state.db persisted after phase-1 writes"
+    fail "[S5-E] project.json persisted after phase-1 writes"
   fi
 
   # Phase 2: a FRESH engine process calls get_state on the same
@@ -697,7 +698,7 @@ S5E_PHASE2
   fi
 
   rm -rf "$S5E_DIR"
-  unset VIBEFLOW_SQLITE_PATH VIBEFLOW_PROJECT VIBEFLOW_MODE
+  unset VIBEFLOW_STATE_DIR VIBEFLOW_PROJECT
 fi
 
 echo

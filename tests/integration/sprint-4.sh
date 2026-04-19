@@ -1001,9 +1001,10 @@ JSON
   # closed at end, so the in-process dispatch finishes before we read
   # the next set of responses.
 
-  export VIBEFLOW_SQLITE_PATH="$S4K_PROJECT/.vibeflow/state.db"
+  # Sprint 11-D: default backend is filesystem. State lands under
+  # .vibeflow/state/<projectId>/ as project.json + events/.
+  export VIBEFLOW_STATE_DIR="$S4K_PROJECT/.vibeflow/state"
   export VIBEFLOW_PROJECT="s4k-e2e"
-  export VIBEFLOW_MODE="solo"
 
   # ---- Phase A — initial state on a fresh project ----
   S4K_INIT_OUT="$(node "$REPO_ROOT/mcp-servers/sdlc-engine/dist/index.js" <<'EOF' 2>/dev/null
@@ -1041,7 +1042,7 @@ EOF
 {"jsonrpc":"2.0","id":19,"method":"tools/call","params":{"name":"sdlc_get_state","arguments":{"projectId":"s4k-e2e"}}}
 EOF
   )"
-  unset VIBEFLOW_SQLITE_PATH VIBEFLOW_PROJECT VIBEFLOW_MODE
+  unset VIBEFLOW_STATE_DIR VIBEFLOW_PROJECT
 
   # The MCP SDK dispatches requests in parallel, so we cannot rely on
   # a get_state RESPONSE in the same batch reflecting the final state
@@ -1069,11 +1070,12 @@ EOF
     fi
   done
 
-  # The state.db must exist on disk after the walk.
-  if [[ -f "$S4K_PROJECT/.vibeflow/state.db" ]]; then
-    pass "engine wrote state.db on disk"
+  # The filesystem rollup must exist on disk after the walk.
+  S4K_ROLLUP="$S4K_PROJECT/.vibeflow/state/s4k-e2e/project.json"
+  if [[ -f "$S4K_ROLLUP" ]]; then
+    pass "engine wrote project.json rollup on disk"
   else
-    fail "engine wrote state.db on disk"
+    fail "engine wrote project.json rollup on disk"
   fi
 
   # --------- 4. Fire every hook against the synthetic project -------------
@@ -1169,39 +1171,43 @@ EOF
 
   unset VIBEFLOW_CWD
 
-  # --------- 5. Final state.db spot check ---------------------------------
-  # The synthesized project's state.db should report DEVELOPMENT and
-  # the satisfied_criteria array should contain the criteria we marked.
-  if command -v sqlite3 >/dev/null 2>&1; then
-    PHASE_VAL="$(sqlite3 "$S4K_PROJECT/.vibeflow/state.db" \
-      "SELECT current_phase FROM project_state WHERE project_id='s4k-e2e';" 2>/dev/null)"
+  # --------- 5. Final project.json spot check -----------------------------
+  # The filesystem rollup should report DEVELOPMENT and carry the walk
+  # history in its revision counter.
+  if command -v jq >/dev/null 2>&1 && [[ -f "$S4K_ROLLUP" ]]; then
+    PHASE_VAL="$(jq -r '.currentPhase // empty' "$S4K_ROLLUP" 2>/dev/null)"
     if [[ "$PHASE_VAL" == "DEVELOPMENT" ]]; then
-      pass "final state.db.current_phase == DEVELOPMENT"
+      pass "final project.json.currentPhase == DEVELOPMENT"
     else
-      fail "final state.db.current_phase == DEVELOPMENT (got: $PHASE_VAL)"
+      fail "final project.json.currentPhase == DEVELOPMENT (got: $PHASE_VAL)"
     fi
-    # satisfied_criteria is reset at every phase transition (each
-    # phase has its own gate criteria). After advancing into
-    # DEVELOPMENT we did not satisfy any DEVELOPMENT-specific
-    # criteria, so the array is expected to be empty `[]` — the
-    # important assertion is that the column is a valid JSON array.
-    SAT_VAL="$(sqlite3 "$S4K_PROJECT/.vibeflow/state.db" \
-      "SELECT satisfied_criteria FROM project_state WHERE project_id='s4k-e2e';" 2>/dev/null)"
+    # satisfiedCriteria is a JSON array at every transition; assert that
+    # it parses — the exact contents depend on which criteria got reset
+    # during the walk.
+    SAT_VAL="$(jq -c '.satisfiedCriteria // []' "$S4K_ROLLUP" 2>/dev/null)"
     if echo "$SAT_VAL" | jq empty >/dev/null 2>&1; then
-      pass "final state.db.satisfied_criteria is a valid JSON array (got: $SAT_VAL)"
+      pass "final project.json.satisfiedCriteria is a valid JSON array (got: $SAT_VAL)"
     else
-      fail "final state.db.satisfied_criteria is a valid JSON array (got: $SAT_VAL)"
+      fail "final project.json.satisfiedCriteria is a valid JSON array (got: $SAT_VAL)"
     fi
     # The revision counter must reflect the full walk. Each
-    # satisfy_criterion / record_consensus / advance_phase increments
-    # by 1, so 4 advances + 4×(2 satisfy + 1 consensus) = 16 writes.
-    # Allow a range to absorb future changes to the criteria list.
-    REV_VAL="$(sqlite3 "$S4K_PROJECT/.vibeflow/state.db" \
-      "SELECT revision FROM project_state WHERE project_id='s4k-e2e';" 2>/dev/null)"
+    # satisfy_criterion / record_consensus / advance_phase increments by
+    # 1, so 4 advances + 4×(2 satisfy + 1 consensus) + the initial
+    # get_state ≈ 13+ writes.
+    REV_VAL="$(jq -r '.revision // 0' "$S4K_ROLLUP" 2>/dev/null)"
     if [[ -n "$REV_VAL" ]] && (( REV_VAL >= 12 )); then
-      pass "final state.db.revision reflects full walk (>=12, got: $REV_VAL)"
+      pass "final project.json.revision reflects full walk (>=12, got: $REV_VAL)"
     else
-      fail "final state.db.revision reflects full walk (>=12, got: $REV_VAL)"
+      fail "final project.json.revision reflects full walk (>=12, got: $REV_VAL)"
+    fi
+    # Extra filesystem-layout sanity: by the end of the walk, every
+    # earlier phase has been archived, so events/ may be empty but
+    # archive/ must contain numbered JSON+MD twins.
+    S4K_ARCHIVE="$S4K_PROJECT/.vibeflow/state/s4k-e2e/archive"
+    if [[ -d "$S4K_ARCHIVE" ]] && find "$S4K_ARCHIVE" -name '*.json' -print -quit 2>/dev/null | grep -q .; then
+      pass "filesystem backend emitted event log on disk (archived)"
+    else
+      fail "filesystem backend emitted event log on disk (archived)"
     fi
   fi
 
