@@ -470,7 +470,7 @@ done
 # preflight runs it on every new release, so the expected version
 # has to be bumped here as part of the release commit.
 PLUGIN_VERSION="$(jq -r '.version' "$PLUGIN")"
-EXPECTED_PLUGIN_VERSION="1.5.1"
+EXPECTED_PLUGIN_VERSION="1.5.2"
 if [[ "$PLUGIN_VERSION" == "$EXPECTED_PLUGIN_VERSION" ]]; then
   pass "plugin.json version == $EXPECTED_PLUGIN_VERSION"
 else
