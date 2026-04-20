@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.0] — 2026-04-20
+
+Sprint 17 — iterative consensus negotiation loop + phase
+specialists. Reviewers now talk across multiple rounds
+(default 5), critical findings are deduped cross-reviewer, and
+six new phase-specialist subagents deeply rewrite artifacts
+based on reviewer feedback as diff-first patches. A new
+`HUMAN_APPROVAL_REQUIRED` status covers the case where rounds
+exhaust without reaching the approval threshold — advance
+passes with an audit event recording the operator's explicit
+justification.
+
+### Added
+- **Iterative consensus rounds.** `hooks/scripts/consensus-aggregator.sh`
+  is now round-aware: orchestrator writes
+  `.vibeflow/state/consensus/<sid>.current-round.txt` before each
+  negotiation round; aggregator tags each jsonl line with
+  `round: N` and filters aggregation by current round.
+  `verdict.json` accumulates a `rounds[]` array alongside the
+  usual top-level fields so pre-2.5.0 consumers keep working.
+  Orchestrator Step 5 documents the loop + round-N prompt
+  template (prior-round verdicts + top-3 critical findings
+  embedded, ≤500 tok per reviewer).
+- **Three new config keys.** `consensus.maxIterations`
+  (default 5, range [1, 20]), `consensus.approvalThreshold`
+  (default 0.9, range [0, 1]), `consensus.iteration.enabled`
+  (default true — rollback switch).
+  `mcp-servers/sdlc-engine/src/config.ts` gains
+  `ConsensusConfigSchema` with typed defaults and silent-fallback
+  parsing for malformed values.
+- **Critical finding dedup.** Reviewer `criticalIssues` is now an
+  array of `{id, target:{file, line_range}, title, rationale}`.
+  Aggregator dedups cross-reviewer by `{file, line_range}`
+  equality OR Jaccard(title words) ≥ 0.6. Three reviewers
+  flagging the same issue now count as 1, not 3. Legacy integer
+  shape still accepted. `criticalRawCount` + `criticalDeduped[]`
+  preserved in verdict.json for audit.
+- **`HUMAN_APPROVAL_REQUIRED` consensus status.** New enum value
+  in `mcp-servers/sdlc-engine/src/consensus.ts`. Emitted by the
+  orchestrator loop when `maxIterations` rounds pass without
+  reaching `approvalThreshold` agreement but the run is not a
+  hard reject. Validator accepts it as equivalent to APPROVED
+  (pass-with-audit). `sdlc_advance_phase` MCP tool gains an
+  optional `humanOverrideNote: string` field; the engine threads
+  it through to the `phase_advanced` event payload for audit.
+  `load-sdlc-context.sh` surfaces a visible advisory on
+  subsequent SessionStart calls.
+- **Six phase-specialist subagents (Sprint 17-D).** One per SDLC
+  phase, each produces one diff-first patch that rewrites the
+  phase's artifact based on reviewer feedback:
+  - `prd-rewriter` (REQUIREMENTS)
+  - `design-spec-refiner` (DESIGN)
+  - `adr-author` (ARCHITECTURE)
+  - `test-strategy-refiner` (PLANNING)
+  - `coverage-gap-filler` (TESTING)
+  - `runbook-editor` (DEPLOYMENT)
+  Each agent runs `context: fork` + `model: opus` + `effort:
+  high`. All share the same diff-first contract: never writes
+  to source directly, emits exactly one
+  `.vibeflow/state/patches/<sid>/specialist-NN-<phase>.patch`
+  and a decision report at
+  `.vibeflow/reports/specialist-decisions-<phase>.md`.
+- **`consensus-specialist` dispatcher skill (Sprint 17-E).**
+  New skill at `skills/consensus-specialist/SKILL.md`. Reads
+  `vibeflow.config.json.currentPhase`, forks the matching
+  specialist, and routes its patch into the session's
+  `manifest.json` with `type: "specialist"`.
+  `apply-arbiter-patch` processes it in order alongside
+  arbiter patches.
+- **`tests/integration/sprint-17.sh`** — 98 assertions across
+  `[S17-A]`..`[S17-Z]`.
+- **`docs/CONSENSUS-ITERATION.md`** — loop shape + config
+  surface + `rounds[]` schema + `HUMAN_APPROVAL_REQUIRED` flow
+  + escape hatches + troubleshooting.
+- **`docs/SPECIALISTS.md`** — 6-agent table + dispatcher
+  walkthrough + per-agent decision-heuristic highlights +
+  rollback + "adding a new specialist" recipe.
+- `release-notes/2.5.0.md`.
+
+### Fixed
+- **`agreement < 0.5 → REJECTED` rule retired.** Pre-2.5.0 the
+  aggregator demoted NEEDS_REVISION to REJECTED whenever fewer
+  than half of reviewers voted APPROVED, which conflated "none
+  approved yet" with "majority rejected". Three reviewers
+  unanimously voting NEEDS_REVISION (approved=0, agreement=0)
+  used to fall through to REJECTED, skipping the arbiter entirely.
+  New rule requires an explicit majority of REJECTED verdicts
+  (`rejected * 2 > total`) to demote.
+- **`release-decision-engine`'s `allowed-tools` already had
+  `Write`** (fixed in 2.4.0) — unchanged here, documented in
+  docs/SPECIALISTS.md's rollback section.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.4.0 → 2.5.0
+- `.claude-plugin/marketplace.json`: 2.4.0 → 2.5.0
+- `mcp-servers/sdlc-engine/package.json`: 1.3.0 → 1.4.0
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.4.0 → 2.5.0
+- Hooks baseline: 86 → 110 (+24)
+- Unit (sdlc-engine) baseline: 142 → 157 (+15)
+- Integration layers: 16 → 17 (new `sprint-17.sh` at 98
+  assertions)
+- Total baseline: ~1969 → ~2106 (+137)
+
+---
+
 ## [2.4.0] — 2026-04-20
 
 Sprint 16 — deterministic auto-consensus chain. Analysis skills
