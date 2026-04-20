@@ -107,6 +107,14 @@
       "phases": "ALL",
       "description": "Multi-AI review; can run at any point on any artifact."
     },
+    "consensus-arbiter": {
+      "phases": "ALL",
+      "description": "Reads a consensus session's reviewer suggestions and emits diff-first patches — never writes to source directly (Sprint 15-F)."
+    },
+    "apply-arbiter-patch": {
+      "phases": ["DEVELOPMENT", "TESTING"],
+      "description": "Operator-in-the-loop patch applicator. Shows diff preview, asks for confirmation, applies via `git apply`, optional --run-tests (Sprint 15-G). Doc-only patches pass through the phase-write-guard in earlier phases."
+    },
     "status": {
       "phases": "ALL",
       "description": "Reports current phase and pending work. Read-only."

@@ -7,6 +7,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] — 2026-04-20
+
+MyVibe closed-loop — consensus now actually runs end-to-end: codex
+and gemini's verdicts reach the aggregator, analysis skills
+auto-invoke consensus, phase-advance gates on per-phase verdicts,
+and a new arbiter turns reviewer suggestions into diff-first
+patches the operator applies with one command.
+
+### Fixed
+- **codex/gemini verdicts never reached the aggregator.** The
+  consensus-orchestrator skill ran the two CLIs as raw bash
+  subprocesses, which don't emit Claude Code `SubagentStop`
+  events. The aggregator expected 3 reviewers (all CLIs on PATH)
+  but only saw one (claude-reviewer's SubagentStop) and fell
+  through to its 600s global timeout, demoting APPROVED verdicts
+  to NEEDS_REVISION. Orchestrator now appends one JSONL line per
+  CLI directly into `.vibeflow/state/consensus/<session>.jsonl`
+  in the exact schema `consensus-aggregator.sh:110-116` writes.
+  Per-CLI 90s timeout prevents the 600s global fallback.
+
+### Added
+- **Auto-invoke prose on 6 analysis skills** — `prd-quality-analyzer`,
+  `architecture-validator`, `test-strategy-planner`,
+  `traceability-engine`, `coverage-analyzer`, and
+  `release-decision-engine` now end with a mandatory "Final Step:
+  Auto-Consensus" section that invokes
+  `/vibeflow:consensus-orchestrator` on the primary report.
+  `VF_SKIP_AUTO_CONSENSUS=1` is the single documented skip
+  condition.
+- **Phase-scoped consensus exit criteria.** Every phase except
+  DEVELOPMENT now carries `consensus.<phase>.approved` as an
+  exit criterion. The validator scope-checks `lastConsensusPhase`
+  — stale REQUIREMENTS consensus no longer carries through to
+  DESIGN advance. DEVELOPMENT intentionally omits the gate
+  because the commit-time `trigger-ai-review.sh` marker already
+  covers it.
+- **`consensus-arbiter` skill (new).** Reads the session jsonl +
+  verdict + currentPhase + domain, decides per-suggestion
+  APPLY / DEFER / REJECT against a 10-rule matrix, emits
+  `git apply`-compatible patches under
+  `.vibeflow/state/patches/<session>/` and an audit trail at
+  `.vibeflow/reports/arbiter-decisions.md`. Never touches source
+  files — diff-first contract.
+- **`apply-arbiter-patch` skill (new).** Shows a git-style diff
+  preview, asks for confirmation (or accepts `--yes`), applies
+  via `git apply`. Flags: `--dry-run`, `--run-tests` (runs the
+  project's test command post-apply, prints `git checkout HEAD`
+  rollback hint on failure). Every applied patch flips
+  `Applied: false` → `Applied: true` in arbiter-decisions.md.
+- **Marker drain on SessionStart.** `load-sdlc-context.sh` reads
+  `review-pending.json` (written by `trigger-ai-review.sh` after
+  large commits), emits a strong "ACTION REQUIRED: run
+  /vibeflow:consensus-orchestrator" line when the marker is
+  fresh (< 24h). Closes the post-commit half of the MyVibe
+  promise.
+- **Reviewer suggestion schema.** `agents/claude-reviewer.md`
+  pins the `suggestions[]` entry shape — `id`, `type`,
+  `target.file`, `target.line_range`, `rationale`,
+  `proposed_change`, `priority`, `phase_relevance`. All three
+  reviewers emit the same shape so the arbiter can deduplicate
+  across models.
+- **`VF_SKIP_AUTO_CONSENSUS=1`** escape hatch. Disables Layer 2
+  (skill auto-invoke) for one session; Layer 3 phase-gate
+  ignores it (always enforced). `load-sdlc-context.sh` surfaces
+  a visible advisory when the var is set.
+- **`consensus.quorum`** config override (already shipped in
+  2.2.0, now documented end-to-end). Operators can pin the
+  expected reviewer count when a CLI is offline.
+- **`tests/integration/sprint-15.sh`** — 82 assertions pinning
+  every Sprint 15 behaviour change.
+- **`docs/CONSENSUS-FLOW.md`** + **`docs/ARBITER.md`** — user-
+  facing references for the 4-layer flow and the arbiter
+  decision matrix.
+- **`skills/phase-policy.json`** — new entries for
+  `consensus-arbiter` (ALL) and `apply-arbiter-patch`
+  (DEVELOPMENT, TESTING).
+
+### Changed
+- `mcp-servers/sdlc-engine/src/phases.ts` — exit criteria
+  extended (see Added). The old global `consensus.approved`
+  criterion on ARCHITECTURE is renamed to
+  `consensus.architecture.approved`. Legacy alias in the
+  validator accepts the old name for one release; drop in
+  v2.4.0.
+- `mcp-servers/sdlc-engine/src/validation.ts` —
+  `PhaseTransitionRequest` gains `lastConsensusPhase`. Scope-
+  aware walk: `CONSENSUS_CRITERION_PATTERN` matches require
+  both phase and verdict to align; everything else falls back
+  to the existing satisfied-set check. DEVELOPMENT keeps the
+  Sprint 14 "any lastConsensus must be APPROVED" legacy check.
+- Plugin version: `2.2.0 → 2.3.0`.
+- `@vibeflow/sdlc-engine`: `1.2.0 → 1.3.0`.
+- `CLAUDE.md` baseline: 14 → 15 test layers, 1793 → 1881.
+
+### Upgrade
+
+```bash
+claude plugin marketplace update vibeflow
+claude plugin install vibeflow@vibeflow
+```
+
+Behavioural changes to expect:
+- Skills that write `.vibeflow/reports/*.md` now chain into
+  consensus-orchestrator by default. To suppress for a single
+  session: `VF_SKIP_AUTO_CONSENSUS=1`.
+- `/vibeflow:advance` now requires a fresh per-phase APPROVED
+  consensus for REQUIREMENTS / DESIGN / ARCHITECTURE / PLANNING
+  / TESTING / DEPLOYMENT. Run
+  `/vibeflow:consensus-orchestrator` if blocked.
+- ARCHITECTURE projects mid-flight with the old
+  `consensus.approved` criterion in their satisfiedCriteria
+  still advance (alias accepted through v2.3.x).
+
+---
+
 ## [2.2.0] — 2026-04-20
 
 Consensus flow unified; `mode` concept retired; skill output contract
