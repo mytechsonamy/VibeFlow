@@ -9,6 +9,10 @@ const AdvancePhaseInput = z.object({
     projectId: z.string().min(1),
     to: PhaseIdSchema,
     force: z.boolean().optional(),
+    // Sprint 17-C: operator's free-text justification when advancing
+    // under HUMAN_APPROVAL_REQUIRED status. Written to the event log so
+    // load-sdlc-context.sh can surface the override on next session.
+    humanOverrideNote: z.string().min(1).max(2000).optional(),
 });
 const RecordConsensusInput = z.object({
     projectId: z.string().min(1),
@@ -103,6 +107,7 @@ export function buildTools(engine) {
                     projectId: { type: "string", minLength: 1 },
                     to: { type: "string" },
                     force: { type: "boolean" },
+                    humanOverrideNote: { type: "string", minLength: 1, maxLength: 2000 },
                 },
                 required: ["projectId", "to"],
                 additionalProperties: false,

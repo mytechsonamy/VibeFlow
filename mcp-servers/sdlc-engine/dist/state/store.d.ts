@@ -28,10 +28,23 @@ export type StateMutator<T> = (current: ProjectState | null) => {
  * lock). This is what fixes Bug #6, where two concurrent writers could
  * read the same revision and clobber each other's changes.
  */
+/**
+ * Optional per-call transact options. Filesystem backend reads
+ * `context` to enrich the event log; engine.ts passes the advancing
+ * operator's humanOverrideNote here (Sprint 17-C).
+ */
+export interface StateStoreTransactOptions {
+    context?: {
+        actor?: string;
+        recordedAt?: string;
+        force?: boolean;
+        humanOverrideNote?: string;
+    };
+}
 export interface StateStore {
     init(): Promise<void>;
     read(projectId: string): Promise<ProjectState | null>;
-    transact<T>(projectId: string, mutator: StateMutator<T>): Promise<T>;
+    transact<T>(projectId: string, mutator: StateMutator<T>, options?: StateStoreTransactOptions): Promise<T>;
     close(): Promise<void>;
 }
 /**

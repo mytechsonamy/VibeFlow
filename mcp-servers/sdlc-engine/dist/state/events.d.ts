@@ -75,14 +75,17 @@ declare const PhaseAdvancedPayloadSchema: z.ZodObject<{
     from: z.ZodEnum<["REQUIREMENTS", "DESIGN", "ARCHITECTURE", "PLANNING", "DEVELOPMENT", "TESTING", "DEPLOYMENT"]>;
     to: z.ZodEnum<["REQUIREMENTS", "DESIGN", "ARCHITECTURE", "PLANNING", "DEVELOPMENT", "TESTING", "DEPLOYMENT"]>;
     force: z.ZodBoolean;
+    humanOverrideNote: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     to: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
     force: boolean;
     from: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
+    humanOverrideNote?: string | undefined;
 }, {
     to: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
     force: boolean;
     from: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
+    humanOverrideNote?: string | undefined;
 }>;
 declare const ProjectImportedPayloadSchema: z.ZodObject<{
     source: z.ZodString;
@@ -177,25 +180,25 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, "strip", z.ZodTypeAny, {
     type: "project_created";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
         firstPhase: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }, {
     type: "project_created";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
         firstPhase: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }>, z.ZodObject<{
@@ -223,6 +226,7 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, "strip", z.ZodTypeAny, {
     type: "criterion_satisfied";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
@@ -231,12 +235,12 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         alreadyPresent: boolean;
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }, {
     type: "criterion_satisfied";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
@@ -245,7 +249,6 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         alreadyPresent: boolean;
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }>, z.ZodObject<{
@@ -297,6 +300,7 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, "strip", z.ZodTypeAny, {
     type: "consensus_recorded";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
@@ -309,12 +313,12 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         };
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }, {
     type: "consensus_recorded";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
@@ -327,7 +331,6 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         };
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }>, z.ZodObject<{
@@ -336,14 +339,17 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         from: z.ZodEnum<["REQUIREMENTS", "DESIGN", "ARCHITECTURE", "PLANNING", "DEVELOPMENT", "TESTING", "DEPLOYMENT"]>;
         to: z.ZodEnum<["REQUIREMENTS", "DESIGN", "ARCHITECTURE", "PLANNING", "DEVELOPMENT", "TESTING", "DEPLOYMENT"]>;
         force: z.ZodBoolean;
+        humanOverrideNote: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         to: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
         force: boolean;
         from: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
+        humanOverrideNote?: string | undefined;
     }, {
         to: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
         force: boolean;
         from: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
+        humanOverrideNote?: string | undefined;
     }>;
     seq: z.ZodNumber;
     revision: z.ZodNumber;
@@ -355,29 +361,31 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, "strip", z.ZodTypeAny, {
     type: "phase_advanced";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
         to: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
         force: boolean;
         from: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
+        humanOverrideNote?: string | undefined;
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }, {
     type: "phase_advanced";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
         to: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
         force: boolean;
         from: "REQUIREMENTS" | "DESIGN" | "ARCHITECTURE" | "PLANNING" | "DEVELOPMENT" | "TESTING" | "DEPLOYMENT";
+        humanOverrideNote?: string | undefined;
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }>, z.ZodObject<{
@@ -405,6 +413,7 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
 }, "strip", z.ZodTypeAny, {
     type: "project_imported";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
@@ -413,12 +422,12 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         note?: string | undefined;
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }, {
     type: "project_imported";
     revision: number;
+    actor: string;
     projectId: string;
     recordedAt: string;
     payload: {
@@ -427,7 +436,6 @@ export declare const StateEventSchema: z.ZodDiscriminatedUnion<"type", [z.ZodObj
         note?: string | undefined;
     };
     seq: number;
-    actor: string;
     prevRevision: number;
     schemaVersion: 1;
 }>]>;
@@ -438,6 +446,11 @@ export interface MutatorContext {
     recordedAt?: string;
     /** Optional hint — only read for phase_advanced to record force flag. */
     force?: boolean;
+    /**
+     * Sprint 17-C: phase_advanced events under HUMAN_APPROVAL_REQUIRED
+     * status carry the operator's justification in this field.
+     */
+    humanOverrideNote?: string;
 }
 /**
  * Compare current → next ProjectState and produce the single StateEvent

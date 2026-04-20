@@ -4,7 +4,40 @@ import { z } from "zod";
  * and `stateStore.{sqlitePath,postgresUrl}` fields are gone. The engine
  * reads exactly one location for project state: `stateStore.dir`
  * (default `<cwd>/.vibeflow/state`). `VIBEFLOW_STATE_DIR` overrides.
+ *
+ * Sprint 17-F: typed consensus config. Governs the iterative
+ * negotiation loop (maxIterations, approvalThreshold) and the
+ * rollback switch (iteration.enabled). Defaults match the
+ * orchestrator SKILL.md constants so bash + TS read the same
+ * numbers.
  */
+export declare const ConsensusConfigSchema: z.ZodDefault<z.ZodObject<{
+    quorum: z.ZodOptional<z.ZodNumber>;
+    maxIterations: z.ZodDefault<z.ZodNumber>;
+    approvalThreshold: z.ZodDefault<z.ZodNumber>;
+    iteration: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+    }, {
+        enabled?: boolean | undefined;
+    }>>;
+}, "strip", z.ZodTypeAny, {
+    maxIterations: number;
+    approvalThreshold: number;
+    iteration: {
+        enabled: boolean;
+    };
+    quorum?: number | undefined;
+}, {
+    quorum?: number | undefined;
+    maxIterations?: number | undefined;
+    approvalThreshold?: number | undefined;
+    iteration?: {
+        enabled?: boolean | undefined;
+    } | undefined;
+}>>;
+export type ConsensusConfig = z.infer<typeof ConsensusConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -14,15 +47,57 @@ export declare const EngineConfigSchema: z.ZodObject<{
     }, {
         dir?: string | undefined;
     }>>;
+    consensus: z.ZodDefault<z.ZodObject<{
+        quorum: z.ZodOptional<z.ZodNumber>;
+        maxIterations: z.ZodDefault<z.ZodNumber>;
+        approvalThreshold: z.ZodDefault<z.ZodNumber>;
+        iteration: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+        }, {
+            enabled?: boolean | undefined;
+        }>>;
+    }, "strip", z.ZodTypeAny, {
+        maxIterations: number;
+        approvalThreshold: number;
+        iteration: {
+            enabled: boolean;
+        };
+        quorum?: number | undefined;
+    }, {
+        quorum?: number | undefined;
+        maxIterations?: number | undefined;
+        approvalThreshold?: number | undefined;
+        iteration?: {
+            enabled?: boolean | undefined;
+        } | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
         dir?: string | undefined;
     };
+    consensus: {
+        maxIterations: number;
+        approvalThreshold: number;
+        iteration: {
+            enabled: boolean;
+        };
+        quorum?: number | undefined;
+    };
 }, {
     project: string;
     stateStore?: {
         dir?: string | undefined;
+    } | undefined;
+    consensus?: {
+        quorum?: number | undefined;
+        maxIterations?: number | undefined;
+        approvalThreshold?: number | undefined;
+        iteration?: {
+            enabled?: boolean | undefined;
+        } | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

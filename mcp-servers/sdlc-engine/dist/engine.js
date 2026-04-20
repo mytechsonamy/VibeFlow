@@ -84,6 +84,11 @@ export class SdlcEngine {
         });
     }
     async advancePhase(input) {
+        // Sprint 17-C: thread humanOverrideNote through to the event log so
+        // the phase_advanced payload records it for audit surfacing. Only
+        // set when advancing under HUMAN_APPROVAL_REQUIRED — APPROVED
+        // transitions don't need the field and shouldn't get it even if
+        // the caller supplied one (guarded in the transact below).
         return this.store.transact(input.projectId, (current) => {
             const base = current ?? this.seed(input.projectId);
             const transition = this.validator.validate({
@@ -109,6 +114,20 @@ export class SdlcEngine {
                 revision: base.revision + 1,
             };
             return { next, result: { state: next, transition } };
+        }, {
+            context: {
+                actor: "sdlc_advance_phase",
+                force: input.force ?? false,
+                humanOverrideNote: 
+                // Only attach the note when the existing consensus is
+                // actually HUMAN_APPROVAL_REQUIRED — otherwise a stray
+                // argument on a normal APPROVED advance would pollute the
+                // audit trail with an irrelevant override.
+                input.humanOverrideNote !== undefined &&
+                    input.humanOverrideNote.trim().length > 0
+                    ? input.humanOverrideNote
+                    : undefined,
+            },
         });
     }
     seed(projectId) {

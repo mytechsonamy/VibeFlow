@@ -7,7 +7,15 @@ import { z } from "zod";
 export declare enum ConsensusStatus {
     APPROVED = "APPROVED",
     NEEDS_REVISION = "NEEDS_REVISION",
-    REJECTED = "REJECTED"
+    REJECTED = "REJECTED",
+    /**
+     * Sprint 17-C: emitted by the aggregator when `consensus.maxIterations`
+     * rounds complete without reaching `consensus.approvalThreshold`
+     * agreement but the run is not a hard reject (no rejected-majority,
+     * no ≥2 deduped critical findings). Advance accepts this status as
+     * equivalent to APPROVED with an audit event.
+     */
+    HUMAN_APPROVAL_REQUIRED = "HUMAN_APPROVAL_REQUIRED"
 }
 /**
  * Case-insensitive, alias-tolerant parser. Accepts any of:
@@ -23,3 +31,11 @@ export declare const ConsensusStatusSchema: z.ZodEffects<z.ZodString, ConsensusS
  * Thresholds per CLAUDE.md "Consensus Thresholds" section.
  */
 export declare function statusFromScore(agreement: number, criticalIssues: number): ConsensusStatus;
+/**
+ * Phase-advance gate: Sprint 17-C accepts HUMAN_APPROVAL_REQUIRED as
+ * a valid terminal status (operator has explicitly signed off via the
+ * orchestrator's `humanOverrideNote` argument). The event log records
+ * the override so load-sdlc-context can surface it on next
+ * SessionStart.
+ */
+export declare function isConsensusAdvanceValid(status: ConsensusStatus | null | undefined): boolean;

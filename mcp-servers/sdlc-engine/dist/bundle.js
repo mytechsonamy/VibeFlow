@@ -17770,11 +17770,24 @@ var NEVER2 = INVALID;
 // dist/config.js
 import * as fs from "node:fs";
 import * as path from "node:path";
+var ConsensusConfigSchema = external_exports.object({
+  quorum: external_exports.number().int().min(1).optional(),
+  maxIterations: external_exports.number().int().min(1).max(20).default(5),
+  approvalThreshold: external_exports.number().min(0).max(1).default(0.9),
+  iteration: external_exports.object({
+    enabled: external_exports.boolean().default(true)
+  }).default({ enabled: true })
+}).default({
+  maxIterations: 5,
+  approvalThreshold: 0.9,
+  iteration: { enabled: true }
+});
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
     dir: external_exports.string().optional()
-  }).default({})
+  }).default({}),
+  consensus: ConsensusConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17782,7 +17795,8 @@ function resolveConfig(cwd = process.cwd()) {
   const dir = process.env.VIBEFLOW_STATE_DIR ?? fileConfig.stateStore?.dir;
   return EngineConfigSchema.parse({
     project,
-    stateStore: dir ? { dir } : {}
+    stateStore: dir ? { dir } : {},
+    consensus: fileConfig.consensus ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17794,9 +17808,17 @@ function loadFileConfig(cwd) {
     const project = raw.project;
     const storeRaw = typeof raw.stateStore === "object" && raw.stateStore !== null ? raw.stateStore : {};
     const dir = typeof storeRaw.dir === "string" ? storeRaw.dir : void 0;
+    let consensus;
+    if (typeof raw.consensus === "object" && raw.consensus !== null) {
+      const parsed = ConsensusConfigSchema.safeParse(raw.consensus);
+      if (parsed.success) {
+        consensus = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
-      ...dir ? { stateStore: { dir } } : {}
+      ...dir ? { stateStore: { dir } } : {},
+      ...consensus ? { consensus } : {}
     };
   } catch {
     return {};
@@ -19551,6 +19573,7 @@ var ConsensusStatus;
   ConsensusStatus2["APPROVED"] = "APPROVED";
   ConsensusStatus2["NEEDS_REVISION"] = "NEEDS_REVISION";
   ConsensusStatus2["REJECTED"] = "REJECTED";
+  ConsensusStatus2["HUMAN_APPROVAL_REQUIRED"] = "HUMAN_APPROVAL_REQUIRED";
 })(ConsensusStatus || (ConsensusStatus = {}));
 var STATUS_ALIASES = /* @__PURE__ */ new Map([
   ["approved", ConsensusStatus.APPROVED],
@@ -19560,7 +19583,11 @@ var STATUS_ALIASES = /* @__PURE__ */ new Map([
   ["needsrevision", ConsensusStatus.NEEDS_REVISION],
   ["revision", ConsensusStatus.NEEDS_REVISION],
   ["rejected", ConsensusStatus.REJECTED],
-  ["reject", ConsensusStatus.REJECTED]
+  ["reject", ConsensusStatus.REJECTED],
+  ["human_approval_required", ConsensusStatus.HUMAN_APPROVAL_REQUIRED],
+  ["human-approval-required", ConsensusStatus.HUMAN_APPROVAL_REQUIRED],
+  ["humanapprovalrequired", ConsensusStatus.HUMAN_APPROVAL_REQUIRED],
+  ["human_approval", ConsensusStatus.HUMAN_APPROVAL_REQUIRED]
 ]);
 function parseConsensusStatus(raw) {
   if (typeof raw !== "string") {
@@ -19774,7 +19801,7 @@ var PhaseTransitionValidator = class {
       if (scopeMatch) {
         const expectedPhase = scopeMatch[1].toUpperCase();
         const lastPhaseOk = req.lastConsensusPhase !== void 0 && req.lastConsensusPhase !== null && req.lastConsensusPhase === expectedPhase;
-        const lastVerdictOk = req.lastConsensus === ConsensusStatus.APPROVED;
+        const lastVerdictOk = req.lastConsensus === ConsensusStatus.APPROVED || req.lastConsensus === ConsensusStatus.HUMAN_APPROVAL_REQUIRED;
         const legacyArchitectureAlias = expectedPhase === "ARCHITECTURE" && satisfied.has("consensus.approved");
         if (!legacyArchitectureAlias && (!lastPhaseOk || !lastVerdictOk)) {
           missing.push(criterion);
@@ -19890,6 +19917,18 @@ var SdlcEngine = class {
         revision: base.revision + 1
       };
       return { next, result: { state: next, transition } };
+    }, {
+      context: {
+        actor: "sdlc_advance_phase",
+        force: input.force ?? false,
+        humanOverrideNote: (
+          // Only attach the note when the existing consensus is
+          // actually HUMAN_APPROVAL_REQUIRED — otherwise a stray
+          // argument on a normal APPROVED advance would pollute the
+          // audit trail with an irrelevant override.
+          input.humanOverrideNote !== void 0 && input.humanOverrideNote.trim().length > 0 ? input.humanOverrideNote : void 0
+        )
+      }
     });
   }
   seed(projectId) {
@@ -19928,7 +19967,11 @@ var GetStateInput = external_exports.object({
 var AdvancePhaseInput = external_exports.object({
   projectId: external_exports.string().min(1),
   to: PhaseIdSchema,
-  force: external_exports.boolean().optional()
+  force: external_exports.boolean().optional(),
+  // Sprint 17-C: operator's free-text justification when advancing
+  // under HUMAN_APPROVAL_REQUIRED status. Written to the event log so
+  // load-sdlc-context.sh can surface the override on next session.
+  humanOverrideNote: external_exports.string().min(1).max(2e3).optional()
 });
 var RecordConsensusInput = external_exports.object({
   projectId: external_exports.string().min(1),
@@ -20016,7 +20059,8 @@ function buildTools(engine) {
         properties: {
           projectId: { type: "string", minLength: 1 },
           to: { type: "string" },
-          force: { type: "boolean" }
+          force: { type: "boolean" },
+          humanOverrideNote: { type: "string", minLength: 1, maxLength: 2e3 }
         },
         required: ["projectId", "to"],
         additionalProperties: false
@@ -20159,7 +20203,13 @@ var ConsensusRecordedPayloadSchema = external_exports.object({
 var PhaseAdvancedPayloadSchema = external_exports.object({
   from: PhaseIdSchema,
   to: PhaseIdSchema,
-  force: external_exports.boolean()
+  force: external_exports.boolean(),
+  // Sprint 17-C: when the phase was advanced under a
+  // HUMAN_APPROVAL_REQUIRED consensus, the operator's free-text
+  // justification is recorded here. Older readers ignore the field
+  // (optional, additive). load-sdlc-context.sh reads this to surface
+  // the override on subsequent SessionStarts.
+  humanOverrideNote: external_exports.string().min(1).max(2e3).optional()
 });
 var ProjectImportedPayloadSchema = external_exports.object({
   source: external_exports.string(),
@@ -20221,14 +20271,18 @@ function deriveEvent(current, next, context) {
     };
   }
   if (current.currentPhase !== next.currentPhase) {
+    const payload = {
+      from: current.currentPhase,
+      to: next.currentPhase,
+      force: context.force ?? false
+    };
+    if (context.humanOverrideNote !== void 0) {
+      payload.humanOverrideNote = context.humanOverrideNote;
+    }
     return {
       ...base,
       type: "phase_advanced",
-      payload: {
-        from: current.currentPhase,
-        to: next.currentPhase,
-        force: context.force ?? false
-      }
+      payload
     };
   }
   const consensusChanged = consensusRecordsDiffer(current.lastConsensus, next.lastConsensus);

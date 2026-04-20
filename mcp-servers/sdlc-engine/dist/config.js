@@ -6,7 +6,29 @@ import * as path from "node:path";
  * and `stateStore.{sqlitePath,postgresUrl}` fields are gone. The engine
  * reads exactly one location for project state: `stateStore.dir`
  * (default `<cwd>/.vibeflow/state`). `VIBEFLOW_STATE_DIR` overrides.
+ *
+ * Sprint 17-F: typed consensus config. Governs the iterative
+ * negotiation loop (maxIterations, approvalThreshold) and the
+ * rollback switch (iteration.enabled). Defaults match the
+ * orchestrator SKILL.md constants so bash + TS read the same
+ * numbers.
  */
+export const ConsensusConfigSchema = z
+    .object({
+    quorum: z.number().int().min(1).optional(),
+    maxIterations: z.number().int().min(1).max(20).default(5),
+    approvalThreshold: z.number().min(0).max(1).default(0.9),
+    iteration: z
+        .object({
+        enabled: z.boolean().default(true),
+    })
+        .default({ enabled: true }),
+})
+    .default({
+    maxIterations: 5,
+    approvalThreshold: 0.9,
+    iteration: { enabled: true },
+});
 export const EngineConfigSchema = z.object({
     project: z.string().min(1),
     stateStore: z
@@ -14,6 +36,7 @@ export const EngineConfigSchema = z.object({
         dir: z.string().optional(),
     })
         .default({}),
+    consensus: ConsensusConfigSchema,
 });
 /**
  * Resolve runtime config from (in order of precedence):
@@ -28,6 +51,7 @@ export function resolveConfig(cwd = process.cwd()) {
     return EngineConfigSchema.parse({
         project,
         stateStore: dir ? { dir } : {},
+        consensus: fileConfig.consensus ?? {},
     });
 }
 function loadFileConfig(cwd) {
@@ -41,9 +65,20 @@ function loadFileConfig(cwd) {
             ? raw.stateStore
             : {};
         const dir = typeof storeRaw.dir === "string" ? storeRaw.dir : undefined;
+        // Sprint 17-F: read consensus.* and parse through the schema so
+        // partial keys pick up defaults. Malformed fields fall back
+        // silently to defaults (no hard fail on a mistyped threshold).
+        let consensus;
+        if (typeof raw.consensus === "object" && raw.consensus !== null) {
+            const parsed = ConsensusConfigSchema.safeParse(raw.consensus);
+            if (parsed.success) {
+                consensus = parsed.data;
+            }
+        }
         return {
             ...(typeof project === "string" ? { project } : {}),
             ...(dir ? { stateStore: { dir } } : {}),
+            ...(consensus ? { consensus } : {}),
         };
     }
     catch {

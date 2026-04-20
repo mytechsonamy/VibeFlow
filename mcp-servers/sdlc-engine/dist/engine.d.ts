@@ -5,6 +5,15 @@ export interface AdvancePhaseInput {
     readonly projectId: string;
     readonly to: PhaseId;
     readonly force?: boolean;
+    /**
+     * Sprint 17-C: operator-supplied justification when advancing under
+     * a HUMAN_APPROVAL_REQUIRED consensus. When set, the transition is
+     * recorded as a `consensus.human_override_accepted` event alongside
+     * the normal phase-advance event. load-sdlc-context.sh reads these
+     * to surface a visible "advanced under human override" advisory on
+     * subsequent SessionStart calls.
+     */
+    readonly humanOverrideNote?: string;
 }
 export interface RecordConsensusInput {
     readonly projectId: string;
