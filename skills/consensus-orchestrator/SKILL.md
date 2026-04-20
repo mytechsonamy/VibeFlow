@@ -11,26 +11,31 @@ Manages the multi-AI review cycle that replaces MyVibe's CLI subprocess approach
 
 ## Input
 - $ARGUMENTS: Path to artifact(s) to review, or "review last commit"
-- vibeflow.config.json: Mode (solo/team), model names, domain
+- vibeflow.config.json: model names, domain
 
 ## Consensus Flow
 
 ### Step 1: Read Configuration
 ```
-mode = vibeflow.config.json.mode  // "solo" or "team"
 openaiModel = vibeflow.config.json.models.openai  // default: "gpt-4o" (NOT gpt-5.3!)
 geminiModel = vibeflow.config.json.models.gemini   // default: "gemini-2.0-flash"
 ```
 
+**Note (Sprint 14-A):** There is no `mode` concept anymore. Every
+reviewer participation is decided by CLI availability — codex and
+gemini join the panel when their CLIs are on `PATH`, full stop. Both
+CLIs use the operator's own authenticated session, so there is no
+API billing concern to gate on.
+
 ### Step 2: Claude Review (Always Available)
 Use the claude-reviewer subagent for native review. This always runs.
 
-### Step 3: External AI Reviews (Team Mode Only, Graceful Degradation)
-Check CLI availability before invoking:
+### Step 3: External AI Reviews (CLI-availability only)
+Run every CLI that is on `PATH`. Skip the ones that aren't — never
+gate on a mode switch, environment variable, or config flag.
 
 **ChatGPT Review (via codex CLI):**
 ```bash
-# Check availability first
 if command -v codex &>/dev/null; then
   cat <artifact> | codex exec "Review this for quality, security, maintainability. Return JSON: {score, issues, verdict}" -m $openaiModel --skip-git-repo-check --ephemeral
 fi
@@ -42,6 +47,10 @@ if command -v gemini &>/dev/null; then
   (echo "Review this for quality, security, maintainability. Return JSON: {score, issues, verdict}" && cat <artifact>) | gemini --model $geminiModel
 fi
 ```
+
+Both CLIs inherit the operator's authenticated session (ChatGPT
+subscription, Gemini Pro, Workspace, etc.). There is no VibeFlow-
+emitted API key and no per-call billing.
 
 ### Step 4: Consensus Calculation
 

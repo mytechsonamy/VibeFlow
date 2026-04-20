@@ -427,36 +427,48 @@ rm -rf "$DIR"
 
 echo "== consensus-aggregator.sh =="
 
-# Solo mode quorum = 1: single APPROVED review finalizes instantly.
-DIR="$(make_project DEVELOPMENT solo)"
+# Sprint 14-A: quorum is driven by CLI availability + optional
+# consensus.quorum config override. Tests set the override explicitly
+# so the assertion doesn't depend on whether codex/gemini CLIs are on
+# the test host's PATH.
+
+# Solo-style flow — quorum = 1, single APPROVED review finalizes.
+DIR="$(make_project DEVELOPMENT)"
 export VIBEFLOW_CWD="$DIR"
+# Override quorum to 1 explicitly.
+tmp_cfg="$DIR/vibeflow.config.json.tmp"
+jq '. + {consensus: {quorum: 1}}' "$DIR/vibeflow.config.json" > "$tmp_cfg" \
+  && mv "$tmp_cfg" "$DIR/vibeflow.config.json"
 INPUT='{"session_id":"s1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
-echo "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
 VERDICT_FILE="$DIR/.vibeflow/state/consensus/s1.verdict.json"
-[[ -f "$VERDICT_FILE" ]] && pass "solo verdict file written after 1 review" \
-  || fail "solo verdict file written after 1 review"
+[[ -f "$VERDICT_FILE" ]] && pass "quorum=1 verdict file written after 1 review" \
+  || fail "quorum=1 verdict file written after 1 review"
 if [[ -f "$VERDICT_FILE" ]]; then
   STATUS="$(jq -r '.status' "$VERDICT_FILE")"
-  assert_eq "solo single APPROVED review → APPROVED" "APPROVED" "$STATUS"
+  assert_eq "quorum=1 single APPROVED review → APPROVED" "APPROVED" "$STATUS"
 fi
 rm -rf "$DIR"
 
-# Team mode quorum = 3; 2 APPROVED + 1 REJECTED → criticalIssues decides.
-DIR="$(make_project DEVELOPMENT team)"
+# Multi-reviewer flow — quorum = 3, 2 APPROVED + 1 REJECTED with 2
+# critical issues → REJECTED regardless of agreement.
+DIR="$(make_project DEVELOPMENT)"
 export VIBEFLOW_CWD="$DIR"
+tmp_cfg="$DIR/vibeflow.config.json.tmp"
+jq '. + {consensus: {quorum: 3}}' "$DIR/vibeflow.config.json" > "$tmp_cfg" \
+  && mv "$tmp_cfg" "$DIR/vibeflow.config.json"
 for verdict_input in \
   '{"session_id":"s2","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}' \
   '{"session_id":"s2","subagent_type":"chatgpt-reviewer","tool_response":{"content":[{"text":"Final: APPROVED\ncritical issues: 0"}]}}' \
   '{"session_id":"s2","subagent_type":"gemini-reviewer","tool_response":{"content":[{"text":"Verdict: REJECTED\ncritical issues: 2"}]}}'
 do
-  echo "$verdict_input" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+  printf '%s' "$verdict_input" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
 done
 VERDICT_FILE="$DIR/.vibeflow/state/consensus/s2.verdict.json"
-[[ -f "$VERDICT_FILE" ]] && pass "team verdict file written after 3 reviews" \
-  || fail "team verdict file written after 3 reviews"
+[[ -f "$VERDICT_FILE" ]] && pass "quorum=3 verdict file written after 3 reviews" \
+  || fail "quorum=3 verdict file written after 3 reviews"
 if [[ -f "$VERDICT_FILE" ]]; then
   STATUS="$(jq -r '.status' "$VERDICT_FILE")"
-  # criticalTotal = 2 → REJECTED regardless of agreement.
   assert_eq "2 critical issues → REJECTED" "REJECTED" "$STATUS"
 fi
 rm -rf "$DIR"
@@ -467,15 +479,18 @@ rm -rf "$DIR"
 # (partial quorum cannot ship an APPROVED verdict). We pre-seed the
 # session log with an old APPROVED entry, then fire a fresh APPROVED
 # through the hook to trigger evaluation.
-DIR="$(make_project DEVELOPMENT team)"
+DIR="$(make_project DEVELOPMENT)"
 export VIBEFLOW_CWD="$DIR"
+tmp_cfg="$DIR/vibeflow.config.json.tmp"
+jq '. + {consensus: {quorum: 3}}' "$DIR/vibeflow.config.json" > "$tmp_cfg" \
+  && mv "$tmp_cfg" "$DIR/vibeflow.config.json"
 CONS_DIR="$DIR/.vibeflow/state/consensus"
 mkdir -p "$CONS_DIR"
 OLD_TS="2020-01-01T00:00:00Z"
 printf '{"recordedAt":"%s","reviewer":"claude-reviewer","verdict":"APPROVED","criticalIssues":0}\n' \
   "$OLD_TS" > "$CONS_DIR/s3.jsonl"
 INPUT='{"session_id":"s3","subagent_type":"chatgpt-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
-echo "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
 TIMEOUT_VERDICT="$CONS_DIR/s3.verdict.json"
 [[ -f "$TIMEOUT_VERDICT" ]] \
   && pass "timeout force-finalizes partial quorum" \

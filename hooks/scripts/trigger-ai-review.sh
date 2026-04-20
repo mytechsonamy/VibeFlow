@@ -22,11 +22,12 @@ if [[ ! -f "$(vf_config_path)" ]]; then
   exit 0
 fi
 
-MODE="$(vf_mode)"
-if [[ "$MODE" == "solo" ]]; then
-  # Solo mode: single-AI, no cross-model consensus.
-  exit 0
-fi
+# Sprint 14-A: Consensus is no longer gated by mode. Every project
+# with a config file writes the review-pending marker when a commit
+# crosses the size threshold; which reviewers actually respond is
+# decided by consensus-orchestrator (CLI availability) and by
+# consensus-aggregator's quorum (CLI detection or explicit
+# vibeflow.config.json `consensus.quorum` override).
 
 # Count changed lines in the most recent commit (HEAD). --numstat gives
 # added<TAB>deleted<TAB>path; sum columns 1 and 2 over all rows. Binary files
