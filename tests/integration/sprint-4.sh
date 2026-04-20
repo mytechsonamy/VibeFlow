@@ -468,30 +468,26 @@ done
 # preflight runs it on every new release, so the expected version
 # has to be bumped here as part of the release commit.
 PLUGIN_VERSION="$(jq -r '.version' "$PLUGIN")"
-EXPECTED_PLUGIN_VERSION="2.0.1"
+EXPECTED_PLUGIN_VERSION="2.0.2"
 if [[ "$PLUGIN_VERSION" == "$EXPECTED_PLUGIN_VERSION" ]]; then
   pass "plugin.json version == $EXPECTED_PLUGIN_VERSION"
 else
   fail "plugin.json version == $EXPECTED_PLUGIN_VERSION (got: $PLUGIN_VERSION)"
 fi
 
-# Repository must be the structured form ({ type, url }), not a bare string.
-if jq -e '.repository | type == "object" and has("type") and has("url")' "$PLUGIN" >/dev/null 2>&1; then
-  pass "plugin.json repository is { type, url } object"
+# Repository + bugs must be strings per the Claude Code plugin schema
+# (earlier drafts used `{ type, url }` objects but the loader rejects
+# those — see https://code.claude.com/docs/en/plugins-reference.md).
+if jq -e '.repository | type == "string" and startswith("https://github.com/")' "$PLUGIN" >/dev/null 2>&1; then
+  pass "plugin.json repository is a github https URL string"
 else
-  fail "plugin.json repository is { type, url } object"
-fi
-if jq -e '.repository.url | startswith("https://github.com/")' "$PLUGIN" >/dev/null 2>&1; then
-  pass "plugin.json repository.url is a github https URL"
-else
-  fail "plugin.json repository.url is a github https URL"
+  fail "plugin.json repository is a github https URL string"
 fi
 
-# Bugs must point at the GitHub issues page.
-if jq -e '.bugs.url | endswith("/issues")' "$PLUGIN" >/dev/null 2>&1; then
-  pass "plugin.json bugs.url ends with /issues"
+if jq -e '.bugs | type == "string" and endswith("/issues")' "$PLUGIN" >/dev/null 2>&1; then
+  pass "plugin.json bugs is a string URL ending with /issues"
 else
-  fail "plugin.json bugs.url ends with /issues"
+  fail "plugin.json bugs is a string URL ending with /issues"
 fi
 
 # Homepage must be a non-empty URL.

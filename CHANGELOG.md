@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.2] — 2026-04-20
+
+Schema fix — `.claude-plugin/plugin.json`'s `repository` and `bugs`
+fields are now strings (previously `{ type, url }` objects). Claude
+Code's plugin loader validates these fields as strings per the
+[plugin reference](https://code.claude.com/docs/en/plugins-reference.md)
+and rejects the object form with: *"repository: Invalid input:
+expected string, received object"*.
+
+Also corrected the homepage / repository URLs to point at the actual
+GitHub repo `mytechsonamy/VibeFlow` (an earlier copy referenced the
+wrong `mustiyildirim/vibeflow` slug).
+
+`tests/integration/sprint-4.sh` updated in lockstep — it now asserts
+string-type repository/bugs and matches the correct URL prefix. No
+runtime behaviour change; upgrade is required only to get `claude
+plugin install vibeflow@vibeflow` past the manifest validator.
+
+---
+
 ## [2.0.1] — 2026-04-20
 
 Packaging fix — makes `claude plugin install` complete in seconds
