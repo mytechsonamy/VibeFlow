@@ -18,7 +18,6 @@ if [[ ! -f "$CONFIG" ]]; then
 fi
 
 DOMAIN="$(vf_config_get ".domain" || echo "general")"
-MODE="$(vf_mode)"
 PHASE="$(vf_current_phase)"
 CONSENSUS="$(vf_last_consensus_status 2>/dev/null || echo "")"
 SATISFIED="$(vf_satisfied_criteria)"
@@ -96,7 +95,7 @@ fi
 
 cat <<EOF
 VibeFlow context restored after compact.
- phase=$PHASE, mode=$MODE, domain=$DOMAIN${CONSENSUS:+, last_consensus=$CONSENSUS}
+ phase=$PHASE, domain=$DOMAIN${CONSENSUS:+, last_consensus=$CONSENSUS}
  satisfied_criteria: $SATISFIED_LIST
 ${REVIEW_NOTE:+$REVIEW_NOTE}${INTEGRITY_NOTE}
 Run /vibeflow:status for full state.

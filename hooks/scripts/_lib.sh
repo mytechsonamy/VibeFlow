@@ -80,11 +80,11 @@ vf_project_id() {
   vf_config_get ".project" || echo ""
 }
 
-vf_mode() {
-  local m
-  m="$(vf_config_get ".mode" || echo "")"
-  echo "${m:-solo}"
-}
+# Sprint 14-C removed vf_mode(). The solo/team distinction no longer
+# exists — state is filesystem-backed (Sprint 11) and consensus is
+# gated by CLI availability (Sprint 14-A), not by a mode switch.
+# Callers that need quorum information read
+# `.consensus.quorum` from vibeflow.config.json directly.
 
 # Read the authoritative current phase.
 #

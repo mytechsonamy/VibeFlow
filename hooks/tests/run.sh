@@ -38,13 +38,16 @@ assert_contains() {
 }
 
 make_project() {
-  local phase="$1" mode="${2:-solo}"
+  # Sprint 14-C: `mode` argument is accepted for backwards compatibility
+  # with older callers in this file, but it is never written into the
+  # synthesised config. Callers that need to exercise quorum behaviour
+  # now write `consensus.quorum` explicitly after fixture creation.
+  local phase="$1" _legacy_mode="${2:-}"
   local dir
   dir="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-XXXXXX")"
   cat > "$dir/vibeflow.config.json" <<EOF
 {
   "project": "testproj",
-  "mode": "$mode",
   "domain": "general",
   "currentPhase": "$phase"
 }
@@ -186,13 +189,13 @@ rm -rf "$DIR"
 # the sqlite3 seed.
 DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-XXXXXX")"
 cat > "$DIR/vibeflow.config.json" <<'EOF'
-{"project":"degraded","mode":"solo","domain":"general","currentPhase":"DESIGN"}
+{"project":"degraded","domain":"general","currentPhase":"DESIGN"}
 EOF
 mkdir -p "$DIR/.vibeflow"
 export VIBEFLOW_CWD="$DIR"
 OUT="$(bash "$SCRIPTS/load-sdlc-context.sh")"
-assert_contains "degraded note when state.db missing" "degraded" "$OUT"
-assert_contains "degraded note names state.db" "state.db" "$OUT"
+assert_contains "degraded note when no project.json" "degraded" "$OUT"
+assert_contains "degraded note names project.json" "project.json" "$OUT"
 rm -rf "$DIR"
 
 echo "== post-edit.sh =="
@@ -406,7 +409,7 @@ rm -rf "$DIR"
 DIR="$(make_project DEVELOPMENT)"
 # Rewrite the config to disagree with the db.
 cat > "$DIR/vibeflow.config.json" <<'EOF'
-{"project":"testproj","mode":"solo","domain":"general","currentPhase":"REQUIREMENTS"}
+{"project":"testproj","domain":"general","currentPhase":"REQUIREMENTS"}
 EOF
 export VIBEFLOW_CWD="$DIR"
 OUT="$(bash "$SCRIPTS/compact-recovery.sh")"
@@ -417,7 +420,7 @@ rm -rf "$DIR"
 # Integrity check: state.db missing → snapshot reports it.
 DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-XXXXXX")"
 cat > "$DIR/vibeflow.config.json" <<'EOF'
-{"project":"noDB","mode":"solo","domain":"general","currentPhase":"DESIGN"}
+{"project":"noDB","domain":"general","currentPhase":"DESIGN"}
 EOF
 mkdir -p "$DIR/.vibeflow"
 export VIBEFLOW_CWD="$DIR"
@@ -649,7 +652,6 @@ make_fs_project() {
   cat > "$dir/vibeflow.config.json" <<EOF
 {
   "project": "testproj",
-  "mode": "solo",
   "domain": "general",
   "currentPhase": "$phase"
 }
@@ -729,7 +731,7 @@ rm -rf "$DIR"
 # 4. No project.json, no sqlite → fallback to config.currentPhase.
 DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-empty-XXXXXX")"
 cat > "$DIR/vibeflow.config.json" <<EOF
-{ "project": "testproj", "mode": "solo", "currentPhase": "PLANNING" }
+{ "project": "testproj", "currentPhase": "PLANNING" }
 EOF
 export VIBEFLOW_CWD="$DIR"
 PHASE="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_current_phase")"

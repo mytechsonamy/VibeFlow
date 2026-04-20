@@ -1140,28 +1140,38 @@ EOF
     fail "extracted compact-recovery output within budget (${#CR})"
   fi
 
-  # consensus-aggregator: solo-mode single APPROVED → finalized verdict.
+  # consensus-aggregator: single APPROVED review with quorum override
+  # → finalized verdict. Sprint 14-A: use printf %s so the JSON \n
+  # escape survives the pipe, and force quorum=1 via the config so the
+  # assertion doesn't depend on codex/gemini being installed on the
+  # test host.
+  jq '. + {consensus: {quorum: 1}}' "$S4K_PROJECT/vibeflow.config.json" \
+    > "$S4K_PROJECT/vibeflow.config.json.tmp" \
+    && mv "$S4K_PROJECT/vibeflow.config.json.tmp" "$S4K_PROJECT/vibeflow.config.json"
   INPUT='{"session_id":"s4k","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
-  echo "$INPUT" | bash "$S4K_PLUGIN/hooks/scripts/consensus-aggregator.sh" >/dev/null 2>/dev/null
+  printf '%s' "$INPUT" | bash "$S4K_PLUGIN/hooks/scripts/consensus-aggregator.sh" >/dev/null 2>/dev/null
   VERDICT_FILE="$S4K_PROJECT/.vibeflow/state/consensus/s4k.verdict.json"
   if [[ -f "$VERDICT_FILE" ]]; then
-    pass "extracted consensus-aggregator finalized solo verdict"
+    pass "extracted consensus-aggregator finalized verdict (quorum=1)"
     STATUS="$(jq -r '.status' "$VERDICT_FILE" 2>/dev/null)"
     if [[ "$STATUS" == "APPROVED" ]]; then
-      pass "extracted consensus solo verdict is APPROVED"
+      pass "extracted consensus verdict is APPROVED"
     else
-      fail "extracted consensus solo verdict is APPROVED (got: $STATUS)"
+      fail "extracted consensus verdict is APPROVED (got: $STATUS)"
     fi
   else
-    fail "extracted consensus-aggregator finalized solo verdict"
+    fail "extracted consensus-aggregator finalized verdict (quorum=1)"
   fi
 
-  # trigger-ai-review: solo mode is a no-op (no marker written).
+  # trigger-ai-review: Sprint 14-A removed the mode gate, so the hook
+  # now writes the review-pending marker whenever the diff threshold is
+  # crossed. In this synthetic fixture no git commit has happened so
+  # the changed-lines count stays 0 → still no marker.
   bash "$S4K_PLUGIN/hooks/scripts/trigger-ai-review.sh" < /dev/null >/dev/null 2>&1
   if [[ ! -f "$S4K_PROJECT/.vibeflow/state/review-pending.json" ]]; then
-    pass "extracted trigger-ai-review correctly no-ops in solo mode"
+    pass "extracted trigger-ai-review writes no marker below threshold"
   else
-    fail "extracted trigger-ai-review correctly no-ops in solo mode"
+    fail "extracted trigger-ai-review writes no marker below threshold"
   fi
 
   unset VIBEFLOW_CWD
