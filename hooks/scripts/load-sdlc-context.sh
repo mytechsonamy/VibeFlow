@@ -47,5 +47,41 @@ if [[ -n "$CONSENSUS" ]]; then
 fi
 LINE+=", satisfied_criteria=$SATISFIED_COUNT$DEGRADED_NOTE"
 echo "$LINE"
+
+# Sprint 15-D: review-pending marker drain. trigger-ai-review writes
+# .vibeflow/state/review-pending.json after large commits, but
+# nothing reads it on its own. Surface the marker here as a strong
+# SessionStart instruction so the orchestrator actually runs — the
+# post-commit half of the MyVibe auto-review promise.
+MARKER="$(vf_state_dir)/review-pending.json"
+if [[ -f "$MARKER" ]] && vf_have_jq; then
+  REQ_AT="$(jq -r '.requestedAt // empty' "$MARKER" 2>/dev/null || echo "")"
+  AGE_OK=true
+  if [[ -n "$REQ_AT" ]] && command -v python3 >/dev/null 2>&1; then
+    AGE_OK="$(python3 -c "
+import datetime, sys
+try:
+    ts = datetime.datetime.strptime('$REQ_AT', '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
+    hours = (datetime.datetime.now(datetime.timezone.utc) - ts).total_seconds() / 3600
+    print('true' if hours < 24 else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "true")"
+  fi
+  if [[ "$AGE_OK" == "true" ]]; then
+    SHA="$(jq -r '.commitSha // "?"' "$MARKER" 2>/dev/null || echo "?")"
+    LINES="$(jq -r '.changedLines // 0' "$MARKER" 2>/dev/null || echo 0)"
+    echo "VibeFlow: unreviewed commit pending (sha=${SHA:0:8}, +${LINES} lines)."
+    echo "ACTION REQUIRED: run /vibeflow:consensus-orchestrator to drain the review queue."
+  fi
+fi
+
+# Sprint 15-D: escape hatch advisory. If auto-consensus is globally
+# disabled for this session, announce it explicitly so the model
+# isn't surprised when no consensus fires after a skill run.
+if [[ "${VF_SKIP_AUTO_CONSENSUS:-}" == "1" ]]; then
+  echo "VibeFlow: auto-consensus disabled via VF_SKIP_AUTO_CONSENSUS=1 for this session."
+fi
+
 echo "Use /vibeflow:status for full state, /vibeflow:advance to move phase."
 exit 0
