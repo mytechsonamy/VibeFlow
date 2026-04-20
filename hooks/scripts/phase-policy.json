@@ -1,0 +1,96 @@
+{
+  "$schema": "https://vibeflow.dev/schema/phase-policy.v1.json",
+  "version": 1,
+  "phases": {
+    "REQUIREMENTS": {
+      "allow": [
+        "docs/**",
+        ".vibeflow/**",
+        "vibeflow.config.json",
+        "README*",
+        "**/*.md"
+      ],
+      "warn": []
+    },
+    "DESIGN": {
+      "allow": [
+        "docs/**",
+        ".vibeflow/**",
+        "vibeflow.config.json",
+        "README*",
+        "**/*.md",
+        "design/**",
+        "**/*.figma",
+        "wireframes/**",
+        "**/*.css",
+        "**/*.scss"
+      ],
+      "warn": []
+    },
+    "ARCHITECTURE": {
+      "allow": [
+        "docs/**",
+        ".vibeflow/**",
+        "vibeflow.config.json",
+        "README*",
+        "**/*.md",
+        "design/**",
+        "wireframes/**",
+        "contracts/**",
+        ".vibeflow/reports/adr-*.md",
+        "**/*.d.ts"
+      ],
+      "warn": []
+    },
+    "PLANNING": {
+      "allow": [
+        "docs/**",
+        ".vibeflow/**",
+        "vibeflow.config.json",
+        "README*",
+        "**/*.md",
+        "contracts/**",
+        "docs/sprints/**"
+      ],
+      "warn": []
+    },
+    "DEVELOPMENT": {
+      "allow": [
+        "**"
+      ],
+      "warn": []
+    },
+    "TESTING": {
+      "allow": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "tests/**",
+        "test/**",
+        ".vibeflow/**",
+        "vibeflow.config.json",
+        "docs/**",
+        "**/*.md"
+      ],
+      "warn": [
+        "src/**"
+      ]
+    },
+    "DEPLOYMENT": {
+      "allow": [
+        "CHANGELOG*",
+        "release-notes/**",
+        ".github/workflows/**",
+        "Dockerfile*",
+        "docker-compose*.yml",
+        "docker-compose*.yaml",
+        "docs/**",
+        "vibeflow.config.json",
+        ".vibeflow/**",
+        "**/*.md"
+      ],
+      "warn": [
+        "src/**"
+      ]
+    }
+  }
+}

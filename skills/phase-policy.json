@@ -1,0 +1,131 @@
+{
+  "$schema": "https://vibeflow.dev/schema/skill-phase-policy.v1.json",
+  "version": 1,
+  "description": "Advisory mapping from skill name to the SDLC phases in which it is intended to run. Consumed by skill self-checks and documentation. Hook-level path enforcement lives separately in hooks/scripts/phase-policy.json.",
+  "skills": {
+    "init": {
+      "phases": ["REQUIREMENTS"],
+      "description": "Project bootstrap — runs exactly once at the start of REQUIREMENTS."
+    },
+    "prd-quality-analyzer": {
+      "phases": ["REQUIREMENTS"],
+      "description": "Scores PRD testability and surfaces ambiguity; only meaningful before DESIGN."
+    },
+    "business-rule-validator": {
+      "phases": ["ARCHITECTURE", "PLANNING"],
+      "description": "Extracts and validates business rules; depends on approved PRD."
+    },
+    "invariant-formalizer": {
+      "phases": ["ARCHITECTURE", "PLANNING"],
+      "description": "Formalizes invariants into code-level predicates."
+    },
+    "architecture-validator": {
+      "phases": ["ARCHITECTURE", "PLANNING"],
+      "description": "Validates proposed architecture against domain policies and invariants."
+    },
+    "decision-recommender": {
+      "phases": ["ARCHITECTURE", "PLANNING"],
+      "description": "Produces structured decision packages (ADR candidates)."
+    },
+    "reconciliation-simulator": {
+      "phases": ["ARCHITECTURE", "PLANNING", "TESTING"],
+      "description": "Financial-domain-only; simulates ledger invariants."
+    },
+    "test-strategy-planner": {
+      "phases": ["PLANNING"],
+      "description": "Produces scenario-set.md and test-strategy.md from the PRD."
+    },
+    "test-priority-engine": {
+      "phases": ["PLANNING", "TESTING"],
+      "description": "Ranks tests by risk."
+    },
+    "environment-orchestrator": {
+      "phases": ["PLANNING"],
+      "description": "Produces env-setup.md (Docker/orchestration recipes)."
+    },
+    "component-test-writer": {
+      "phases": ["DEVELOPMENT", "TESTING"],
+      "description": "Generates unit tests."
+    },
+    "contract-test-writer": {
+      "phases": ["DEVELOPMENT", "TESTING"],
+      "description": "Generates API contract tests."
+    },
+    "e2e-test-writer": {
+      "phases": ["DEVELOPMENT", "TESTING"],
+      "description": "Generates end-to-end tests."
+    },
+    "test-data-manager": {
+      "phases": ["DEVELOPMENT", "TESTING"],
+      "description": "Generates factories and fixtures."
+    },
+    "regression-test-runner": {
+      "phases": ["TESTING"],
+      "description": "Runs the test suite and computes pass rate."
+    },
+    "mutation-test-runner": {
+      "phases": ["TESTING"],
+      "description": "Generates mutations and computes mutation score."
+    },
+    "coverage-analyzer": {
+      "phases": ["TESTING"],
+      "description": "Rolls up coverage to requirement level; enforces P0 zero-uncovered rule."
+    },
+    "cross-run-consistency": {
+      "phases": ["TESTING"],
+      "description": "Runs the same test N times to detect flake."
+    },
+    "test-result-analyzer": {
+      "phases": ["TESTING"],
+      "description": "Classifies failures (bug/flaky/environment/test-defect)."
+    },
+    "uat-executor": {
+      "phases": ["TESTING"],
+      "description": "Runs UAT scenarios against staging."
+    },
+    "chaos-injector": {
+      "phases": ["TESTING"],
+      "description": "Injects failures and measures resilience."
+    },
+    "observability-analyzer": {
+      "phases": "ALL",
+      "description": "Parses HAR, console logs; detects anomalies. Read-only."
+    },
+    "visual-ai-analyzer": {
+      "phases": ["TESTING"],
+      "description": "Vision-based layout/accessibility regression check."
+    },
+    "release-decision-engine": {
+      "phases": ["DEPLOYMENT"],
+      "description": "Aggregates all quality signals into GO/CONDITIONAL/BLOCKED."
+    },
+    "learning-loop-engine": {
+      "phases": ["DEPLOYMENT"],
+      "description": "Consumes historical reports to detect patterns. Read-only."
+    },
+    "consensus-orchestrator": {
+      "phases": "ALL",
+      "description": "Multi-AI review; can run at any point on any artifact."
+    },
+    "status": {
+      "phases": "ALL",
+      "description": "Reports current phase and pending work. Read-only."
+    },
+    "repo-fingerprint": {
+      "phases": "ALL",
+      "description": "Brownfield codebase scan. Read-only."
+    },
+    "traceability-engine": {
+      "phases": "ALL",
+      "description": "Maps requirements to test scenarios and source code."
+    },
+    "arch-guardrails": {
+      "phases": ["DEVELOPMENT"],
+      "description": "Validates changes against architectural rules before commit."
+    },
+    "checklist-generator": {
+      "phases": "ALL",
+      "description": "Emits review checklists (PR, release, feature sign-off)."
+    }
+  }
+}
