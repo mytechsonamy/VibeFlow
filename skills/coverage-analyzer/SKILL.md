@@ -332,21 +332,39 @@ no config knob that opens the gate.
 - `traceability-engine` — reads `requirements.json` to keep
   the RTM current with real coverage data.
 
-## Final Step: Auto-Consensus (MANDATORY — Sprint 15-B)
+## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
 
 After your output files are written to `.vibeflow/reports/`, your
-**final action** is to invoke:
+**final action** is to Write the auto-consensus marker at
+`.vibeflow/state/consensus-needed.json` with:
+
+```json
+{
+  "artifact": ".vibeflow/reports/coverage-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/coverage-report.md",
+  "createdAt": "<current UTC ISO-8601 timestamp>",
+  "createdBy": "coverage-analyzer"
+}
+```
+
+Sprint 16-A's `consensus-gate` hook blocks every `Bash|Write|Edit`
+tool call while the marker is present, surfacing the
+`requiredCommand` to the operator until they run the orchestrator —
+which drains the marker on APPROVED / NEEDS_REVISION / REJECTED
+(Sprint 16-B). This is the mandatory layer; the prose invocation
+below is best-effort for the main-agent case:
 
 ```
 /vibeflow:consensus-orchestrator .vibeflow/reports/coverage-report.md
 ```
 
-This triggers the Claude + codex + gemini multi-AI review and — if
-the verdict is NEEDS_REVISION — auto-chains
-`/vibeflow:consensus-arbiter` for diff-first patches. Not optional.
+It triggers the Claude + codex + gemini review and — if verdict is
+NEEDS_REVISION — auto-chains `/vibeflow:consensus-arbiter` for
+diff-first patches.
 
-**Skip condition (only one)**: if `VF_SKIP_AUTO_CONSENSUS=1` is set in
-the environment, log "auto-consensus skipped by env (VF_SKIP_AUTO_CONSENSUS)"
-and stop without invoking the orchestrator. Otherwise the phase-gate
-in `sdlc-engine` (Sprint 15-C) blocks the next `/vibeflow:advance`
-until a fresh consensus is recorded.
+**Skip condition (only one)**: if `VF_SKIP_AUTO_CONSENSUS=1` is set,
+do NOT write the marker. Log "auto-consensus skipped by env
+(VF_SKIP_AUTO_CONSENSUS)" and stop. The phase-gate in `sdlc-engine`
+(Sprint 15-C) still blocks the next `/vibeflow:advance` until a
+fresh consensus record exists — the env bypass is call-scoped,
+not phase-scoped.

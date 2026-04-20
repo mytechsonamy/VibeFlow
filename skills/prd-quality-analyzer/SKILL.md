@@ -122,11 +122,33 @@ This skill's output feeds into:
 - architecture-validator (uses findings for design validation)
 - traceability-engine (uses requirement list for RTM baseline)
 
-## Final Step: Auto-Consensus (MANDATORY — Sprint 15-B)
+## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
 
 After you have written `prd-quality-report.md` **and**
 `prd-cost-avoidance.md` to `.vibeflow/reports/`, your **final action**
-is to invoke:
+is to Write the auto-consensus marker at
+`.vibeflow/state/consensus-needed.json` with this JSON body:
+
+```json
+{
+  "artifact": ".vibeflow/reports/prd-quality-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/prd-quality-report.md",
+  "createdAt": "<current UTC ISO-8601 timestamp>",
+  "createdBy": "prd-quality-analyzer"
+}
+```
+
+Sprint 16-A's `consensus-gate` hook reads this marker on every
+`Bash | Write | Edit` tool call and refuses the call with a stderr
+message naming `requiredCommand`, until the operator runs the
+consensus-orchestrator — which drains the marker on APPROVED /
+NEEDS_REVISION / REJECTED (Sprint 16-B). That is how we close the
+"forked subagent cannot invoke a slash command" gap. Marker-writing
+is not optional; without it the chain is purely advisory.
+
+After the marker is written, **also** emit the invocation prose so
+the main-agent caller (if any) picks it up directly. This is
+best-effort — the marker is the mandatory layer:
 
 ```
 /vibeflow:consensus-orchestrator .vibeflow/reports/prd-quality-report.md
@@ -135,11 +157,11 @@ is to invoke:
 This triggers the Claude + codex + gemini multi-AI review, which
 writes a verdict file and — if the verdict is NEEDS_REVISION —
 auto-chains `/vibeflow:consensus-arbiter` to produce diff-first
-patches the operator can review and apply. This step is not optional.
+patches the operator can review and apply.
 
 **Skip condition (only one)**: if `VF_SKIP_AUTO_CONSENSUS=1` is set in
-the environment, log "auto-consensus skipped by env (VF_SKIP_AUTO_CONSENSUS)"
-and stop without invoking the orchestrator. In every other case,
-call `/vibeflow:consensus-orchestrator`. The phase-gate in
-`sdlc-engine` (Sprint 15-C) will block the next `/vibeflow:advance`
-until a fresh REQUIREMENTS consensus is recorded.
+the environment, do NOT write the marker. Log "auto-consensus
+skipped by env (VF_SKIP_AUTO_CONSENSUS)" and stop. The phase-gate in
+`sdlc-engine` (Sprint 15-C) still blocks the next `/vibeflow:advance`
+until a fresh REQUIREMENTS consensus is recorded — the env bypass
+is call-scoped, not phase-scoped.
