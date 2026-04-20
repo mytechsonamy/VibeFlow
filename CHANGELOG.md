@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.1] — 2026-04-21
+
+Post-Sprint-17 polish. Ships the missing `/vibeflow:advance` slash
+command that was documented in CLAUDE.md but never implemented —
+operators had to assemble `sdlc_advance_phase` MCP tool arguments
+by hand. Now you run `/vibeflow:advance DESIGN` (or any target
+phase) and the skill handles projectId lookup, humanOverrideNote
+parsing for HUMAN_APPROVAL_REQUIRED advances, and exit-criterion
+failure remediation hints.
+
+### Added
+- **`skills/advance/SKILL.md`** — thin wrapper around
+  `mcp__sdlc-engine__sdlc_advance_phase`. Reads projectId from
+  `vibeflow.config.json`, uppercases the target phase argument,
+  extracts optional `humanOverrideNote="..."` from $ARGUMENTS,
+  invokes the MCP tool, and surfaces success/failure with
+  remediation hints that point at the relevant skill
+  (consensus-orchestrator / consensus-arbiter /
+  consensus-specialist / analyzer skills) based on which
+  exit criterion failed.
+- `skills/phase-policy.json` registers `advance` (phases: ALL).
+
+### Fixed
+- **Documentation drift.** `/vibeflow:advance` appeared in
+  CLAUDE.md's "Key Commands" list since v1.0 but wasn't
+  implemented as a skill; operators were told to run it but
+  Claude Code had nothing to dispatch. This release closes
+  the gap.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.5.0 → 2.5.1
+- `.claude-plugin/marketplace.json`: 2.5.0 → 2.5.1
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.5.0 → 2.5.1
+
+---
+
 ## [2.5.0] — 2026-04-20
 
 Sprint 17 — iterative consensus negotiation loop + phase

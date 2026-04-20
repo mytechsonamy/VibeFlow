@@ -123,6 +123,10 @@
       "phases": "ALL",
       "description": "Reports current phase and pending work. Read-only."
     },
+    "advance": {
+      "phases": "ALL",
+      "description": "Sprint 17.1 wrapper around sdlc_advance_phase MCP tool. Validates target phase, parses optional humanOverrideNote for HUMAN_APPROVAL_REQUIRED advances, surfaces exit-criterion failures with remediation suggestions."
+    },
     "repo-fingerprint": {
       "phases": "ALL",
       "description": "Brownfield codebase scan. Read-only."
