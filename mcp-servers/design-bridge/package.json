@@ -1,7 +1,7 @@
 {
   "name": "@vibeflow/design-bridge",
   "version": "0.1.0",
-  "description": "VibeFlow design-bridge MCP server — Figma REST client, frame + token extraction, style generation.",
+  "description": "VibeFlow design-bridge MCP server \u2014 Figma REST client, frame + token extraction, style generation.",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -13,7 +13,7 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/bundle.js --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
@@ -26,6 +26,7 @@
   "devDependencies": {
     "@types/node": "^22.7.4",
     "@vitest/coverage-v8": "^2.1.9",
+    "esbuild": "^0.28.0",
     "typescript": "^5.6.2",
     "vitest": "^2.1.2"
   }
