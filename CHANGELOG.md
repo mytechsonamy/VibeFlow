@@ -7,6 +7,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] — 2026-04-20
+
+Consensus flow unified; `mode` concept retired; skill output contract
+fixed. Closes three field-reported bugs from v2.1.0 testing.
+
+### Changed
+- **Consensus is CLI-availability-gated, not mode-gated.** `codex` and
+  `gemini` CLI reviewers participate whenever their CLIs are on PATH —
+  both use the operator's own authenticated session, so there is no
+  API billing reason to hide them behind a solo/team switch.
+  `hooks/scripts/consensus-aggregator.sh` now derives the expected
+  reviewer count from `command -v codex` + `command -v gemini`, with
+  an optional `consensus.quorum` integer override in
+  `vibeflow.config.json` for CI or offline-CLI scenarios.
+- `hooks/scripts/trigger-ai-review.sh` no longer short-circuits in
+  "solo mode" — the hook now writes the review-pending marker
+  whenever the diff crosses the 50-line threshold, and downstream
+  decides who reviews.
+- `skills/consensus-orchestrator/SKILL.md` Step 3 section renamed
+  from "Team Mode Only, Graceful Degradation" to "CLI-availability
+  only", with an explicit note that both CLIs use operator-owned
+  sessions → no API billing → no mode gate.
+
+### Fixed
+- `reviewer=unknown` / `verdict=UNKNOWN` consensus entries. The
+  aggregator was firing on every `SubagentStop` payload (Explore,
+  test-analyst, codebase-explorer, …) and logging any subagent with
+  unparseable output as an UNKNOWN verdict, prematurely finalising
+  the session as REJECTED. The aggregator now filters by subagent
+  name (allow-list: `claude-reviewer`, `*-reviewer`, `consensus-*`)
+  and skips entries with no recognisable verdict instead of logging
+  synthetic UNKNOWN rows.
+- `prd-quality-analyzer`, `architecture-validator`,
+  `test-strategy-planner`, and `traceability-engine` produced
+  reports in chat only — their `allowed-tools` was `Read Grep Glob`,
+  so Claude couldn't Write to `.vibeflow/reports/`. All four now
+  carry `Write` in allowed-tools and name their `.vibeflow/reports/`
+  target paths explicitly in the "Output Files" section, with a
+  "never print to chat only" directive.
+- Malformed `SubagentStop` payloads (e.g. JSON strings with embedded
+  `\n` escapes that got interpreted as newlines mid-pipe) no longer
+  abort the aggregator with `exit 5`. Fail-safe path: parse-failure
+  → `{"continue":true}` + exit 0.
+
+### Removed
+- `vf_mode()` helper deleted from `hooks/scripts/_lib.sh`. Every
+  hook (load-sdlc-context, compact-recovery, trigger-ai-review,
+  consensus-aggregator) dropped its `MODE=...` read. Status line
+  output no longer includes `mode=...`. The legacy `"mode": "solo"`
+  / `"team"` field in synthesised test fixtures and checked-in
+  `vibeflow.config.json` files is gone.
+- `docs/HOOKS.md` "Solo mode" subsection on trigger-ai-review
+  merged into the rate-limit section; Quorum subsection on
+  consensus-aggregator rewritten around CLI detection +
+  `consensus.quorum` override.
+- `docs/CONFIGURATION.md` sample config no longer carries `mode`;
+  fields table drops `mode` + `db_connection` (both retired long
+  ago but the doc was stale); `userConfig` table cleaned up.
+
+### Added
+- `consensus.quorum` integer field in `vibeflow.config.json` —
+  overrides the CLI-detected default.
+- `tests/integration/sprint-14.sh` — 36 assertions pinning every
+  Sprint 14 behaviour change (CLI detection, non-reviewer filter,
+  mode-absence, skill output contract).
+- Sprint 14-D regression sentinel in `tests/integration/sprint-4.sh`:
+  any skill with an `## Output Files` section must carry `Write`
+  in its allowed-tools.
+
+### Upgrade
+
+```bash
+claude plugin marketplace update vibeflow
+claude plugin install vibeflow@vibeflow
+```
+
+Behavioural difference: reviewers that previously only ran in "team
+mode" now run unconditionally if their CLI is on PATH. If you have
+`codex` or `gemini` installed but don't want them to participate,
+set `"consensus": { "quorum": 1 }` in `vibeflow.config.json`.
+
+No data migration needed. `mode` in your existing config file is
+harmlessly ignored.
+
+### Versioning
+- Plugin: `2.1.0 → 2.2.0`
+- `@vibeflow/sdlc-engine`: `1.1.0 → 1.2.0`
+
+### Tests
+1793 passing checks across 14 layers (`hooks` 75 + `run.sh` 398 +
+`sprint-*` 1220 + MCP units 389 + sprint-8's pre-existing 29/33).
+sprint-8's 4 `[S8-C]` prerelease runtime failures remain pre-existing
+and out of scope.
+
+---
+
 ## [2.1.0] — 2026-04-20
 
 Generic phase enforcement. Write/Edit tool calls are now gated per
