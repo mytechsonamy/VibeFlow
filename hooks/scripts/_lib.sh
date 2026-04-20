@@ -191,3 +191,82 @@ vf_phase_index() {
   done
   return 1
 }
+
+# Sprint 13: phase-write-guard helpers.
+
+# Path to the hook-consumed phase policy file.
+vf_policy_path() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  echo "$script_dir/phase-policy.json"
+}
+
+# Strip the project cwd prefix from an absolute path, returning a
+# repo-relative path with no leading slash. Paths already relative (no
+# leading slash) pass through unchanged.
+vf_relpath() {
+  local abs="$1"
+  local cwd
+  cwd="$(vf_cwd)"
+  # Normalize trailing slash on cwd.
+  cwd="${cwd%/}"
+  case "$abs" in
+    "$cwd/"*) echo "${abs#"$cwd"/}" ;;
+    "$cwd")   echo "." ;;
+    /*)       echo "$abs" ;;  # absolute but outside cwd — caller decides
+    *)        echo "$abs" ;;  # already relative
+  esac
+}
+
+# Produce an allow/warn/block decision for (phase, relative-path)
+# against the phase policy JSON. Prints one of those three words on
+# stdout. Returns 0 on success; returns 1 only when python3 itself is
+# missing (in which case the caller should fail-safe to allow).
+vf_phase_decision() {
+  local phase="$1" rel="$2" policy="${3:-$(vf_policy_path)}"
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 - "$phase" "$rel" "$policy" <<'PY'
+import json, re, sys
+
+phase, rel, policy_path = sys.argv[1], sys.argv[2], sys.argv[3]
+
+try:
+    with open(policy_path) as f:
+        policy = json.load(f)
+except (OSError, ValueError):
+    print("allow")
+    sys.exit(0)
+
+phase_block = policy.get("phases", {}).get(phase, {})
+allow_globs = phase_block.get("allow", [])
+warn_globs  = phase_block.get("warn", [])
+
+SS, TS, DS = "\x00SS\x00", "\x00TS\x00", "\x00DS\x00"
+META = r".+()[]{}^$|\\"
+
+
+def glob_to_regex(g):
+    out = ""
+    for ch in g:
+        if ch in META:
+            out += "\\" + ch
+        else:
+            out += ch
+    out = out.replace("**/", SS).replace("/**", TS).replace("**", DS)
+    out = out.replace("*", "[^/]*").replace("?", "[^/]")
+    out = out.replace(SS, "(?:.*/)?").replace(TS, "(?:/.*)?").replace(DS, ".*")
+    return "^" + out + "$"
+
+
+def matches_any(globs, path):
+    return any(re.match(glob_to_regex(g), path) for g in globs)
+
+
+if matches_any(allow_globs, rel):
+    print("allow")
+elif matches_any(warn_globs, rel):
+    print("warn")
+else:
+    print("block")
+PY
+}

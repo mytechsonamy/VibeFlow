@@ -493,6 +493,132 @@ rm -rf "$DIR"
 unset VIBEFLOW_CWD
 
 # -----------------------------------------------------------------------------
+# Sprint 13-A: phase-write-guard.sh (PreToolUse/Write|Edit).
+# Blocks cross-phase writes; allow-list per phase in phase-policy.json.
+# -----------------------------------------------------------------------------
+echo
+echo "== phase-write-guard.sh [S13-A] =="
+
+# 1. REQUIREMENTS + src/foo.ts → block (exit 2), stderr names phase + path.
+DIR="$(make_project REQUIREMENTS)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/src/foo.ts"}}'
+OUT_ERR="$(echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" 2>&1 >/dev/null || true)"
+RC=$(echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null; echo $?)
+assert_eq "[S13-A] REQUIREMENTS blocks src/foo.ts (exit 2)" "2" "$RC"
+assert_contains "[S13-A] block message names REQUIREMENTS phase" "REQUIREMENTS" "$OUT_ERR"
+assert_contains "[S13-A] block message names the offending path" "src/foo.ts" "$OUT_ERR"
+rm -rf "$DIR"
+
+# 2. REQUIREMENTS + docs/prd.md → allow (exit 0).
+DIR="$(make_project REQUIREMENTS)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/docs/prd.md"}}'
+echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] REQUIREMENTS allows docs/prd.md" "0" "$RC"
+rm -rf "$DIR"
+
+# 3. REQUIREMENTS + .vibeflow/reports/x.md → allow (framework state is always writable).
+DIR="$(make_project REQUIREMENTS)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/.vibeflow/reports/x.md"}}'
+echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] REQUIREMENTS allows .vibeflow/reports/x.md" "0" "$RC"
+rm -rf "$DIR"
+
+# 4. REQUIREMENTS + vibeflow.config.json → allow (framework config is always writable).
+DIR="$(make_project REQUIREMENTS)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/vibeflow.config.json"}}'
+echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] REQUIREMENTS allows vibeflow.config.json" "0" "$RC"
+rm -rf "$DIR"
+
+# 5. DESIGN + src/foo.ts → block.
+DIR="$(make_project DESIGN)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/src/foo.ts"}}'
+echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] DESIGN blocks src/foo.ts" "2" "$RC"
+rm -rf "$DIR"
+
+# 6. DESIGN + design/tokens.json → allow.
+DIR="$(make_project DESIGN)"
+mkdir -p "$DIR/design"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/design/tokens.json"}}'
+echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] DESIGN allows design/tokens.json" "0" "$RC"
+rm -rf "$DIR"
+
+# 7. DEVELOPMENT + src/foo.ts → allow (full write).
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/src/foo.ts"}}'
+echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] DEVELOPMENT allows src/foo.ts" "0" "$RC"
+rm -rf "$DIR"
+
+# 8. TESTING + src/foo.ts (non-test) → allow but warn on stderr.
+DIR="$(make_project TESTING)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/src/foo.ts"}}'
+OUT_ERR="$(echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" 2>&1 >/dev/null || true)"
+RC=$(echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null; echo $?)
+assert_eq "[S13-A] TESTING allows src/foo.ts (warn only)" "0" "$RC"
+assert_contains "[S13-A] TESTING src/ warning surfaced on stderr" "warn-only" "$OUT_ERR"
+rm -rf "$DIR"
+
+# 9. TESTING + src/foo.test.ts → allow silently (test files are the sanctioned writes).
+DIR="$(make_project TESTING)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/src/foo.test.ts"}}'
+OUT_ERR="$(echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" 2>&1 >/dev/null || true)"
+RC=$(echo "$INPUT" | bash "$SCRIPTS/phase-write-guard.sh" >/dev/null 2>/dev/null; echo $?)
+assert_eq "[S13-A] TESTING allows src/foo.test.ts silently" "0" "$RC"
+if [[ -z "$OUT_ERR" ]]; then
+  pass "[S13-A] TESTING src/foo.test.ts emits no stderr"
+else
+  fail "[S13-A] TESTING src/foo.test.ts emits no stderr (got: $OUT_ERR)"
+fi
+rm -rf "$DIR"
+
+# 10. Escape hatch: VF_ALLOW_PHASE_WRITE=1 unblocks even REQUIREMENTS.
+DIR="$(make_project REQUIREMENTS)"
+export VIBEFLOW_CWD="$DIR"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/src/foo.ts"}}'
+VF_ALLOW_PHASE_WRITE=1 bash "$SCRIPTS/phase-write-guard.sh" <<<"$INPUT" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] escape hatch VF_ALLOW_PHASE_WRITE=1 always allows" "0" "$RC"
+rm -rf "$DIR"
+
+# 11. Missing policy file → fail-safe allow (never brick an install).
+DIR="$(make_project REQUIREMENTS)"
+export VIBEFLOW_CWD="$DIR"
+# Point to a non-existent policy via env-shadowing isn't supported; instead
+# rename the real policy briefly in a sandbox copy of the hook.
+SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-sb-XXXXXX")"
+cp "$SCRIPTS/_lib.sh" "$SANDBOX/_lib.sh"
+sed 's|hooks/scripts/phase-policy.json|hooks/scripts/DOES-NOT-EXIST.json|' \
+  "$SCRIPTS/phase-write-guard.sh" > "$SANDBOX/phase-write-guard.sh"
+chmod +x "$SANDBOX/phase-write-guard.sh"
+INPUT='{"tool_input":{"file_path":"'"$DIR"'/src/foo.ts"}}'
+# Use the sandbox hook — it sources its own lib, its policy path will
+# resolve to the missing file because we're running from SANDBOX.
+echo "$INPUT" | bash "$SANDBOX/phase-write-guard.sh" >/dev/null 2>/dev/null
+RC=$?
+assert_eq "[S13-A] missing policy → fail-safe allow" "0" "$RC"
+rm -rf "$SANDBOX" "$DIR"
+
+unset VIBEFLOW_CWD
+
+# -----------------------------------------------------------------------------
 # Sprint 11-C: filesystem backend compatibility.
 # Verifies that vf_current_phase / vf_last_consensus_status / vf_satisfied_criteria
 # prefer project.json over state.db, and fall back gracefully when only one of

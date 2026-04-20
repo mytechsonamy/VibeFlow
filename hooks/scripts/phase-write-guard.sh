@@ -22,11 +22,7 @@
 #   VF_ALLOW_PHASE_WRITE=1   per-call dev override; always allows.
 #   No policy file present   fail-safe allow (never brick an install).
 #   Empty file_path          graceful allow (e.g. MultiEdit variants).
-#
-# NOTE (S13-A): this script is scaffold-only in Sprint 13-A. It is not
-# yet wired into hooks/hooks.json; the full implementation (glob
-# matching, policy parsing) lands in Sprint 13-B, and hooks.json wiring
-# in Sprint 13-C.
+#   python3 not on PATH      fail-safe allow (matcher needs python).
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,7 +38,42 @@ if [[ "${VF_ALLOW_PHASE_WRITE:-}" == "1" ]]; then
   exit 0
 fi
 
-# In Sprint 13-A the guard is dead code — it drains stdin, honours the
-# escape hatch, and always allows. Real logic arrives in Sprint 13-B.
-echo '{"continue":true}'
-exit 0
+# Extract target file_path from the PreToolUse JSON envelope.
+FILE=""
+if vf_have_jq && [[ -n "$INPUT" ]]; then
+  FILE="$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")"
+fi
+
+# Graceful: nothing to check (MultiEdit, tool-use without file_path).
+if [[ -z "$FILE" ]]; then
+  echo '{"continue":true}'
+  exit 0
+fi
+
+# Fail-safe: missing policy file → allow. Framework never bricks a repo.
+POLICY="$(vf_policy_path)"
+if [[ ! -f "$POLICY" ]]; then
+  echo '{"continue":true}'
+  exit 0
+fi
+
+PHASE="$(vf_current_phase)"
+REL="$(vf_relpath "$FILE")"
+
+DECISION="$(vf_phase_decision "$PHASE" "$REL" "$POLICY" 2>/dev/null || echo "allow")"
+
+case "$DECISION" in
+  allow)
+    echo '{"continue":true}'
+    exit 0
+    ;;
+  warn)
+    echo "VibeFlow phase-write-guard: $PHASE phase discourages writes to $REL (warn-only). Prefer confined edits; continue if you know what you're doing." >&2
+    echo '{"continue":true}'
+    exit 0
+    ;;
+  block|*)
+    echo "VibeFlow phase-write-guard: $PHASE phase does not permit writes to $REL. Run /vibeflow:advance to progress the SDLC, or set VF_ALLOW_PHASE_WRITE=1 to bypass this single call." >&2
+    exit 2
+    ;;
+esac
