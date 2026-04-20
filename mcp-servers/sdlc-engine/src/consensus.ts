@@ -9,6 +9,14 @@ export enum ConsensusStatus {
   APPROVED = "APPROVED",
   NEEDS_REVISION = "NEEDS_REVISION",
   REJECTED = "REJECTED",
+  /**
+   * Sprint 17-C: emitted by the aggregator when `consensus.maxIterations`
+   * rounds complete without reaching `consensus.approvalThreshold`
+   * agreement but the run is not a hard reject (no rejected-majority,
+   * no ≥2 deduped critical findings). Advance accepts this status as
+   * equivalent to APPROVED with an audit event.
+   */
+  HUMAN_APPROVAL_REQUIRED = "HUMAN_APPROVAL_REQUIRED",
 }
 
 const STATUS_ALIASES: ReadonlyMap<string, ConsensusStatus> = new Map([
@@ -20,6 +28,10 @@ const STATUS_ALIASES: ReadonlyMap<string, ConsensusStatus> = new Map([
   ["revision", ConsensusStatus.NEEDS_REVISION],
   ["rejected", ConsensusStatus.REJECTED],
   ["reject", ConsensusStatus.REJECTED],
+  ["human_approval_required", ConsensusStatus.HUMAN_APPROVAL_REQUIRED],
+  ["human-approval-required", ConsensusStatus.HUMAN_APPROVAL_REQUIRED],
+  ["humanapprovalrequired", ConsensusStatus.HUMAN_APPROVAL_REQUIRED],
+  ["human_approval", ConsensusStatus.HUMAN_APPROVAL_REQUIRED],
 ]);
 
 /**
@@ -78,4 +90,20 @@ export function statusFromScore(
   if (agreement < 0.5) return ConsensusStatus.REJECTED;
   if (agreement >= 0.9 && criticalIssues === 0) return ConsensusStatus.APPROVED;
   return ConsensusStatus.NEEDS_REVISION;
+}
+
+/**
+ * Phase-advance gate: Sprint 17-C accepts HUMAN_APPROVAL_REQUIRED as
+ * a valid terminal status (operator has explicitly signed off via the
+ * orchestrator's `humanOverrideNote` argument). The event log records
+ * the override so load-sdlc-context can surface it on next
+ * SessionStart.
+ */
+export function isConsensusAdvanceValid(
+  status: ConsensusStatus | null | undefined,
+): boolean {
+  return (
+    status === ConsensusStatus.APPROVED ||
+    status === ConsensusStatus.HUMAN_APPROVAL_REQUIRED
+  );
 }

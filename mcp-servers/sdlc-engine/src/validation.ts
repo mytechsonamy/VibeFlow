@@ -98,7 +98,16 @@ export class PhaseTransitionValidator {
           req.lastConsensusPhase !== undefined &&
           req.lastConsensusPhase !== null &&
           req.lastConsensusPhase === expectedPhase;
-        const lastVerdictOk = req.lastConsensus === ConsensusStatus.APPROVED;
+        // Sprint 17-C: HUMAN_APPROVAL_REQUIRED is accepted alongside
+        // APPROVED (pass-with-audit mode). When the aggregator runs
+        // out of negotiation rounds without ≥0.9 agreement but no
+        // hard rejection, the operator's explicit override (via
+        // advance's humanOverrideNote) is sufficient to proceed.
+        // The event log records the override for audit surfacing on
+        // next SessionStart.
+        const lastVerdictOk =
+          req.lastConsensus === ConsensusStatus.APPROVED ||
+          req.lastConsensus === ConsensusStatus.HUMAN_APPROVAL_REQUIRED;
         // Sprint 15-C back-compat: pre-v2.3.0 ARCHITECTURE projects
         // satisfied the old `consensus.approved` criterion directly.
         // Accept that as if they had the new scoped form. Drop in

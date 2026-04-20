@@ -83,5 +83,38 @@ if [[ "${VF_SKIP_AUTO_CONSENSUS:-}" == "1" ]]; then
   echo "VibeFlow: auto-consensus disabled via VF_SKIP_AUTO_CONSENSUS=1 for this session."
 fi
 
+# Sprint 17-C: surface the most recent phase_advanced event that
+# carries a humanOverrideNote (advance ran under HUMAN_APPROVAL_REQUIRED).
+# Missing jq / missing events dir / no override just falls through
+# silently — the advisory is purely informational.
+if vf_have_jq; then
+  EVENTS_DIR=""
+  PDIR="$(vf_state_project_dir 2>/dev/null || true)"
+  if [[ -n "$PDIR" ]] && [[ -d "$PDIR/events" ]]; then
+    EVENTS_DIR="$PDIR/events"
+  fi
+  if [[ -n "$EVENTS_DIR" ]]; then
+    LATEST_OVERRIDE=""
+    # Walk phase_advanced event files newest-first.
+    for f in $(ls -1t "$EVENTS_DIR"/*phase_advanced*.json 2>/dev/null); do
+      if jq -e '.payload.humanOverrideNote // empty' "$f" >/dev/null 2>&1; then
+        LATEST_OVERRIDE="$f"
+        break
+      fi
+    done
+    if [[ -n "$LATEST_OVERRIDE" ]] && [[ -f "$LATEST_OVERRIDE" ]]; then
+      OV_AT="$(jq -r '.recordedAt // "?"' "$LATEST_OVERRIDE" 2>/dev/null || echo "?")"
+      OV_FROM="$(jq -r '.payload.from // "?"' "$LATEST_OVERRIDE" 2>/dev/null || echo "?")"
+      OV_TO="$(jq -r '.payload.to // "?"' "$LATEST_OVERRIDE" 2>/dev/null || echo "?")"
+      OV_NOTE="$(jq -r '.payload.humanOverrideNote // ""' "$LATEST_OVERRIDE" 2>/dev/null || echo "")"
+      OV_NOTE="${OV_NOTE:0:120}"
+      echo "VibeFlow: last phase advance (${OV_FROM} → ${OV_TO} at ${OV_AT:0:10}) ran under HUMAN_APPROVAL_REQUIRED."
+      if [[ -n "$OV_NOTE" ]]; then
+        echo "  Override note: $OV_NOTE"
+      fi
+    fi
+  fi
+fi
+
 echo "Use /vibeflow:status for full state, /vibeflow:advance to move phase."
 exit 0

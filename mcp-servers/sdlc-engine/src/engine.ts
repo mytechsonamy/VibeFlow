@@ -18,6 +18,15 @@ export interface AdvancePhaseInput {
   readonly projectId: string;
   readonly to: PhaseId;
   readonly force?: boolean;
+  /**
+   * Sprint 17-C: operator-supplied justification when advancing under
+   * a HUMAN_APPROVAL_REQUIRED consensus. When set, the transition is
+   * recorded as a `consensus.human_override_accepted` event alongside
+   * the normal phase-advance event. load-sdlc-context.sh reads these
+   * to surface a visible "advanced under human override" advisory on
+   * subsequent SessionStart calls.
+   */
+  readonly humanOverrideNote?: string;
 }
 
 export interface RecordConsensusInput {
@@ -129,34 +138,57 @@ export class SdlcEngine {
   async advancePhase(
     input: AdvancePhaseInput,
   ): Promise<{ state: ProjectState; transition: TransitionResult }> {
-    return this.store.transact(input.projectId, (current) => {
-      const base = current ?? this.seed(input.projectId);
-      const transition = this.validator.validate({
-        from: base.currentPhase,
-        to: input.to,
-        satisfiedCriteria: base.satisfiedCriteria,
-        lastConsensus: base.lastConsensus?.status ?? null,
-        lastConsensusPhase: base.lastConsensus?.phase ?? null,
-        force: input.force ?? false,
-      });
+    // Sprint 17-C: thread humanOverrideNote through to the event log so
+    // the phase_advanced payload records it for audit surfacing. Only
+    // set when advancing under HUMAN_APPROVAL_REQUIRED — APPROVED
+    // transitions don't need the field and shouldn't get it even if
+    // the caller supplied one (guarded in the transact below).
+    return this.store.transact(
+      input.projectId,
+      (current) => {
+        const base = current ?? this.seed(input.projectId);
+        const transition = this.validator.validate({
+          from: base.currentPhase,
+          to: input.to,
+          satisfiedCriteria: base.satisfiedCriteria,
+          lastConsensus: base.lastConsensus?.status ?? null,
+          lastConsensusPhase: base.lastConsensus?.phase ?? null,
+          force: input.force ?? false,
+        });
 
-      if (!transition.ok) {
-        // Do not mutate on failure: return the current state with bumped
-        // revision-less identity (no-op write would be wasteful, so we
-        // short-circuit by throwing and letting the caller handle it).
-        throw new PhaseTransitionError(transition.errors, base);
-      }
+        if (!transition.ok) {
+          // Do not mutate on failure: return the current state with bumped
+          // revision-less identity (no-op write would be wasteful, so we
+          // short-circuit by throwing and letting the caller handle it).
+          throw new PhaseTransitionError(transition.errors, base);
+        }
 
-      const next: ProjectState = {
-        ...base,
-        currentPhase: input.to,
-        // Fresh phase starts with an empty criterion set.
-        satisfiedCriteria: [],
-        updatedAt: new Date().toISOString(),
-        revision: base.revision + 1,
-      };
-      return { next, result: { state: next, transition } };
-    });
+        const next: ProjectState = {
+          ...base,
+          currentPhase: input.to,
+          // Fresh phase starts with an empty criterion set.
+          satisfiedCriteria: [],
+          updatedAt: new Date().toISOString(),
+          revision: base.revision + 1,
+        };
+        return { next, result: { state: next, transition } };
+      },
+      {
+        context: {
+          actor: "sdlc_advance_phase",
+          force: input.force ?? false,
+          humanOverrideNote:
+            // Only attach the note when the existing consensus is
+            // actually HUMAN_APPROVAL_REQUIRED — otherwise a stray
+            // argument on a normal APPROVED advance would pollute the
+            // audit trail with an irrelevant override.
+            input.humanOverrideNote !== undefined &&
+            input.humanOverrideNote.trim().length > 0
+              ? input.humanOverrideNote
+              : undefined,
+        },
+      },
+    );
   }
 
   private seed(projectId: string): ProjectState {

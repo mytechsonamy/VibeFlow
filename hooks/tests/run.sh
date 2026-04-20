@@ -741,6 +741,54 @@ rm -rf "$DIR"
 unset VIBEFLOW_CWD
 
 # ---------------------------------------------------------------------------
+echo "== load-sdlc-context.sh override advisory [S17-C] =="
+
+# When a phase_advanced event exists with humanOverrideNote in its
+# payload, load-sdlc-context surfaces it on SessionStart as a visible
+# advisory line.
+DIR="$(make_project DESIGN)"
+export VIBEFLOW_CWD="$DIR"
+PROJECT_ID="$(jq -r '.project' "$DIR/vibeflow.config.json")"
+EVENTS_DIR="$DIR/.vibeflow/state/$PROJECT_ID/events"
+mkdir -p "$EVENTS_DIR"
+cat > "$EVENTS_DIR/0003-phase_advanced.json" <<EOF
+{
+  "seq": 3,
+  "revision": 3,
+  "projectId": "$PROJECT_ID",
+  "recordedAt": "2026-04-21T10:00:00Z",
+  "actor": "sdlc_advance_phase",
+  "prevRevision": 2,
+  "schemaVersion": 1,
+  "type": "phase_advanced",
+  "payload": {
+    "from": "REQUIREMENTS",
+    "to": "DESIGN",
+    "force": false,
+    "humanOverrideNote": "YOS tier resolved offline with Legal"
+  }
+}
+EOF
+
+OV_OUT="$(bash "$SCRIPTS/load-sdlc-context.sh")"
+assert_contains "[S17-C] override event surfaced on SessionStart" "HUMAN_APPROVAL_REQUIRED" "$OV_OUT"
+assert_contains "[S17-C] override note text printed" "YOS tier resolved" "$OV_OUT"
+
+# Without the humanOverrideNote field, advisory is silent.
+cat > "$EVENTS_DIR/0003-phase_advanced.json" <<EOF
+{"seq":3,"revision":3,"projectId":"$PROJECT_ID","recordedAt":"2026-04-21T10:00:00Z","actor":"sdlc_advance_phase","prevRevision":2,"schemaVersion":1,"type":"phase_advanced","payload":{"from":"REQUIREMENTS","to":"DESIGN","force":false}}
+EOF
+NO_OV_OUT="$(bash "$SCRIPTS/load-sdlc-context.sh")"
+if [[ "$NO_OV_OUT" == *"HUMAN_APPROVAL_REQUIRED"* ]]; then
+  fail "[S17-C] no override → no advisory emitted"
+else
+  pass "[S17-C] no override → no advisory emitted"
+fi
+
+rm -rf "$DIR"
+unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
 echo "== consensus-aggregator.sh round-aware [S17-A] =="
 
 # Orchestrator writes current-round.txt before each round; aggregator

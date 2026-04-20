@@ -50,6 +50,12 @@ const PhaseAdvancedPayloadSchema = z.object({
   from: PhaseIdSchema,
   to: PhaseIdSchema,
   force: z.boolean(),
+  // Sprint 17-C: when the phase was advanced under a
+  // HUMAN_APPROVAL_REQUIRED consensus, the operator's free-text
+  // justification is recorded here. Older readers ignore the field
+  // (optional, additive). load-sdlc-context.sh reads this to surface
+  // the override on subsequent SessionStarts.
+  humanOverrideNote: z.string().min(1).max(2000).optional(),
 });
 
 const ProjectImportedPayloadSchema = z.object({
@@ -177,6 +183,11 @@ export interface MutatorContext {
   recordedAt?: string;
   /** Optional hint — only read for phase_advanced to record force flag. */
   force?: boolean;
+  /**
+   * Sprint 17-C: phase_advanced events under HUMAN_APPROVAL_REQUIRED
+   * status carry the operator's justification in this field.
+   */
+  humanOverrideNote?: string;
 }
 
 /**
@@ -209,14 +220,18 @@ export function deriveEvent(
   }
 
   if (current.currentPhase !== next.currentPhase) {
+    const payload: PhaseAdvancedPayload = {
+      from: current.currentPhase,
+      to: next.currentPhase,
+      force: context.force ?? false,
+    };
+    if (context.humanOverrideNote !== undefined) {
+      payload.humanOverrideNote = context.humanOverrideNote;
+    }
     return {
       ...base,
       type: "phase_advanced",
-      payload: {
-        from: current.currentPhase,
-        to: next.currentPhase,
-        force: context.force ?? false,
-      },
+      payload,
     };
   }
 
