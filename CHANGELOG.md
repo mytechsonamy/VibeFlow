@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] — 2026-04-20
+
+Packaging fix — makes `claude plugin install` complete in seconds
+instead of hanging on a ~500 MB directory copy. No behavioural change
+from 2.0.0; if your install of 2.0.0 succeeded, upgrading is optional.
+
+### Changed
+- Every MCP server now ships a self-contained `dist/bundle.js`
+  (~620-690 KB) produced by `esbuild --bundle --platform=node
+  --format=esm`. The bundle inlines every npm dep so the plugin
+  runtime no longer needs `node_modules` on disk.
+- `.mcp.json` routes all five MCP servers through `dist/bundle.js`.
+- Total plugin runtime footprint: ~3.2 MB of JS plus skills/hooks/
+  config. Previously claude plugin install was copying 500 MB of
+  `node_modules` from the source directory because the marketplace
+  `source: directory` type is a naive recursive copy.
+
+### Fixed
+- Install-hang that affected anyone doing `claude plugin marketplace
+  add <local-path>` against a VibeFlow clone with populated
+  `node_modules`. Install now either:
+  (a) uses `claude plugin marketplace add github:<org>/VibeFlow`,
+      which does a git clone (gitignored `node_modules` never leaves
+      the dev machine), or
+  (b) uses the local-path marketplace against a fresh clone that
+      hasn't run `npm install` yet — bundles still boot standalone.
+
+### Added
+- `esbuild` to each MCP server's `devDependencies`.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+---
+
 ## [2.0.0] — 2026-04-20
 
 **Breaking change — state store is filesystem-only.**

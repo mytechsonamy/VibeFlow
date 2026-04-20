@@ -16,29 +16,44 @@ sample project.
 - **Claude Code CLI** — `claude` command available ([install](https://claude.com/claude-code))
 - **Node.js 18+** — `node --version` must show `v18` or higher
 - **Git** — the sdlc-engine uses it for phase-aware commit guards
-- **jq** and **sqlite3** — the hook scripts depend on both (preinstalled on macOS, `brew install jq sqlite` if missing on Linux it's already there)
-- Optional: **PostgreSQL 13+** for team mode (13–16 exercised in the v1.2 test matrix; AWS RDS / GCP Cloud SQL / Azure Database also supported — see [TEAM-MODE.md](./TEAM-MODE.md#managed-cloud-postgres-aws-rds-gcp-cloud-sql-azure))
+- **jq** — the hook scripts depend on it (preinstalled on macOS; `brew install jq` / `apt install jq` otherwise)
 - Optional: **Figma personal access token** (only if you want `design-bridge` skills)
 - Optional: **GitHub or GitLab personal access token** (only if you want `dev-ops` pipeline skills; GitLab SaaS or self-hosted — see [CONFIGURATION.md](./CONFIGURATION.md))
 
 ## 2. Install the plugin
 
-### Option A — Local development install (recommended)
+### Option A — Marketplace install (recommended for end users)
+
+Register the marketplace directly from the GitHub repo, then install.
+Claude does a shallow `git clone` of the repo ref — `node_modules` and
+other gitignored content never leave the author's laptop.
 
 ```bash
-git clone https://github.com/mustiyildirim/vibeflow ~/Projects/VibeFlow
+claude plugin marketplace add github:mytechsonamy/VibeFlow
+claude plugin install vibeflow@vibeflow
+```
+
+The install pulls a ~3 MB tree (5 bundled MCP servers plus the
+skills/hooks/config surface) and completes in seconds.
+
+### Option B — Local development install
+
+If you want to iterate on the plugin itself (edit skills, MCP servers,
+hooks) load it directly from the clone:
+
+```bash
+git clone https://github.com/mytechsonamy/VibeFlow ~/Projects/VibeFlow
 cd ~/Projects/VibeFlow
-./build-all.sh              # builds all 5 MCP server dist/ directories
+./build-all.sh              # builds dist/ + dist/bundle.js for each MCP
 
 # launch Claude Code with the plugin loaded from source:
 claude --plugin-dir ~/Projects/VibeFlow
 ```
 
-### Option B — Marketplace install (when published)
-
-```bash
-claude plugin install vibeflow@vibeflow-marketplace
-```
+Use `--plugin-dir` rather than `claude plugin marketplace add <path>`
+for the local-path case — the directory-type marketplace does a
+recursive copy that includes your populated `node_modules` (hundreds of
+megabytes across the five MCP servers) and can take minutes to complete.
 
 Either way, verify installation by running `/vibeflow:status` inside a
 Claude Code session — it should respond with a "project not initialized"
@@ -52,12 +67,11 @@ From your project's root directory:
 /vibeflow:init
 ```
 
-The command will prompt you for four fields:
+The command will prompt you for three fields:
 
 | Field | Options | What it affects |
 |-------|---------|-----------------|
 | **project** | any string | Stable id used in every report and state record |
-| **mode** | `solo` / `team` | Database, consensus reviewer count, hook strictness |
 | **domain** | `financial` / `e-commerce` / `healthcare` / `general` | Quality thresholds + release decision weights |
 | **platform** | `web` / `ios` / `android` / `all` | Test strategy defaults + generated test file shape |
 
@@ -106,20 +120,27 @@ Returns the current phase, satisfied criteria, last consensus result,
 and a summary of the .vibeflow/reports/ directory. This command is
 safe to run often — it's read-only.
 
-## 6. Solo vs team mode at a glance
+## 6. State layout
 
-| Feature | Solo | Team |
-|---------|------|------|
-| State store | SQLite (`.vibeflow/state.db`) | PostgreSQL (via `db_connection`) |
-| Consensus reviewers | 1 (Claude) | 3 (Claude + ChatGPT + Gemini) |
-| Consensus quorum | 1/1 | 3/3 (with 10-min timeout force-finalize) |
-| Hook strictness | Essential only | All 7 hooks fire |
-| Pipelines enabled | PIPELINE-1, PIPELINE-2, PIPELINE-5 | All 7 |
-| Advance approval | Auto on criteria match | Human + consensus verdict required |
+VibeFlow writes everything it knows about your project under one
+directory:
 
-See [docs/TEAM-MODE.md](./TEAM-MODE.md) for the full team-mode setup
-(PostgreSQL schema, multi-AI CLI configuration, collaborative advance
-workflow).
+```
+.vibeflow/state/<projectId>/
+├── project.json              # authoritative current state
+├── project.json.lock         # cross-process write lock
+├── INDEX.md                  # human-readable chronological index
+├── events/                   # append-only JSON+MD event log
+└── archive/NN-<PHASE>/       # moves here when a phase completes
+```
+
+Git versions the whole thing for free — if you commit `.vibeflow/`
+alongside your source, every state transition shows up as a reviewable
+diff and you can `git revert` a bad phase advance. `cat` is enough to
+inspect the current state at any time.
+
+See [CONFIGURATION.md](./CONFIGURATION.md) for the `VIBEFLOW_STATE_DIR`
+override and the recovery tools (`bin/replay-events.sh`).
 
 ## 7. The demo project
 
@@ -156,8 +177,6 @@ guide or run `/vibeflow:init` first, read the demo.
   architecture of the 5 MCP servers + tool listings
 - **Debug problems** — [docs/TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
   — common failure modes with cause + fix
-- **Scale to a team** — [docs/TEAM-MODE.md](./TEAM-MODE.md) —
-  PostgreSQL setup, multi-AI consensus, collaboration workflow
 
 ## 9. Help
 
