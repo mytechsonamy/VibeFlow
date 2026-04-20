@@ -1654,27 +1654,41 @@ else
 fi
 
 ENGINE_REL_ARG="$(jq -r '.mcpServers."sdlc-engine".args[0]' "$MCP_JSON")"
-ENGINE_RESOLVED="$REPO_ROOT/${ENGINE_REL_ARG#./}"
+ENGINE_RESOLVED="$(printf '%s' "$ENGINE_REL_ARG" | sed -e 's|^\${CLAUDE_PLUGIN_ROOT}|'"$REPO_ROOT"'|' -e 's|^\./|'"$REPO_ROOT"'/|')"
 [[ -f "$ENGINE_RESOLVED" ]] && pass ".mcp.json sdlc-engine points to a real dist file" \
   || fail ".mcp.json sdlc-engine points to a real dist file ($ENGINE_RESOLVED)"
 
 CI_REL_ARG="$(jq -r '.mcpServers."codebase-intel".args[0]' "$MCP_JSON")"
-CI_RESOLVED="$REPO_ROOT/${CI_REL_ARG#./}"
+CI_RESOLVED="$(printf '%s' "$CI_REL_ARG" | sed -e 's|^\${CLAUDE_PLUGIN_ROOT}|'"$REPO_ROOT"'|' -e 's|^\./|'"$REPO_ROOT"'/|')"
 [[ -f "$CI_RESOLVED" ]] && pass ".mcp.json codebase-intel points to a real dist file" \
   || fail ".mcp.json codebase-intel points to a real dist file ($CI_RESOLVED)"
 
 DB_REL_ARG="$(jq -r '.mcpServers."design-bridge".args[0]' "$MCP_JSON")"
-DB_RESOLVED="$REPO_ROOT/${DB_REL_ARG#./}"
+DB_RESOLVED="$(printf '%s' "$DB_REL_ARG" | sed -e 's|^\${CLAUDE_PLUGIN_ROOT}|'"$REPO_ROOT"'|' -e 's|^\./|'"$REPO_ROOT"'/|')"
 [[ -f "$DB_RESOLVED" ]] && pass ".mcp.json design-bridge points to a real dist file" \
   || fail ".mcp.json design-bridge points to a real dist file ($DB_RESOLVED)"
 
 DO_REL_ARG="$(jq -r '.mcpServers."dev-ops".args[0]' "$MCP_JSON")"
-DO_RESOLVED="$REPO_ROOT/${DO_REL_ARG#./}"
+DO_RESOLVED="$(printf '%s' "$DO_REL_ARG" | sed -e 's|^\${CLAUDE_PLUGIN_ROOT}|'"$REPO_ROOT"'|' -e 's|^\./|'"$REPO_ROOT"'/|')"
 [[ -f "$DO_RESOLVED" ]] && pass ".mcp.json dev-ops points to a real dist file" \
   || fail ".mcp.json dev-ops points to a real dist file ($DO_RESOLVED)"
 
+# v2.5.3 regression guard: every MCP server must declare its bundle
+# path via ${CLAUDE_PLUGIN_ROOT}/… — using a bare ./ prefix breaks
+# when Claude Code launches the plugin from a consumer project's
+# cwd (the path resolves against the consumer dir, not the plugin
+# install dir). `./` was the v2.0.0-2.5.2 bug the user hit in
+# FlowBridge_TR when MCP tools failed to surface after plugin
+# install.
+MCP_BAD_PREFIXES="$(jq -r '.mcpServers | to_entries[] | select((.value.args[0] // "") | test("^\\./"))|.key' "$MCP_JSON")"
+if [[ -z "$MCP_BAD_PREFIXES" ]]; then
+  pass ".mcp.json: every server uses \${CLAUDE_PLUGIN_ROOT}/ prefix (no bare ./)"
+else
+  fail ".mcp.json: servers using bare './' prefix (must be \${CLAUDE_PLUGIN_ROOT}/): $MCP_BAD_PREFIXES"
+fi
+
 OB_REL_ARG="$(jq -r '.mcpServers."observability".args[0]' "$MCP_JSON")"
-OB_RESOLVED="$REPO_ROOT/${OB_REL_ARG#./}"
+OB_RESOLVED="$(printf '%s' "$OB_REL_ARG" | sed -e 's|^\${CLAUDE_PLUGIN_ROOT}|'"$REPO_ROOT"'|' -e 's|^\./|'"$REPO_ROOT"'/|')"
 [[ -f "$OB_RESOLVED" ]] && pass ".mcp.json observability points to a real dist file" \
   || fail ".mcp.json observability points to a real dist file ($OB_RESOLVED)"
 

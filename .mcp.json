@@ -2,22 +2,22 @@
   "mcpServers": {
     "sdlc-engine": {
       "command": "node",
-      "args": ["./mcp-servers/sdlc-engine/dist/bundle.js"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/sdlc-engine/dist/bundle.js"]
     },
     "codebase-intel": {
       "command": "node",
-      "args": ["./mcp-servers/codebase-intel/dist/bundle.js"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/codebase-intel/dist/bundle.js"]
     },
     "design-bridge": {
       "command": "node",
-      "args": ["./mcp-servers/design-bridge/dist/bundle.js"],
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/design-bridge/dist/bundle.js"],
       "env": {
         "FIGMA_TOKEN": "${userConfig.figma_token}"
       }
     },
     "dev-ops": {
       "command": "node",
-      "args": ["./mcp-servers/dev-ops/dist/bundle.js"],
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/dev-ops/dist/bundle.js"],
       "env": {
         "GITHUB_TOKEN": "${userConfig.github_token}",
         "CI_PROVIDER": "${userConfig.ci_provider}",
@@ -27,7 +27,7 @@
     },
     "observability": {
       "command": "node",
-      "args": ["./mcp-servers/observability/dist/bundle.js"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/observability/dist/bundle.js"]
     }
   }
 }

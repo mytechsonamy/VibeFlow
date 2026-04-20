@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.3] — 2026-04-21
+
+**Critical fix.** `.mcp.json` used bare `./mcp-servers/…/dist/bundle.js`
+paths, which resolved against the consumer project's cwd instead
+of the plugin install directory when the plugin was installed in
+another project. The symptom: MCP tools (including
+`sdlc_advance_phase`) failed to surface, `/vibeflow:advance` and
+every other MCP-backed skill couldn't call their tools, and
+operators saw the plugin as loaded-but-inert in consumer repos.
+
+Paths now use `${CLAUDE_PLUGIN_ROOT}/mcp-servers/…/dist/bundle.js`
+which Claude Code resolves to the plugin's own install location
+regardless of cwd — matching the pattern `hooks.json` already uses.
+
+### Fixed
+- **`.mcp.json` paths now use `${CLAUDE_PLUGIN_ROOT}/`**. All five
+  MCP servers (sdlc-engine, codebase-intel, design-bridge,
+  dev-ops, observability) updated. This was a v2.0.0-2.5.2 bug
+  that only surfaced when the plugin was installed in a
+  consumer project (within the VibeFlow repo itself, `.`
+  coincidentally resolved correctly so local tests passed).
+
+### Added
+- **Regression guard** in `tests/integration/run.sh`: asserts
+  every `.mcp.json` server uses the `${CLAUDE_PLUGIN_ROOT}/`
+  prefix, fails the test if any regress back to bare `./`.
+- **Test harness MCP path resolver** (`tests/integration/run.sh`)
+  now handles both `${CLAUDE_PLUGIN_ROOT}` and legacy `./`
+  prefixes when resolving dist-file-exists assertions.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.5.2 → 2.5.3
+- `.claude-plugin/marketplace.json`: 2.5.2 → 2.5.3
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.5.2 → 2.5.3
+- Integration run.sh: 398 → 399 assertions (+1 regression guard)
+
+---
+
 ## [2.5.2] — 2026-04-21
 
 Skill polish. `/vibeflow:advance` now defaults `TARGET_PHASE` to
