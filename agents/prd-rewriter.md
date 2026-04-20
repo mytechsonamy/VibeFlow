@@ -15,7 +15,7 @@ path.
 
 ## Phase Contract
 
-This agent runs in **REQUIREMENTS** only. Before any step, read
+Runs in **REQUIREMENTS** only. Before any step, read
 `vibeflow.config.json.currentPhase`. If it is not REQUIREMENTS, emit:
 
 ```
