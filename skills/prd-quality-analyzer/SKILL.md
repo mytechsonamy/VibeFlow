@@ -122,6 +122,63 @@ This skill's output feeds into:
 - architecture-validator (uses findings for design validation)
 - traceability-engine (uses requirement list for RTM baseline)
 
+## Auto-satisfy REQUIREMENTS criteria (Sprint 17.2 — MANDATORY)
+
+After the quality report is written, **auto-satisfy the criteria
+this skill is authoritative for** by calling the sdlc-engine MCP
+tool. This removes the manual `sdlc_satisfy_criterion` step the
+operator used to have to do before `/vibeflow:advance` would
+work.
+
+Read the config + score:
+```bash
+PROJECT_ID="$(vf_config_get '.project')"
+SCORE="$(jq -r '.scores.total // .testabilityScore // 0' \
+  .vibeflow/reports/prd-quality-report.md.json 2>/dev/null || echo 0)"
+# Score is also in the markdown header if JSON sidecar is absent —
+# grep for "Testability Score: NN/100" and extract NN.
+```
+
+Then call:
+
+```
+mcp__sdlc-engine__sdlc_satisfy_criterion {
+  "projectId": "<project id>",
+  "criterion": "prd.approved"
+}
+```
+
+**`testability.score>=60`** is conditional: only satisfy this
+criterion when the measured score is ≥ 60. Otherwise the gate
+correctly blocks REQUIREMENTS → DESIGN advance until the PRD
+improves.
+
+```
+if SCORE >= 60:
+  mcp__sdlc-engine__sdlc_satisfy_criterion {
+    "projectId": "<project id>",
+    "criterion": "testability.score>=60"
+  }
+```
+
+Emit a one-line confirmation so the operator sees the state
+write:
+
+```
+Recorded: prd.approved (and testability.score>=60 with score=<N>).
+```
+
+If the MCP tool isn't reachable, emit a visible
+"sdlc-engine MCP unavailable — satisfy manually:
+`mcp__sdlc-engine__sdlc_satisfy_criterion {projectId:…, criterion:'prd.approved'}`"
+and continue (the quality report is still on disk; the criterion
+registration is the only thing missing).
+
+The **third** REQUIREMENTS exit criterion —
+`consensus.requirements.approved` — is not the analyzer's job.
+The consensus-orchestrator records that automatically on
+APPROVED/HUMAN_APPROVAL_REQUIRED verdicts (Sprint 17.2).
+
 ## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
 
 After you have written `prd-quality-report.md` **and**

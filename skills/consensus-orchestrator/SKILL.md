@@ -150,9 +150,56 @@ After the CLIs are logged, spawn the claude-reviewer subagent (Step 2)
 **last** — its SubagentStop fires `consensus-aggregator.sh`, which
 sees all three jsonl entries and finalises the session as one.
 
-### Step 3c: Post-consensus cleanup (Sprint 15-A, 16-B)
+### Step 3c: Post-consensus state registration + cleanup (Sprint 15-A, 16-B, 17.2)
 
 Once the aggregator has written `.vibeflow/state/consensus/<session>.verdict.json`:
+
+#### 3c.0 — Record consensus into project state (Sprint 17.2, MANDATORY)
+
+Read verdict.json and call the `sdlc_record_consensus` MCP tool
+immediately. Without this, the phase-gate validator has no
+`lastConsensus` to check and `/vibeflow:advance` blocks even on
+APPROVED verdicts. Required for **every** terminal status
+(APPROVED / NEEDS_REVISION / REJECTED / HUMAN_APPROVAL_REQUIRED).
+
+Read the config + verdict:
+```bash
+PROJECT_ID="$(vf_config_get '.project')"
+PHASE="$(vf_config_get '.currentPhase')"
+STATUS="$(jq -r '.status' "$CONS_DIR/$SESSION_ID.verdict.json")"
+AGREEMENT="$(jq -r '.agreement // 0' "$CONS_DIR/$SESSION_ID.verdict.json")"
+CRITICAL="$(jq -r '.criticalTotal // 0' "$CONS_DIR/$SESSION_ID.verdict.json")"
+```
+
+Then invoke the MCP tool (Claude resolves this as a standard
+`mcp__sdlc-engine__sdlc_record_consensus` tool call — no extra
+bash plumbing needed):
+
+```
+mcp__sdlc-engine__sdlc_record_consensus {
+  "projectId": "<project id from config>",
+  "phase":     "<currentPhase from config>",
+  "status":    "<verdict.json .status>",
+  "agreement": <verdict.json .agreement>,
+  "criticalIssues": <verdict.json .criticalTotal>
+}
+```
+
+This single call writes `lastConsensus: {phase, status, agreement,
+criticalIssues, recordedAt}` into project.json. The validator's
+scope check for `consensus.<phase>.approved` reads it on the
+next `/vibeflow:advance`.
+
+Failure modes:
+- MCP tool not available (e.g. Claude Code launched without
+  sdlc-engine loaded): emit a visible "could not record consensus
+  to project state; run `mcp__sdlc-engine__sdlc_record_consensus`
+  manually with …" prose. Do NOT fail the orchestrator — the
+  verdict.json is the source of truth on disk.
+- Project state missing (`sdlc_get_state` returns null): the
+  MCP server auto-seeds on first write, so this is not a blocker.
+
+#### 3c.1 — Marker cleanup + follow-up (per-status)
 
 1. If `status ∈ {APPROVED, NEEDS_REVISION}`, drain **both** markers:
    ```bash

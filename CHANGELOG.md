@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.4] — 2026-04-21
+
+Close the last manual step. After a successful PRD analysis +
+consensus run, state registration into `project.json` now happens
+automatically — operators no longer need to call
+`sdlc_record_consensus` or `sdlc_satisfy_criterion` by hand before
+`/vibeflow:advance` works.
+
+### Changed
+- **`skills/consensus-orchestrator/SKILL.md`** — new Step 3c.0
+  calls `mcp__sdlc-engine__sdlc_record_consensus` on every
+  terminal verdict (APPROVED / NEEDS_REVISION / REJECTED /
+  HUMAN_APPROVAL_REQUIRED), reading `status`, `agreement`, and
+  `criticalTotal` from `verdict.json`. The validator's scope
+  check for `consensus.<phase>.approved` needs this to unblock
+  `/vibeflow:advance`. Without the auto-record, the chain up to
+  advance failed silently at the phase gate with "consensus not
+  recorded for this phase" — exactly what FlowBridge_TR hit.
+- **`skills/prd-quality-analyzer/SKILL.md`** — new auto-satisfy
+  step calls `mcp__sdlc-engine__sdlc_satisfy_criterion` for
+  `prd.approved` unconditionally + for `testability.score>=60`
+  when the measured score is ≥ 60. Completes the REQUIREMENTS
+  phase's exit-criterion registration automatically.
+
+Both skills fail gracefully: if the MCP tool isn't reachable
+(sdlc-engine server unavailable), they emit a visible manual-
+command hint and continue — the verdict.json + report remain the
+source of truth on disk.
+
+### Added
+- **`tests/integration/sprint-17.sh [S17.2]`** section — 7 new
+  regression assertions pinning the orchestrator auto-record +
+  prd-quality-analyzer auto-satisfy prose.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.5.3 → 2.5.4
+- `.claude-plugin/marketplace.json`: 2.5.3 → 2.5.4
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.5.3 → 2.5.4
+- sprint-17.sh baseline: 98 → 106 (+8)
+
+---
+
 ## [2.5.3] — 2026-04-21
 
 **Critical fix.** `.mcp.json` used bare `./mcp-servers/…/dist/bundle.js`

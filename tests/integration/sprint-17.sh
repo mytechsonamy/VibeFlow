@@ -226,6 +226,33 @@ assert_grep "[S17-G] SPECIALISTS covers rollback recipe" \
   "git checkout HEAD" "$SPEC_DOC"
 
 # ---------------------------------------------------------------------------
+echo "== [S17.2] auto-register consensus + criteria =="
+
+# v2.5.4: orchestrator must call sdlc_record_consensus after every
+# terminal verdict so the validator's scope check has a lastConsensus
+# to read. Without this, the entire automated chain up to /vibeflow:advance
+# fails silently at the phase-gate.
+assert_grep "[S17.2] orchestrator auto-calls sdlc_record_consensus" \
+  "mcp__sdlc-engine__sdlc_record_consensus" "$ORCH"
+assert_grep "[S17.2] orchestrator reads agreement from verdict.json" \
+  "jq -r '\\.agreement // 0'" "$ORCH"
+assert_grep "[S17.2] orchestrator reads criticalTotal from verdict.json" \
+  "jq -r '\\.criticalTotal // 0'" "$ORCH"
+
+# v2.5.4: prd-quality-analyzer auto-satisfies prd.approved (always) +
+# testability.score>=60 (conditional on score). Removes the manual
+# satisfy_criterion step for REQUIREMENTS exit.
+PRD="$REPO_ROOT/skills/prd-quality-analyzer/SKILL.md"
+assert_grep "[S17.2] prd-quality-analyzer auto-calls sdlc_satisfy_criterion" \
+  "mcp__sdlc-engine__sdlc_satisfy_criterion" "$PRD"
+assert_grep "[S17.2] prd-quality-analyzer satisfies prd.approved" \
+  "\"criterion\": \"prd\\.approved\"" "$PRD"
+assert_grep "[S17.2] prd-quality-analyzer conditionally satisfies testability gate" \
+  "testability\\.score>=60" "$PRD"
+assert_grep "[S17.2] prd-quality-analyzer guards with SCORE >= 60" \
+  "if SCORE >= 60" "$PRD"
+
+# ---------------------------------------------------------------------------
 echo "== [S17-Z] harness self-audit =="
 
 SELF="$REPO_ROOT/tests/integration/sprint-17.sh"
@@ -239,7 +266,7 @@ if head -1 "$SELF" | grep -q '^#!/bin/bash'; then
 else
   fail "[S17-Z] sprint-17.sh shebang is #!/bin/bash"
 fi
-for sec in S17-A S17-B S17-C S17-D S17-E S17-F S17-G S17-Z; do
+for sec in S17-A S17-B S17-C S17-D S17-E S17-F S17-G S17.2 S17-Z; do
   if grep -q "echo \"== \[$sec\]" "$SELF"; then
     pass "[S17-Z] [$sec] section header present"
   else
