@@ -94,15 +94,32 @@ if [[ -z "$VERDICT" ]]; then
   exit 0
 fi
 
-# Critical-issue count: prefer structured output (claude-reviewer emits
-# criticalIssues as a JSON array; len = count). Fall back to free-text
-# "critical issues: N" for reviewers that don't emit structured JSON.
+# Critical-issue parse: Sprint 17-B accepts the new array shape
+# (`criticalIssues: [{id, target, title, rationale}]`) alongside the
+# legacy integer count. The full array is passed through to the jsonl
+# line so the aggregation pass can dedup by {file, line_range} and
+# Jaccard title similarity. When the array shape is absent we fall back
+# to the integer count or the free-text "critical issues: N" pattern
+# (pre-2.5.0 reviewers).
 CRITICAL=0
-STRUCTURED_CRITICAL="$(echo "$OUTPUT" | jq -Rsr 'try (fromjson | .criticalIssues | length) catch empty' 2>/dev/null || true)"
-if [[ "$STRUCTURED_CRITICAL" =~ ^[0-9]+$ ]]; then
-  CRITICAL="$STRUCTURED_CRITICAL"
-elif [[ "$OUTPUT" =~ critical[[:space:]]+issues[[:space:]]*:[[:space:]]*([0-9]+) ]]; then
-  CRITICAL="${BASH_REMATCH[1]}"
+CRITICAL_ARRAY="[]"
+CRITICAL_TYPE="$(echo "$OUTPUT" | jq -Rsr 'try (fromjson | .criticalIssues | type) catch empty' 2>/dev/null || true)"
+case "$CRITICAL_TYPE" in
+  array)
+    CRITICAL_ARRAY="$(echo "$OUTPUT" | jq -Rsr 'try (fromjson | .criticalIssues | tojson) catch "[]"' 2>/dev/null || echo "[]")"
+    CRITICAL="$(echo "$OUTPUT" | jq -Rsr 'try (fromjson | .criticalIssues | length) catch 0' 2>/dev/null || echo 0)"
+    ;;
+  number)
+    CRITICAL="$(echo "$OUTPUT" | jq -Rsr 'try (fromjson | .criticalIssues) catch 0' 2>/dev/null || echo 0)"
+    ;;
+esac
+if ! [[ "$CRITICAL" =~ ^[0-9]+$ ]]; then
+  CRITICAL=0
+fi
+if [[ "$CRITICAL" -eq 0 ]] && [[ "$CRITICAL_ARRAY" == "[]" ]]; then
+  if [[ "$OUTPUT" =~ critical[[:space:]]+issues[[:space:]]*:[[:space:]]*([0-9]+) ]]; then
+    CRITICAL="${BASH_REMATCH[1]}"
+  fi
 fi
 
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -125,8 +142,9 @@ jq -n -c \
   --arg reviewer "$SUBAGENT" \
   --arg verdict "$VERDICT" \
   --argjson critical "$CRITICAL" \
+  --argjson criticalItems "$CRITICAL_ARRAY" \
   --argjson round "$CURRENT_ROUND" \
-  '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, round:$round}' \
+  '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, criticalItems:$criticalItems, round:$round}' \
   >> "$REVIEW_LOG"
 
 # Expected reviewer count is driven by which CLIs are on PATH + any
@@ -181,28 +199,73 @@ fi
 # the status is demoted from APPROVED to NEEDS_REVISION (a partial
 # quorum cannot ship a clean APPROVED verdict — the missing reviewer
 # could have objected).
-# Sprint 17-A: aggregation is now per-round. Filter jsonl to lines whose
-# `round` matches CURRENT_ROUND (default 1 for legacy single-round
-# sessions). `total`, `approved`, `criticalTotal`, `agreement`, `status`
-# are the CURRENT round's values — these stay top-level so existing
-# consumers (tests, arbiter, phase-gate) keep working untouched. A new
-# `rounds[]` array accumulates per-round snapshots across negotiation
-# rounds; orchestrator reads it to decide whether to invoke round N+1.
+# Sprint 17-A: per-round aggregation (filter by CURRENT_ROUND).
+# Sprint 17-B: critical-issue dedup across reviewers. When a reviewer
+# emits structured `criticalItems[]`, we dedup across reviewers by
+# `{file, line_range}` equality OR by Jaccard(title words) >= 0.6 —
+# three reviewers flagging the same underlying issue now count as 1,
+# not 3. When reviewers emit only legacy integer counts, we fall back
+# to summing (no dedup possible) and add the note to verdict.json.
+#
+# `total`, `approved`, `criticalTotal`, `agreement`, `status` stay
+# top-level so existing consumers (tests, arbiter, phase-gate) keep
+# working. `rounds[]` accumulates per-round snapshots.
 AGG="$(jq -s --argjson round "$CURRENT_ROUND" '
-  map(select((.round // 1) == $round))
+  def jaccard_title(a; b):
+    (a | ascii_downcase | gsub("[^a-z0-9 ]"; " ") | split(" ") | map(select(length > 2)) | unique) as $aw
+    | (b | ascii_downcase | gsub("[^a-z0-9 ]"; " ") | split(" ") | map(select(length > 2)) | unique) as $bw
+    | if ($aw | length) == 0 or ($bw | length) == 0 then 0
+      else
+        ([$aw[], $bw[]] | unique | length) as $union
+        | (($aw + $bw) | unique | length) as $u
+        | ($aw | map(select(. as $x | $bw | index($x))) | length) as $i
+        | (if $u > 0 then ($i / $u) else 0 end)
+      end;
+    # Collect all structured critical items across reviewers (for
+    # this round) and dedup.
+    def dedup_critical(items):
+      reduce items[] as $e ([];
+        . as $acc
+        | if any($acc[]; (.target.file // null) == ($e.target.file // null)
+                         and (.target.line_range // null) == ($e.target.line_range // null))
+          then $acc
+          else
+            if any($acc[]; jaccard_title(.title // ""; $e.title // "") >= 0.6)
+            then $acc
+            else $acc + [$e]
+            end
+          end);
+
+  map(select((.round // 1) == $round)) as $rows
+  | ($rows | map(.criticalItems // []) | flatten) as $allCritical
+  | ($allCritical | length) as $rawCount
+  | dedup_critical($allCritical) as $deduped
+  | ($deduped | length) as $dedupCount
+  # Legacy fallback: if NO reviewer supplied structured items, use
+  # the integer sum.
+  | (if ($rawCount == 0) then ($rows | map(.criticalIssues // 0) | add // 0) else $dedupCount end) as $effectiveCritical
   | {
-      total: length,
-      approved: (map(select(.verdict == "APPROVED")) | length),
-      needsRevision: (map(select(.verdict == "NEEDS_REVISION")) | length),
-      rejected: (map(select(.verdict == "REJECTED")) | length),
-      unknown: (map(select(.verdict == "UNKNOWN")) | length),
-      criticalTotal: (map(.criticalIssues) | add // 0)
+      total: ($rows | length),
+      approved: ($rows | map(select(.verdict == "APPROVED")) | length),
+      needsRevision: ($rows | map(select(.verdict == "NEEDS_REVISION")) | length),
+      rejected: ($rows | map(select(.verdict == "REJECTED")) | length),
+      unknown: ($rows | map(select(.verdict == "UNKNOWN")) | length),
+      criticalTotal: $effectiveCritical,
+      criticalRawCount: $rawCount,
+      criticalDeduped: $deduped
     }
   | . + { agreement: (if .total > 0 then (.approved / .total) else 0 end) }
   | . + {
+      # Sprint 17-B: REJECTED requires a MAJORITY of reviewers to
+      # reject, not just sub-0.5 approval ratio. 3 unanimous
+      # NEEDS_REVISION reviewers (approved=0) previously tripped the
+      # `agreement<0.5` rule and became REJECTED — that misread "all
+      # want revision" as "all reject". Now rejected-majority is the
+      # rejection trigger; anything else with some critical findings
+      # stays NEEDS_REVISION and can flow to the arbiter.
       status: (
         if .criticalTotal >= 2 then "REJECTED"
-        elif .agreement < 0.5 then "REJECTED"
+        elif (.rejected * 2) > .total then "REJECTED"
         elif .agreement >= 0.9 and .criticalTotal == 0 then "APPROVED"
         else "NEEDS_REVISION"
         end

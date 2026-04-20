@@ -28,7 +28,17 @@ re-reading the original artifact.
 {
   "score": 0-100,
   "verdict": "APPROVED" | "NEEDS_REVISION" | "REJECTED",
-  "criticalIssues": [],
+  "criticalIssues": [
+    {
+      "id": "claude-c1",
+      "target": {
+        "file": "<repo-relative path>",
+        "line_range": [startLine, endLine]
+      },
+      "title": "<short, de-duplicable headline — 6-10 words>",
+      "rationale": "<why this is load-bearing>"
+    }
+  ],
   "highIssues": [],
   "mediumIssues": [],
   "summary": "One paragraph summary",
@@ -48,6 +58,26 @@ re-reading the original artifact.
   ]
 }
 ```
+
+### `criticalIssues[]` schema (Sprint 17-B)
+
+Each entry is the **minimum** signal the aggregator needs to dedup
+against the same finding from another reviewer. Fields:
+
+- `id` — stable within this review (prefix with reviewer name)
+- `target.file` — repo-relative path the issue is anchored to
+- `target.line_range` — `[start, end]`; if the finding is
+  document-wide, use the file's full line range or omit
+- `title` — **load-bearing for dedup**. Keep it short and
+  descriptive ("Data residency for BDDK BİSY missing", not
+  "Critical gap"). The aggregator dedupes by exact
+  `{file, line_range}` match OR by Jaccard similarity of title
+  words (≥ 0.6 = same finding).
+- `rationale` — one-sentence why, for the audit trail
+
+Backward compat: `criticalIssues: <integer>` is still accepted
+(pre-Sprint-17 reviewer output). When an integer is emitted, the
+aggregator counts it without dedup and logs a one-line warning.
 
 Field notes:
 

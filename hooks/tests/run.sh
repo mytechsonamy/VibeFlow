@@ -770,9 +770,10 @@ if [[ -f "$VERDICT_FILE" ]]; then
   R1_NUM="$(jq -r '.rounds[0].round' "$VERDICT_FILE")"
   assert_eq "[S17-A] round 1 entry has round=1" "1" "$R1_NUM"
   R1_STATUS="$(jq -r '.status' "$VERDICT_FILE")"
-  assert_eq "[S17-A] round 1 top-level status preserved" "REJECTED" "$R1_STATUS"
-  # criticalIssues=1 for single reviewer: criticalTotal=1, threshold is >=2.
-  # But agreement=0 (0 APPROVED / 1 total) → <0.5 → REJECTED.
+  # Sprint 17-B rule change: NEEDS_REVISION is only demoted to
+  # REJECTED on rejected-majority OR criticalTotal>=2. 1 reviewer
+  # saying NEEDS_REVISION + 1 critical = NEEDS_REVISION, not REJECTED.
+  assert_eq "[S17-A] round 1 top-level status preserved as NEEDS_REVISION" "NEEDS_REVISION" "$R1_STATUS"
 fi
 
 # Round 2 — orchestrator advances round marker, runs new reviewer.
@@ -822,6 +823,96 @@ if [[ -f "$LV" ]]; then
 fi
 
 rm -rf "$DIR" "$DIR2"
+unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
+echo "== consensus-aggregator.sh critical dedup [S17-B] =="
+
+# Three reviewers flag the SAME underlying finding (same file +
+# line_range). Naive sum = 3; dedup → 1; aggregator must use 1 so
+# the REJECTED threshold (≥2) is not falsely tripped.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus: {quorum: 3}}' "$DIR/vibeflow.config.json" > "$DIR/cfg.tmp" \
+  && mv "$DIR/cfg.tmp" "$DIR/vibeflow.config.json"
+
+SAME_FINDING='{"id":"ID","target":{"file":"docs/prd.md","line_range":[120,145]},"title":"Data residency for BDDK BISY missing","rationale":"7-year audit logs..."}'
+
+for rev in claude-reviewer codex-reviewer gemini-reviewer; do
+  ID="${rev:0:1}1"
+  ITEM="$(printf '%s' "$SAME_FINDING" | sed "s/\"ID\"/\"$ID\"/")"
+  PAYLOAD="$(jq -n --arg rev "$rev" --arg item "$ITEM" '{
+    session_id:"dedup1",
+    subagent_type:$rev,
+    tool_response:{content:[{text: ("{\"verdict\":\"NEEDS_REVISION\",\"criticalIssues\":[" + $item + "]}")}]}
+  }')"
+  printf '%s' "$PAYLOAD" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+done
+
+DEDUP_VERDICT="$DIR/.vibeflow/state/consensus/dedup1.verdict.json"
+[[ -f "$DEDUP_VERDICT" ]] && pass "[S17-B] verdict written after 3 same-finding reviews" \
+  || fail "[S17-B] verdict written after 3 same-finding reviews"
+if [[ -f "$DEDUP_VERDICT" ]]; then
+  CRITICAL_TOTAL="$(jq -r '.criticalTotal' "$DEDUP_VERDICT")"
+  assert_eq "[S17-B] same finding deduped across 3 reviewers → criticalTotal==1" "1" "$CRITICAL_TOTAL"
+  CRITICAL_RAW="$(jq -r '.criticalRawCount' "$DEDUP_VERDICT")"
+  assert_eq "[S17-B] criticalRawCount preserved for audit (==3)" "3" "$CRITICAL_RAW"
+  DEDUPED_LEN="$(jq -r '.criticalDeduped | length' "$DEDUP_VERDICT")"
+  assert_eq "[S17-B] criticalDeduped array length == 1" "1" "$DEDUPED_LEN"
+  STATUS="$(jq -r '.status' "$DEDUP_VERDICT")"
+  # 3 NEEDS_REVISION, 0 critical after dedup → status = NEEDS_REVISION.
+  assert_eq "[S17-B] status NEEDS_REVISION (not falsely REJECTED)" "NEEDS_REVISION" "$STATUS"
+fi
+rm -rf "$DIR"
+
+# Dedup by Jaccard title similarity, not just exact target match.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus: {quorum: 2}}' "$DIR/vibeflow.config.json" > "$DIR/cfg.tmp" \
+  && mv "$DIR/cfg.tmp" "$DIR/vibeflow.config.json"
+# Different line_range, same underlying title words (>0.6 Jaccard)
+ITEM_A='{"id":"A1","target":{"file":"docs/prd.md","line_range":[10,20]},"title":"latency SLA ambiguity hard goal or soft","rationale":"..."}'
+ITEM_B='{"id":"B1","target":{"file":"docs/prd.md","line_range":[15,25]},"title":"latency SLA ambiguity hard goal versus soft","rationale":"..."}'
+
+PAYLOAD_A="$(jq -n --arg rev "claude-reviewer" --arg item "$ITEM_A" '{
+  session_id:"jac1", subagent_type:$rev,
+  tool_response:{content:[{text:("{\"verdict\":\"NEEDS_REVISION\",\"criticalIssues\":[" + $item + "]}")}]}
+}')"
+PAYLOAD_B="$(jq -n --arg rev "codex-reviewer" --arg item "$ITEM_B" '{
+  session_id:"jac1", subagent_type:$rev,
+  tool_response:{content:[{text:("{\"verdict\":\"NEEDS_REVISION\",\"criticalIssues\":[" + $item + "]}")}]}
+}')"
+printf '%s' "$PAYLOAD_A" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+printf '%s' "$PAYLOAD_B" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+JAC_VERDICT="$DIR/.vibeflow/state/consensus/jac1.verdict.json"
+if [[ -f "$JAC_VERDICT" ]]; then
+  JAC_CRITICAL="$(jq -r '.criticalTotal' "$JAC_VERDICT")"
+  assert_eq "[S17-B] Jaccard-similar titles deduped → criticalTotal==1" "1" "$JAC_CRITICAL"
+  JAC_RAW="$(jq -r '.criticalRawCount' "$JAC_VERDICT")"
+  assert_eq "[S17-B] Jaccard case criticalRawCount==2" "2" "$JAC_RAW"
+fi
+rm -rf "$DIR"
+
+# Legacy integer-count reviewers still sum (no dedup possible).
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus: {quorum: 2}}' "$DIR/vibeflow.config.json" > "$DIR/cfg.tmp" \
+  && mv "$DIR/cfg.tmp" "$DIR/vibeflow.config.json"
+for rev in claude-reviewer codex-reviewer; do
+  PAYLOAD="$(jq -n --arg rev "$rev" '{
+    session_id:"leg1", subagent_type:$rev,
+    tool_response:{content:[{text:"Verdict: NEEDS_REVISION\ncritical issues: 1"}]}
+  }')"
+  printf '%s' "$PAYLOAD" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+done
+LEG_VERDICT="$DIR/.vibeflow/state/consensus/leg1.verdict.json"
+if [[ -f "$LEG_VERDICT" ]]; then
+  LEG_CRITICAL="$(jq -r '.criticalTotal' "$LEG_VERDICT")"
+  assert_eq "[S17-B] legacy integer counts fall back to sum (1+1==2)" "2" "$LEG_CRITICAL"
+  LEG_RAW="$(jq -r '.criticalRawCount' "$LEG_VERDICT")"
+  assert_eq "[S17-B] legacy path criticalRawCount==0 (no structured items)" "0" "$LEG_RAW"
+fi
+rm -rf "$DIR"
 unset VIBEFLOW_CWD
 
 # ---------------------------------------------------------------------------

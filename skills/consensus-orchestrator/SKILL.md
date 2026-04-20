@@ -92,14 +92,30 @@ append_cli_verdict() {
   critical="$(printf '%s' "$raw" | jq -Rsr 'try (fromjson | .criticalIssues | if type=="array" then length else . end) catch 0' 2>/dev/null || echo 0)"
   [[ "$critical" =~ ^[0-9]+$ ]] || critical=0
 
+  # Sprint 17-B: preserve the structured `criticalIssues[]` array (if
+  # the reviewer emitted one) so the aggregator can dedup across
+  # reviewers by {file, line_range} + Jaccard(title). Legacy integer
+  # shape gets an empty array.
+  critical_items="$(printf '%s' "$raw" | jq -Rsr 'try (fromjson | .criticalIssues | if type=="array" then tojson else "[]" end) catch "[]"' 2>/dev/null || echo "[]")"
+
+  # Sprint 17-A: read current round from marker; default 1.
+  local round=1
+  if [[ -f "$CONS_DIR/$SESSION_ID.current-round.txt" ]]; then
+    local mv_round
+    mv_round="$(head -n1 "$CONS_DIR/$SESSION_ID.current-round.txt" 2>/dev/null | tr -d '[:space:]')"
+    [[ "$mv_round" =~ ^[0-9]+$ ]] && (( mv_round >= 1 )) && round="$mv_round"
+  fi
+
   jq -n -c \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg reviewer "$reviewer" \
     --arg verdict "$verdict" \
     --argjson critical "$critical" \
+    --argjson criticalItems "$critical_items" \
     --arg note "$note" \
+    --argjson round "$round" \
     --argjson raw "$(printf '%s' "$raw" | jq -Rsr 'try fromjson catch {}' 2>/dev/null || echo '{}')" \
-    '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, note:$note, suggestions:($raw.suggestions // [])}' \
+    '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, criticalItems:$criticalItems, round:$round, note:$note, suggestions:($raw.suggestions // [])}' \
     >> "$LOG"
 }
 
@@ -193,13 +209,24 @@ consensusScore = weightedAverage(claudeScore, chatgptScore?, geminiScore?)
 
 **Decision (use enum, NEVER string literals):**
 ```
-if consensusScore >= 90 AND criticalIssues == 0:
-  status = "APPROVED"      // Always UPPERCASE
-elif consensusScore < 50 OR criticalIssues >= 2:
-  status = "REJECTED"      // Always UPPERCASE (fixes Bug #1!)
+if criticalDedup >= 2:
+  status = "REJECTED"
+elif rejected * 2 > total:         # Sprint 17-B: strict majority of REJECTED verdicts
+  status = "REJECTED"
+elif agreement >= approvalThreshold AND criticalDedup == 0:
+  status = "APPROVED"
 else:
-  status = "NEEDS_REVISION" // Always UPPERCASE
+  status = "NEEDS_REVISION"
 ```
+
+Sprint 17-B: `criticalIssues` across reviewers is now **deduped** by
+`{file, line_range}` equality OR by Jaccard similarity of the title
+words (≥ 0.6). The pre-2.5.0 rule of `agreement < 0.5 → REJECTED`
+was retired because it conflated "nobody approved" with "everyone
+rejected" — three reviewers unanimously voting NEEDS_REVISION used
+to fall through to REJECTED, skipping the arbiter. Now REJECTED
+requires an explicit majority of reviewers to have actually
+rejected.
 
 ### Step 5: Iterative Negotiation Rounds (Sprint 17-A)
 
