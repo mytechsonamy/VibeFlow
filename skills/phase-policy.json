@@ -115,6 +115,10 @@
       "phases": ["DEVELOPMENT", "TESTING"],
       "description": "Operator-in-the-loop patch applicator. Shows diff preview, asks for confirmation, applies via `git apply`, optional --run-tests (Sprint 15-G). Doc-only patches pass through the phase-write-guard in earlier phases."
     },
+    "consensus-specialist": {
+      "phases": "ALL",
+      "description": "Sprint 17-E dispatcher. Reads currentPhase and forks the matching phase-specialist agent (prd-rewriter/design-spec-refiner/adr-author/test-strategy-refiner/coverage-gap-filler/runbook-editor) to produce one deep-rewrite diff-first patch. Offered alongside consensus-arbiter from the orchestrator's NEEDS_REVISION / HUMAN_APPROVAL_REQUIRED follow-up."
+    },
     "status": {
       "phases": "ALL",
       "description": "Reports current phase and pending work. Read-only."

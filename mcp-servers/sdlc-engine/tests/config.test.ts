@@ -2,7 +2,11 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { resolveConfig, EngineConfigSchema } from "../src/config.js";
+import {
+  resolveConfig,
+  EngineConfigSchema,
+  ConsensusConfigSchema,
+} from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
 
@@ -127,5 +131,102 @@ describe("config schemas", () => {
       stateStore: { dir: "/tmp/x" },
     });
     expect(parsed.stateStore.dir).toBe("/tmp/x");
+  });
+});
+
+describe("ConsensusConfigSchema (Sprint 17-F)", () => {
+  it("applies defaults when field is omitted", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.consensus.maxIterations).toBe(5);
+    expect(cfg.consensus.approvalThreshold).toBe(0.9);
+    expect(cfg.consensus.iteration.enabled).toBe(true);
+    expect(cfg.consensus.quorum).toBeUndefined();
+  });
+
+  it("accepts a partial consensus object and fills the rest", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      consensus: { maxIterations: 3 },
+    });
+    expect(cfg.consensus.maxIterations).toBe(3);
+    expect(cfg.consensus.approvalThreshold).toBe(0.9);
+    expect(cfg.consensus.iteration.enabled).toBe(true);
+  });
+
+  it("accepts consensus.iteration.enabled=false as the rollback switch", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      consensus: { iteration: { enabled: false } },
+    });
+    expect(cfg.consensus.iteration.enabled).toBe(false);
+  });
+
+  it("rejects maxIterations outside [1, 20]", () => {
+    expect(
+      ConsensusConfigSchema.safeParse({ maxIterations: 0 }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ maxIterations: 21 }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ maxIterations: 5 }).success,
+    ).toBe(true);
+  });
+
+  it("rejects approvalThreshold outside [0, 1]", () => {
+    expect(
+      ConsensusConfigSchema.safeParse({ approvalThreshold: -0.1 }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ approvalThreshold: 1.01 }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ approvalThreshold: 0.9 }).success,
+    ).toBe(true);
+  });
+
+  it("rejects quorum < 1 but accepts integers ≥ 1", () => {
+    expect(ConsensusConfigSchema.safeParse({ quorum: 0 }).success).toBe(false);
+    expect(ConsensusConfigSchema.safeParse({ quorum: 1 }).success).toBe(true);
+    expect(ConsensusConfigSchema.safeParse({ quorum: 3 }).success).toBe(true);
+  });
+});
+
+describe("resolveConfig — consensus (Sprint 17-F)", () => {
+  let tmpDir: string;
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sdlc-engine-consensus-"));
+  });
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("reads partial consensus config from file and fills defaults", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "vibeflow.config.json"),
+      JSON.stringify({
+        project: "p",
+        consensus: { maxIterations: 3, approvalThreshold: 0.85 },
+      }),
+    );
+    const cfg = resolveConfig(tmpDir);
+    expect(cfg.consensus.maxIterations).toBe(3);
+    expect(cfg.consensus.approvalThreshold).toBe(0.85);
+    expect(cfg.consensus.iteration.enabled).toBe(true);
+  });
+
+  it("falls back to defaults when consensus.* is malformed", () => {
+    // Negative threshold is not valid — resolver silently falls back
+    // to defaults (mirrors Sprint 17-F risk #1 in the plan).
+    fs.writeFileSync(
+      path.join(tmpDir, "vibeflow.config.json"),
+      JSON.stringify({
+        project: "p",
+        consensus: { approvalThreshold: -5 },
+      }),
+    );
+    const cfg = resolveConfig(tmpDir);
+    expect(cfg.consensus.approvalThreshold).toBe(0.9);
+    expect(cfg.consensus.maxIterations).toBe(5);
   });
 });
