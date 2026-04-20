@@ -66,7 +66,7 @@ Runs **once per session** at start or resume. Reads
 context summary:
 
 ```
-VibeFlow active: domain=e-commerce, mode=solo, phase=DEVELOPMENT, last_consensus=APPROVED, satisfied_criteria=4
+VibeFlow active: domain=e-commerce, phase=DEVELOPMENT, last_consensus=APPROVED, satisfied_criteria=4
 Use /vibeflow:status for full state, /vibeflow:advance to move phase.
 ```
 
@@ -150,18 +150,17 @@ When the most recent commit's diff is ≥ **50 changed lines**, writes
 a pending-review marker to `.vibeflow/state/review-pending.json` so
 the next consensus run picks it up.
 
-### Solo mode
-
-In solo mode, this hook is a no-op — solo means single-AI, no
-multi-AI consensus, no review marker.
-
 ### Rate limit (S4-02 hardening)
 
-In team mode, the hook enforces a **5-minute rate limit**: if a
-review marker already exists and its `requestedAt` is within 300
-seconds of now, the existing marker is left in place. Without this,
-a flurry of rapid commits would overwrite the consensus orchestrator's
-queue position on every commit.
+The hook enforces a **5-minute rate limit**: if a review marker already
+exists and its `requestedAt` is within 300 seconds of now, the existing
+marker is left in place. Without this, a flurry of rapid commits would
+overwrite the consensus orchestrator's queue position on every commit.
+
+(Sprint 14-A retired the solo-mode skip. The marker is now written
+whenever the diff threshold is crossed; which reviewers actually
+respond is decided downstream by CLI availability — see
+consensus-orchestrator.)
 
 ### Customizing
 
@@ -223,7 +222,7 @@ file) so it reflects every write that happened before compaction.
 
 ```
 VibeFlow context restored after compact.
- phase=DEVELOPMENT, mode=solo, domain=e-commerce, last_consensus=APPROVED
+ phase=DEVELOPMENT, domain=e-commerce, last_consensus=APPROVED
  satisfied_criteria: prd.approved, testability.score>=60, design.approved
  Pending AI review: 80 lines @ a1b2c3d4.
 Run /vibeflow:status for full state.
@@ -281,7 +280,10 @@ The hook scans the subagent's output text for keywords:
 
 ### Quorum
 
-Solo mode expects 1 reviewer; team mode expects 3.
+Quorum is CLI-driven, not mode-driven (Sprint 14-A). Default expected
+reviewer count = `1` (claude-reviewer) + `1 if codex is on PATH` + `1
+if gemini is on PATH`. Operators can override with `consensus.quorum`
+(integer) in `vibeflow.config.json`.
 
 ### Timeout (S4-02 hardening)
 
@@ -299,9 +301,10 @@ and `timeout: true` fields for downstream auditing.
 
 ### Customizing
 
-The timeout is `TIMEOUT_SECONDS=600`. The expected count is
-implicit from `vf_mode` and cannot be customized per-session
-(team mode is always 3 reviewers).
+The timeout is `TIMEOUT_SECONDS=600`. The expected reviewer count is
+derived from CLI availability at call time; to pin a specific number
+(useful in CI or when a CLI is temporarily offline) set
+`consensus.quorum` in `vibeflow.config.json`.
 
 ---
 
@@ -319,8 +322,7 @@ Every hook sources `_lib.sh`. The helpers are:
 | `vf_have_jq` / `vf_have_sqlite3` | Capability checks |
 | `vf_config_get <jq-path>` | Read a field from the config (returns empty + nonzero on missing) |
 | `vf_project_id` | Reads `.project` |
-| `vf_mode` | Reads `.mode`, defaults to `"solo"` |
-| `vf_current_phase` | Reads from state.db, falls back to config |
+| `vf_current_phase` | Reads project.json, falls back to state.db, then config |
 | `vf_last_consensus_status` | Reads the last consensus verdict |
 | `vf_satisfied_criteria` | Reads the satisfied criteria array (defaults to `[]`) |
 | `vf_phase_index <PHASE>` | Returns the canonical phase order index (REQUIREMENTS=0, ..., DEPLOYMENT=6) |

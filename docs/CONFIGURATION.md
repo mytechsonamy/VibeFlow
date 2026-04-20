@@ -20,7 +20,6 @@ checked into git. Every hook and skill reads it for context.
 ```json
 {
   "project": "my-app",
-  "mode": "solo",
   "domain": "e-commerce",
   "currentPhase": "DEVELOPMENT",
   "platform": "web",
@@ -42,6 +41,9 @@ checked into git. Every hook and skill reads it for context.
     "openai": "gpt-4o",
     "gemini": "gemini-2.0-flash"
   },
+  "consensus": {
+    "quorum": 3
+  },
   "defaultPipeline": "new-feature"
 }
 ```
@@ -51,7 +53,6 @@ checked into git. Every hook and skill reads it for context.
 | Field | Type | Required | Default | Notes |
 |-------|------|----------|---------|-------|
 | `project` | string | ✓ | — | Stable id used in every report and state record. Do not rename after init. |
-| `mode` | `"solo"` / `"team"` | ✓ | `"solo"` | Solo uses SQLite + single-AI reviews; team uses PostgreSQL + 3-AI consensus. |
 | `domain` | `"financial"` / `"e-commerce"` / `"healthcare"` / `"general"` | ✓ | `"general"` | Drives quality thresholds + release-decision weights. |
 | `currentPhase` | `"REQUIREMENTS"` / `"DESIGN"` / `"ARCHITECTURE"` / `"PLANNING"` / `"DEVELOPMENT"` / `"TESTING"` / `"DEPLOYMENT"` | ✓ | `"REQUIREMENTS"` | Authoritative phase — state.db is the real source of truth; this field is a fallback. |
 | `platform` | `"web"` / `"ios"` / `"android"` / `"all"` | — | `"web"` | Affects test file shape + e2e-test-writer output. |
@@ -63,7 +64,8 @@ checked into git. Every hook and skill reads it for context.
 | `tech.runtime` | string | — | auto | e.g. `"node"`, `"python"`, `"java"`. |
 | `tech.testRunner` | string | — | auto | e.g. `"vitest"`, `"jest"`, `"pytest"`. |
 | `criticalPaths` | string[] | — | `[]` | File or directory globs marked as critical. Coverage-analyzer enforces 100% on these; mutation-test-runner weights them 2×. |
-| `models.claude` / `.openai` / `.gemini` | string | — | per-mode defaults | Model ids passed to the consensus orchestrator. |
+| `models.claude` / `.openai` / `.gemini` | string | — | built-in defaults | Model ids passed to the consensus orchestrator. |
+| `consensus.quorum` | integer ≥ 1 | — | CLI-detected | Overrides the expected reviewer count used by `consensus-aggregator.sh`. Default is `1` (claude-reviewer) + `1` per detected CLI (codex, gemini). Set this explicitly in CI or when a CLI is offline. |
 | `defaultPipeline` | `"new-feature"` / `"pre-pr"` / `"staging-uat"` / `"release"` / `"hotfix"` / `"weekly-learning"` / `"production-feedback"` | — | `"new-feature"` | The pipeline `/vibeflow:run-pipeline` defaults to. |
 
 ### Domain → thresholds (built-in, cannot be loosened)
@@ -131,9 +133,7 @@ and are typically secrets or personal preferences.
 
 | Key | Sensitive | Purpose |
 |-----|-----------|---------|
-| `mode` | no | Override project-level mode for your own sessions (rarely needed) |
-| `domain` | no | Same, for domain |
-| `db_connection` | **yes** | PostgreSQL DSN for team-mode projects. Leave empty in solo mode. |
+| `domain` | no | Per-user override for `domain` (rarely needed) |
 | `openai_model` | no | OpenAI model id used by `codex` CLI during consensus review. Empty disables ChatGPT reviews. |
 | `gemini_model` | no | Google model id used by `gemini` CLI during consensus review. Empty disables Gemini reviews. |
 | `figma_token` | **yes** | Figma personal access token for `design-bridge`. Create at figma.com → Settings → Personal access tokens. Empty disables Figma-dependent skills. |
