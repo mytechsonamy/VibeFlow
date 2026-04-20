@@ -740,6 +740,81 @@ rm -rf "$DIR"
 
 unset VIBEFLOW_CWD
 
+# ---------------------------------------------------------------------------
+echo "== consensus-gate.sh [S16-A] =="
+
+GATE="$SCRIPTS/consensus-gate.sh"
+
+# Fixture: project with an active consensus-needed.json marker.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+mkdir -p "$DIR/.vibeflow/state"
+cat > "$DIR/.vibeflow/state/consensus-needed.json" <<EOF
+{
+  "artifact": ".vibeflow/reports/prd-quality-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/prd-quality-report.md",
+  "createdAt": "2026-04-20T00:00:00Z"
+}
+EOF
+
+# 1. Bash tool call unrelated to consensus is BLOCKED when marker is present.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"npm test"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] marker blocks unrelated Bash (exit 2)" "2" "$RC"
+assert_contains "[S16-A] block message names required command" "/vibeflow:consensus-orchestrator" "$OUT"
+assert_contains "[S16-A] block message names the artifact" "prd-quality-report.md" "$OUT"
+
+# 2. Bash command that IS the consensus chain is allowed through.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"/vibeflow:consensus-orchestrator foo.md"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] consensus-orchestrator command passes through (exit 0)" "0" "$RC"
+
+INPUT='{"tool_name":"Bash","tool_input":{"command":"/vibeflow:apply-arbiter-patch latest"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] apply-arbiter-patch command passes through (exit 0)" "0" "$RC"
+
+# 3. Bash command that removes the marker is allowed.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"rm -f .vibeflow/state/consensus-needed.json"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] rm marker passes through (exit 0)" "0" "$RC"
+
+# 4. Write under .vibeflow/** is allowed (framework state writes stay open).
+INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$DIR"'/.vibeflow/reports/foo.md","content":"x"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] Write under .vibeflow/** passes through (exit 0)" "0" "$RC"
+
+# 5. Write to a source file is BLOCKED while marker is present.
+INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$DIR"'/src/foo.ts","content":"x"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] Write to src/** blocked (exit 2)" "2" "$RC"
+
+# 6. Env override bypasses the gate.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"npm test"}}'
+OUT="$(printf '%s' "$INPUT" | VF_SKIP_CONSENSUS_GATE=1 bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] VF_SKIP_CONSENSUS_GATE=1 bypasses (exit 0)" "0" "$RC"
+
+# 7. No marker → fail-safe allow.
+rm -f "$DIR/.vibeflow/state/consensus-needed.json"
+INPUT='{"tool_name":"Bash","tool_input":{"command":"npm test"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] no marker → allow (exit 0)" "0" "$RC"
+
+# 8. Empty stdin → fail-safe allow.
+OUT="$(printf '' | bash "$GATE" 2>&1)"
+RC=$?
+assert_eq "[S16-A] empty stdin → allow (exit 0)" "0" "$RC"
+
+rm -rf "$DIR"
+unset VIBEFLOW_CWD
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then
