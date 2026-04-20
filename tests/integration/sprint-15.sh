@@ -237,10 +237,16 @@ fi
 echo "== [S15-I] release sentinel =="
 
 PLUGIN="$REPO_ROOT/.claude-plugin/plugin.json"
-if jq -e '.version == "2.3.0"' "$PLUGIN" >/dev/null 2>&1; then
-  pass "[S15-I] plugin.json version == 2.3.0"
+# Sprint 15 shipped in 2.3.0. Later releases may bump the plugin version,
+# so this sentinel only requires the version to be >= 2.3.0 (lexical sort
+# is sufficient while all versions live under 2.x.y). sprint-4.sh pins
+# the currently-shipping version — this one just guards against
+# accidental downgrade.
+ACTUAL_PLUGIN_VERSION="$(jq -r '.version' "$PLUGIN" 2>/dev/null || echo "")"
+if [[ -n "$ACTUAL_PLUGIN_VERSION" ]] && [[ "$ACTUAL_PLUGIN_VERSION" == "$(printf '%s\n%s\n' '2.3.0' "$ACTUAL_PLUGIN_VERSION" | sort -V | tail -1)" ]]; then
+  pass "[S15-I] plugin.json version >= 2.3.0 (actual: $ACTUAL_PLUGIN_VERSION)"
 else
-  fail "[S15-I] plugin.json version == 2.3.0"
+  fail "[S15-I] plugin.json version >= 2.3.0 (actual: $ACTUAL_PLUGIN_VERSION)"
 fi
 if [[ -f "$REPO_ROOT/release-notes/2.3.0.md" ]]; then
   pass "[S15-I] release-notes/2.3.0.md exists"

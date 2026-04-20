@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.0] — 2026-04-20
+
+Sprint 16 — deterministic auto-consensus chain. Analysis skills
+enforce consensus via a filesystem marker + PreToolUse hook rather
+than trusting the skill to invoke a slash command. Closes the
+last gap in the MyVibe closed loop: forked subagents, context
+compaction, and busy main agents can no longer silently skip the
+review step.
+
+### Added
+- **`hooks/scripts/consensus-gate.sh`** — new PreToolUse hook
+  registered on `Bash|Write|Edit`. Reads
+  `.vibeflow/state/consensus-needed.json`; if the marker exists,
+  exits 2 with a stderr message naming the `requiredCommand` the
+  operator must run. Fail-safe on missing jq, empty stdin, or
+  missing marker. Pass-through for writes under `.vibeflow/**`,
+  Bash commands containing `vibeflow:consensus-*` /
+  `vibeflow:apply-arbiter-*`, and `rm`-ing the marker. Per-call
+  bypass: `VF_SKIP_CONSENSUS_GATE=1`.
+- **Marker-writing step on 6 analysis skills.**
+  `prd-quality-analyzer`, `architecture-validator`,
+  `test-strategy-planner`, `traceability-engine`,
+  `coverage-analyzer`, and `release-decision-engine` now Write
+  `consensus-needed.json` with
+  `{artifact, requiredCommand, createdAt, createdBy}` as their
+  mandatory final step. Replaces the prose-only invoke from 2.3.0.
+- **Marker drain on `consensus-orchestrator` + `consensus-arbiter`
+  + `apply-arbiter-patch`.** All three skills remove
+  `consensus-needed.json` on successful completion, so the chain
+  is self-clearing regardless of entry point. Orchestrator
+  drains on every terminal verdict status
+  (APPROVED/NEEDS_REVISION/REJECTED); arbiter and apply drain
+  unconditionally at end-of-run to handle direct operator
+  invocation.
+- **`tests/integration/sprint-16.sh`** — 77 assertions pinning
+  the hook, the marker-drain in each downstream skill, the
+  marker-write on each L1 skill, the hooks.json wiring, and
+  CONSENSUS-FLOW.md coverage.
+- **`docs/CONSENSUS-FLOW.md` "Layer 2 in detail"** — documents
+  the marker mechanism, the hook's pass-through rules, the drain
+  points, and the per-call bypass. Layer 2's diagram section
+  rewritten to reflect the deterministic chain.
+- `release-notes/2.4.0.md`.
+
+### Fixed
+- **Skills never actually triggered consensus.** In 2.3.0, the
+  "Final Step: Auto-Consensus" block relied on Claude to invoke
+  the orchestrator as a slash command after writing the report.
+  In practice the invocation was defeated by forked subagents
+  (no slash-command dispatch), compaction of the skill's final
+  instruction, or the main agent simply moving on. The result:
+  reports landed in `.vibeflow/reports/`, no consensus record
+  appeared, `/vibeflow:advance` blocked with no operator-visible
+  cause. The marker + hook chain makes this path deterministic.
+- **`release-decision-engine` lacked `Write` in `allowed-tools`.**
+  Predates the auto-consensus requirement — with `Read Grep Glob`
+  only, the skill physically could not drop its report file.
+  `Write` is now listed alongside the other three.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.3.0 → 2.4.0
+- `.claude-plugin/marketplace.json`: 2.3.0 → 2.4.0
+- `mcp-servers/sdlc-engine/package.json`: 1.3.0 (unchanged — no
+  engine-level changes)
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.3.0 → 2.4.0
+- Hooks baseline: 75 → 86 (+11 [S16-A])
+- Integration layers: 15 → 16 (new `sprint-16.sh` at 77 assertions)
+
+---
+
 ## [2.3.0] — 2026-04-20
 
 MyVibe closed-loop — consensus now actually runs end-to-end: codex
