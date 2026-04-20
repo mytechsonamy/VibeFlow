@@ -14,15 +14,16 @@ with `/vibeflow:status` for inspection.
 ## Usage
 
 ```
-/vibeflow:advance <TARGET_PHASE> [humanOverrideNote="..."]
+/vibeflow:advance [TARGET_PHASE] [humanOverrideNote="..."]
 ```
 
 Arguments:
 
-- `TARGET_PHASE` (required): one of `REQUIREMENTS`, `DESIGN`,
-  `ARCHITECTURE`, `PLANNING`, `DEVELOPMENT`, `TESTING`,
-  `DEPLOYMENT`. Case-insensitive; the skill uppercases it
-  before the tool call.
+- `TARGET_PHASE` (optional since v2.5.2): one of `REQUIREMENTS`,
+  `DESIGN`, `ARCHITECTURE`, `PLANNING`, `DEVELOPMENT`, `TESTING`,
+  `DEPLOYMENT`. Case-insensitive. **When omitted**, the skill
+  defaults to the next phase in the canonical SDLC sequence
+  based on `currentPhase` (see "Phase order" below).
 - `humanOverrideNote="<reason>"` (optional): operator-supplied
   justification when advancing under a HUMAN_APPROVAL_REQUIRED
   consensus verdict (Sprint 17-C). The note is written to the
@@ -32,10 +33,22 @@ Arguments:
 Examples:
 
 ```
+/vibeflow:advance                                     # → next phase from currentPhase
 /vibeflow:advance DESIGN
 /vibeflow:advance DESIGN humanOverrideNote="YÖS tier resolved offline with Legal"
-/vibeflow:advance design              # case-insensitive; uppercased for you
+/vibeflow:advance design                              # case-insensitive; uppercased for you
 ```
+
+### Phase order (canonical)
+
+```
+REQUIREMENTS → DESIGN → ARCHITECTURE → PLANNING
+             → DEVELOPMENT → TESTING → DEPLOYMENT
+```
+
+If `currentPhase == DEPLOYMENT`, no default next phase exists —
+the skill stops with "Already at the last phase; nothing to
+advance. Use `/vibeflow:status` to inspect."
 
 ## Process
 
@@ -52,10 +65,29 @@ Run /vibeflow:init first.
 
 and stop.
 
-### Step 2: Validate the target phase
+### Step 2: Resolve the target phase
 
-Uppercase the argument. If it doesn't match one of the seven
-phase names above, emit a list of valid phases and stop.
+If `$ARGUMENTS` contains a phase token (the first whitespace-
+separated word that isn't a `key="value"` pair), uppercase it
+and use it as `TARGET_PHASE`.
+
+If no phase token is supplied (v2.5.2 default-to-next):
+
+1. Read `vibeflow.config.json.currentPhase` (or call
+   `mcp__sdlc-engine__sdlc_get_state` if the config doesn't
+   carry a live `currentPhase`).
+2. Look up the next phase in the canonical order:
+   `REQUIREMENTS → DESIGN → ARCHITECTURE → PLANNING →
+   DEVELOPMENT → TESTING → DEPLOYMENT`.
+3. If `currentPhase == DEPLOYMENT`, emit:
+   ```
+   Already at the last phase (DEPLOYMENT). Nothing to advance.
+   Use /vibeflow:status to inspect exit criteria.
+   ```
+   and stop.
+
+If the user supplied a token that doesn't match any of the
+seven phase names, emit the valid list and stop.
 Double-advancing ("REQUIREMENTS → ARCHITECTURE" skipping DESIGN)
 is a structural error the validator will reject — still let it
 through to the tool call so the operator sees the exact

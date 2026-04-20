@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.2] — 2026-04-21
+
+Skill polish. `/vibeflow:advance` now defaults `TARGET_PHASE` to
+the next phase in the canonical SDLC order when the argument is
+omitted. Typing `/vibeflow:advance` is enough to move forward
+one phase; explicit target is only needed when skipping phases
+or re-entering a non-sequential one.
+
+### Changed
+- **`skills/advance/SKILL.md`** — `TARGET_PHASE` is now
+  optional. When absent, the skill reads
+  `vibeflow.config.json.currentPhase` (or falls back to
+  `sdlc_get_state`) and picks the next phase in
+  `REQUIREMENTS → DESIGN → ARCHITECTURE → PLANNING →
+  DEVELOPMENT → TESTING → DEPLOYMENT`. If currentPhase is
+  DEPLOYMENT, the skill stops with a "nothing to advance"
+  message instead of erroring.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.5.1 → 2.5.2
+- `.claude-plugin/marketplace.json`: 2.5.1 → 2.5.2
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.5.1 → 2.5.2
+
+---
+
 ## [2.5.1] — 2026-04-21
 
 Post-Sprint-17 polish. Ships the missing `/vibeflow:advance` slash
