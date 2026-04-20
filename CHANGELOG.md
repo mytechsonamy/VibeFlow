@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.0] — 2026-04-21
+
+Sprint 18 — full auto-satisfy rollout. Every automatable SDLC
+exit criterion is now satisfied by the skill that produces its
+authoritative evidence; only the three criteria that require
+real human judgment (`design.approved`, `accessibility.verified`,
+`sprint.planned`) stay operator-driven, and those are enumerated
++ justified in a new `docs/AUTO-SATISFY.md`. Each phase
+transition becomes a single-command advance sequence.
+
+### Added
+- **`skills/quality-gates/SKILL.md`** (new, DEVELOPMENT phase).
+  Runs lint + typecheck + unit tests from
+  `vibeflow.config.json.tech.*` (or inferred defaults per
+  language — JS/TS, Python, .NET, Go, Rust). Writes a
+  per-run report under `.vibeflow/reports/quality-gates-*.md`
+  and auto-satisfies `quality.gates.passed` when every command
+  exits 0.
+- **`skills/deploy-verifier/SKILL.md`** (new, DEPLOYMENT phase).
+  Cross-checks CI pipeline status (via `dev-ops` MCP),
+  endpoint smoke tests (curl), and observability health
+  dashboard (via `observability` MCP). Auto-satisfies
+  `deployment.verified` + `health.checks.passed` when the
+  overall verdict is PASS. Writes the consensus-needed marker
+  for the third DEPLOYMENT criterion
+  (`consensus.deployment.approved`) so multi-AI review still
+  runs. No auto-rollback — prints the `docs/runbooks/` hint
+  and leaves recovery to the operator.
+- **Auto-satisfy extensions** on existing analyzers:
+  - `architecture-validator` → `adr.recorded` when verdict ≠ BLOCKED
+  - `test-strategy-planner` → `test-strategy.approved` (unconditional)
+  - `coverage-analyzer` → `coverage.met` when verdict == PASS
+  - `mutation-test-runner` → `mutation.score.acceptable` when
+    verdict == PASS (also gains its first Final Step section
+    with auto-consensus marker write)
+- **`consensus-orchestrator` Step 3c.0b** — DEVELOPMENT-phase
+  extension. On APPROVED or HUMAN_APPROVAL_REQUIRED + phase ==
+  DEVELOPMENT, also auto-satisfies `code.reviewed`. DEVELOPMENT
+  doesn't carry a scoped consensus criterion (Sprint 15-C), so
+  the orchestrator's DEVELOPMENT verdict is the authoritative
+  code-review signal.
+- **`docs/AUTO-SATISFY.md`** — per-criterion matrix covering
+  all 19 exit criteria across 7 phases. Marks each as AUTO or
+  MANUAL, documents gate conditions, explains why manual
+  criteria stay manual, and includes a troubleshooting section
+  for "criterion stuck unsatisfied" scenarios.
+- **`tests/integration/sprint-18.sh`** — 67 assertions across
+  `[S18-A]`..`[S18-Z]`.
+
+### Changed
+- `skills/phase-policy.json` registers `quality-gates`
+  (DEVELOPMENT) + `deploy-verifier` (DEPLOYMENT) alongside
+  the existing skill entries.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.5.4 → 2.6.0
+- `.claude-plugin/marketplace.json`: 2.5.4 → 2.6.0
+- `@vibeflow/sdlc-engine`: 1.4.0 (unchanged — no engine code
+  changes this sprint)
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.5.4 → 2.6.0
+- Integration layers: 17 → 18 (new `sprint-18.sh` at 67
+  assertions)
+- Total baseline: 2106 → 2173 (+67)
+
+---
+
 ## [2.5.4] — 2026-04-21
 
 Close the last manual step. After a successful PRD analysis +
