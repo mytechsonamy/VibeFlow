@@ -1,7 +1,7 @@
 ---
 name: traceability-engine
-description: Maps PRD requirements to test scenarios to source code. Detects untested requirements, orphan tests, and stale traces. Maintains live Requirements Traceability Matrix (RTM). Use for coverage gap analysis, requirement validation, and audit trails.
-allowed-tools: Read Grep Glob
+description: Maps PRD requirements to test scenarios to source code. Detects untested requirements, orphan tests, and stale traces. Writes the Requirements Traceability Matrix to .vibeflow/reports/rtm.md and a gap summary to .vibeflow/reports/traceability-gaps.md. Use for coverage gap analysis, requirement validation, and audit trails.
+allowed-tools: Read Write Grep Glob
 context: fork
 agent: Explore
 ---
@@ -74,7 +74,16 @@ P0 gaps are weighted 3x, P1 gaps 2x, P2 gaps 1x, P3 gaps 0.5x.
 
 ## Output Files
 
-### 1. traceability-report.md
+**Every run MUST write both files below to `.vibeflow/reports/` on disk.
+Never print them to chat only — the RTM is the single source of truth
+for downstream coverage + release-decision skills. Create the directory
+if it doesn't exist.**
+
+Target paths:
+- `.vibeflow/reports/rtm.md` (the traceability report)
+- `.vibeflow/reports/traceability-gaps.md` (gap summary)
+
+### 1. .vibeflow/reports/rtm.md
 ```markdown
 # Traceability Report
 

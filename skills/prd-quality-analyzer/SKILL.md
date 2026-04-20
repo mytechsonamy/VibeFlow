@@ -1,7 +1,7 @@
 ---
 name: prd-quality-analyzer
-description: Analyzes PRD documents for ambiguity, conflicts, and missing flows. Produces testability score (0-100). Use when reviewing requirements, validating PRDs, or before starting development. Blocks development if testability score < 60.
-allowed-tools: Read Grep Glob
+description: Analyzes PRD documents for ambiguity, conflicts, and missing flows. Produces testability score (0-100). Writes a report to .vibeflow/reports/prd-quality-report.md and a cost-avoidance breakdown to .vibeflow/reports/prd-cost-avoidance.md. Use when reviewing requirements, validating PRDs, or before starting development. Blocks development if testability score < 60.
+allowed-tools: Read Write Grep Glob
 context: fork
 agent: Explore
 ---
@@ -70,9 +70,17 @@ Score 0-100 across 5 dimensions:
 **HARD RULE**: If testability score < 60, output a BLOCK recommendation. Development MUST NOT start.
 
 ## Output Files
-Generate two files:
 
-### 1. prd-quality-report.md
+**Every run MUST write the two files below to disk under
+`.vibeflow/reports/` — never print the report to chat only. The
+report path is the contract; downstream skills read from it. If the
+directory doesn't exist, create it.**
+
+Target paths:
+- `.vibeflow/reports/prd-quality-report.md`
+- `.vibeflow/reports/prd-cost-avoidance.md`
+
+### 1. .vibeflow/reports/prd-quality-report.md
 ```markdown
 # PRD Quality Report
 ## Summary
@@ -105,7 +113,7 @@ Generate two files:
 [Prioritized list of improvements needed before development]
 ```
 
-### 2. prd-cost-avoidance.md
+### 2. .vibeflow/reports/prd-cost-avoidance.md
 Estimate the cost of NOT fixing each finding (based on the "1:10:100 rule" - fixing in requirements costs 1x, in dev 10x, in production 100x).
 
 ## Downstream Dependencies

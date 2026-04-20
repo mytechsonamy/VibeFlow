@@ -1,7 +1,7 @@
 ---
 name: architecture-validator
-description: Validates a proposed software architecture against domain policies, the approved PRD, and (optionally) the current codebase's import graph. Produces an architecture-report.md and generates ADRs for accepted decisions. Blocks advance if any criticalPolicyViolations > 0. PIPELINE-1 step 2.
-allowed-tools: Read Grep Glob
+description: Validates a proposed software architecture against domain policies, the approved PRD, and (optionally) the current codebase's import graph. Writes .vibeflow/reports/architecture-report.md and one .vibeflow/reports/adr-NNN-<slug>.md per accepted decision. Blocks advance if any criticalPolicyViolations > 0. PIPELINE-1 step 2.
+allowed-tools: Read Write Grep Glob
 context: fork
 agent: Explore
 ---
@@ -142,6 +142,10 @@ The gate contract is `criticalPolicyViolations == 0` — no other condition
 can produce a BLOCKED verdict, and no condition can suppress BLOCKED.
 
 ## Output Files
+
+**Every run MUST write all output files below to `.vibeflow/reports/`
+on disk. Never print them to chat only. Create the directory if it
+doesn't exist.**
 
 ### 1. `.vibeflow/reports/architecture-report.md`
 

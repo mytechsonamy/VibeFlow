@@ -1,7 +1,7 @@
 ---
 name: test-strategy-planner
-description: Creates comprehensive test strategy, scenario set, and requirements traceability matrix from PRD. Produces scenario-set.md which is the universal input for ALL downstream test skills. Must run before any test writing skill.
-allowed-tools: Read Grep Glob
+description: Creates comprehensive test strategy, scenario set, and requirements traceability matrix from PRD. Writes .vibeflow/reports/scenario-set.md (universal input for ALL downstream test skills) and .vibeflow/reports/test-strategy.md. Must run before any test writing skill.
+allowed-tools: Read Write Grep Glob
 context: fork
 agent: Explore
 ---
@@ -91,10 +91,18 @@ Identify:
 
 ## Output Files
 
-### 1. test-strategy.md
+**Every run MUST write both files below to `.vibeflow/reports/` on disk.
+Never print them to chat only — downstream skills read from the report
+path. Create the directory if it doesn't exist.**
+
+Target paths:
+- `.vibeflow/reports/test-strategy.md`
+- `.vibeflow/reports/scenario-set.md`
+
+### 1. .vibeflow/reports/test-strategy.md
 The full test strategy document with all 9 sections.
 
-### 2. scenario-set.md (CRITICAL OUTPUT)
+### 2. .vibeflow/reports/scenario-set.md (CRITICAL OUTPUT)
 This is the universal input for downstream skills. Format:
 
 ```markdown

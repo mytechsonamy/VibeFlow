@@ -359,6 +359,21 @@ if [[ -f "$SKR" ]]; then
   done
 fi
 
+# Sprint 14-D regression sentinel: any skill that declares an "Output
+# Files" section must also have Write (or MultiEdit) in its allowed-
+# tools front-matter, otherwise the skill prints the report to chat
+# and the caller sees nothing on disk. This is exactly the
+# prd-quality-analyzer failure that v2.1.0 surfaced.
+for skill_md in "$REPO_ROOT"/skills/*/SKILL.md; do
+  if grep -qE '^## Output Files' "$skill_md"; then
+    if grep -qE '^allowed-tools:[^\n]*(Write|MultiEdit)' "$skill_md"; then
+      pass "output-writing skill $(basename "$(dirname "$skill_md")") has Write in allowed-tools"
+    else
+      fail "output-writing skill $(basename "$(dirname "$skill_md")") missing Write in allowed-tools"
+    fi
+  fi
+done
+
 # PIPELINES.md must declare all 7 pipelines plus the decision tree.
 PIPES="$DOCS/PIPELINES.md"
 if [[ -f "$PIPES" ]]; then
