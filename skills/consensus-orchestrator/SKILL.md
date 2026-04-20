@@ -1,8 +1,8 @@
 ---
 name: consensus-orchestrator
-description: Orchestrates multi-AI review process. Coordinates Claude, ChatGPT (codex CLI), and Gemini (gemini CLI) reviews. Aggregates results with weighted scoring. Gracefully degrades when external AIs are unavailable. Use for SDLC review cycles.
+description: Orchestrates multi-AI review process. Coordinates Claude, ChatGPT (codex CLI), and Gemini (gemini CLI) reviews. Each CLI's verdict is appended to the session jsonl the aggregator reads, per-CLI 90s timeout so the aggregator never falls through to its 600s global wait. On NEEDS_REVISION verdicts the skill auto-invokes consensus-arbiter to decide which reviewer suggestions are applicable to the current phase.
 disable-model-invocation: true
-allowed-tools: Read Bash(codex *) Bash(gemini *) Grep Glob
+allowed-tools: Read Write Bash(codex *) Bash(gemini *) Bash(jq *) Bash(timeout *) Bash(rm *) Bash(mkdir *) Grep Glob
 ---
 
 # Consensus Orchestrator
@@ -51,6 +51,109 @@ fi
 Both CLIs inherit the operator's authenticated session (ChatGPT
 subscription, Gemini Pro, Workspace, etc.). There is no VibeFlow-
 emitted API key and no per-call billing.
+
+### Step 3b: CLI Output Capture (Sprint 15-A)
+
+The `codex` and `gemini` calls above are **raw bash processes** — they
+do NOT emit Claude Code `SubagentStop` events, so
+`consensus-aggregator.sh` never sees them on its own. To close the
+loop you MUST, for each CLI you ran, append one JSONL record to the
+aggregator's session log in the exact shape the aggregator expects
+(see `hooks/scripts/consensus-aggregator.sh:110-116`):
+
+```bash
+# $SESSION_ID comes from the SubagentStop that will fire when
+# claude-reviewer finishes (Step 2). Use the same session id so all
+# three reviewers merge into one verdict. In prose: "use the current
+# Claude Code session id; if unavailable, generate a uuid once at
+# the start of this skill invocation and reuse it everywhere below."
+SESSION_ID="${CLAUDE_SESSION_ID:-$(uuidgen)}"
+STATE_DIR="$(vf_state_dir)"  # .vibeflow/state/
+CONS_DIR="$STATE_DIR/consensus"
+mkdir -p "$CONS_DIR"
+LOG="$CONS_DIR/$SESSION_ID.jsonl"
+
+append_cli_verdict() {
+  local reviewer="$1" raw="$2" note="${3:-}"
+  local verdict critical structured
+  # Prefer structured JSON output: {"verdict":"...","criticalIssues":N, "suggestions":[...]}
+  structured="$(printf '%s' "$raw" | jq -Rsr 'try (fromjson | .verdict) catch empty' 2>/dev/null || true)"
+  case "$structured" in
+    APPROVED|NEEDS_REVISION|REJECTED) verdict="$structured" ;;
+    *)
+      # Free-text fallback — keyword precedence (REJECTED > NEEDS_REVISION > APPROVED).
+      if echo "$raw" | grep -qE 'REJECTED'; then verdict=REJECTED
+      elif echo "$raw" | grep -qE 'NEEDS_REVISION|NEEDS[[:space:]]REVISION'; then verdict=NEEDS_REVISION
+      elif echo "$raw" | grep -qE 'APPROVED'; then verdict=APPROVED
+      else verdict=NEEDS_REVISION  # unparseable → safe default
+      fi
+      ;;
+  esac
+  critical="$(printf '%s' "$raw" | jq -Rsr 'try (fromjson | .criticalIssues | if type=="array" then length else . end) catch 0' 2>/dev/null || echo 0)"
+  [[ "$critical" =~ ^[0-9]+$ ]] || critical=0
+
+  jq -n -c \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg reviewer "$reviewer" \
+    --arg verdict "$verdict" \
+    --argjson critical "$critical" \
+    --arg note "$note" \
+    --argjson raw "$(printf '%s' "$raw" | jq -Rsr 'try fromjson catch {}' 2>/dev/null || echo '{}')" \
+    '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, note:$note, suggestions:($raw.suggestions // [])}' \
+    >> "$LOG"
+}
+
+# codex — 90s per-CLI timeout so aggregator never sits on its 600s global wait.
+if command -v codex >/dev/null 2>&1; then
+  CODEX_OUT="$(timeout 90 codex exec "Review this for quality/security/maintainability. Output ONLY valid JSON matching {verdict:APPROVED|NEEDS_REVISION|REJECTED, score:0-100, criticalIssues:N, summary:string, suggestions:[{id,type,target:{file,line_range:[s,e]},rationale,proposed_change,priority,phase_relevance:[]}]}" -m "$openaiModel" --skip-git-repo-check --ephemeral < "$ARTIFACT" 2>&1)"
+  CODEX_RC=$?
+  if (( CODEX_RC == 124 )); then
+    append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
+  elif (( CODEX_RC != 0 )); then
+    append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_error:$CODEX_RC"
+  else
+    append_cli_verdict codex "$CODEX_OUT" ""
+  fi
+fi
+
+# gemini — same shape.
+if command -v gemini >/dev/null 2>&1; then
+  GEMINI_OUT="$(timeout 90 sh -c "(echo 'Review this for quality/security/maintainability. Output ONLY valid JSON {verdict, score, criticalIssues, summary, suggestions[]}' && cat '$ARTIFACT') | gemini --model '$geminiModel'" 2>&1)"
+  GEMINI_RC=$?
+  if (( GEMINI_RC == 124 )); then
+    append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
+  elif (( GEMINI_RC != 0 )); then
+    append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_error:$GEMINI_RC"
+  else
+    append_cli_verdict gemini "$GEMINI_OUT" ""
+  fi
+fi
+```
+
+After the CLIs are logged, spawn the claude-reviewer subagent (Step 2)
+**last** — its SubagentStop fires `consensus-aggregator.sh`, which
+sees all three jsonl entries and finalises the session as one.
+
+### Step 3c: Post-consensus cleanup (Sprint 15-A)
+
+Once the aggregator has written `.vibeflow/state/consensus/<session>.verdict.json`:
+
+1. If `status ∈ {APPROVED, NEEDS_REVISION}`, drain the review-pending
+   marker:
+   ```bash
+   rm -f "$(vf_state_dir)/review-pending.json"
+   ```
+2. If `status == NEEDS_REVISION`, chain into the arbiter:
+   ```
+   /vibeflow:consensus-arbiter <session-id>
+   ```
+   The arbiter reads each reviewer's `suggestions[]` + the current
+   phase + domain, decides per-suggestion which apply now vs defer
+   vs reject, and emits diff-first patches under
+   `.vibeflow/state/patches/<session>/` without touching source
+   files. Apply with `/vibeflow:apply-arbiter-patch`.
+3. If `status == REJECTED`, do NOT auto-chain — leave the decision
+   to the operator. Emit a short note citing the verdict path.
 
 ### Step 4: Consensus Calculation
 
