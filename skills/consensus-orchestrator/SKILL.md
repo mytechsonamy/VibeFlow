@@ -134,15 +134,20 @@ After the CLIs are logged, spawn the claude-reviewer subagent (Step 2)
 **last** — its SubagentStop fires `consensus-aggregator.sh`, which
 sees all three jsonl entries and finalises the session as one.
 
-### Step 3c: Post-consensus cleanup (Sprint 15-A)
+### Step 3c: Post-consensus cleanup (Sprint 15-A, 16-B)
 
 Once the aggregator has written `.vibeflow/state/consensus/<session>.verdict.json`:
 
-1. If `status ∈ {APPROVED, NEEDS_REVISION}`, drain the review-pending
-   marker:
+1. If `status ∈ {APPROVED, NEEDS_REVISION}`, drain **both** markers:
    ```bash
    rm -f "$(vf_state_dir)/review-pending.json"
+   rm -f "$(vf_state_dir)/consensus-needed.json"
    ```
+   The second line is load-bearing: Sprint 16-A's `consensus-gate.sh`
+   hook blocks every Bash/Write/Edit call while
+   `consensus-needed.json` is present. If the orchestrator forgets to
+   drain it, no further tool call (including the arbiter chain below)
+   will succeed without operator bypass.
 2. If `status == NEEDS_REVISION`, chain into the arbiter:
    ```
    /vibeflow:consensus-arbiter <session-id>
@@ -154,6 +159,9 @@ Once the aggregator has written `.vibeflow/state/consensus/<session>.verdict.jso
    files. Apply with `/vibeflow:apply-arbiter-patch`.
 3. If `status == REJECTED`, do NOT auto-chain — leave the decision
    to the operator. Emit a short note citing the verdict path.
+   **Still drain `consensus-needed.json`** (done in step 1) —
+   REJECTED means the operator has been told; blocking every
+   further tool call after that is pure friction.
 
 ### Step 4: Consensus Calculation
 

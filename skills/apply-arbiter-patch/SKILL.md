@@ -2,7 +2,7 @@
 name: apply-arbiter-patch
 description: Reads the patch manifest produced by consensus-arbiter, shows a git-style diff summary, asks for explicit operator confirmation (unless --yes), and applies via `git apply`. Updates `arbiter-decisions.md` with applied:true + timestamp. Optional `--run-tests` runs the project's test command afterward and reminds the operator how to revert if they break.
 disable-model-invocation: true
-allowed-tools: Read Write Edit Bash(git *) Bash(jq *) Bash(npm *) Bash(vitest *) Bash(jest *) Bash(pytest *) Bash(dotnet *)
+allowed-tools: Read Write Edit Bash(git *) Bash(jq *) Bash(npm *) Bash(vitest *) Bash(jest *) Bash(pytest *) Bash(dotnet *) Bash(rm *)
 context: fork
 ---
 
@@ -163,6 +163,23 @@ Append an `applied/<session>.json` under
   "testsPassed": true
 }
 ```
+
+### Step 8: Drain the consensus-needed marker (Sprint 16-B)
+
+After the applied/<session>.json record is written (and before
+exiting), defensively drain both consensus markers:
+
+```bash
+rm -f "$(vf_state_dir)/consensus-needed.json"
+rm -f "$(vf_state_dir)/review-pending.json"
+```
+
+**Why:** the orchestrator and arbiter already drained these, but the
+operator may have invoked `/vibeflow:apply-arbiter-patch` directly on
+a stored session — in which case the marker from the original
+analysis skill is still set and the next tool call would be blocked
+by `consensus-gate.sh`. Draining here closes the loop no matter how
+the skill was reached.
 
 ## Output
 

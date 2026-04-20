@@ -2,7 +2,7 @@
 name: consensus-arbiter
 description: Reads the verdict + reviewer suggestions from a consensus session, evaluates each suggestion against the current SDLC phase + domain, and emits diff-first patches for the ones that should APPLY. Never writes to source files — only to `.vibeflow/state/patches/<session>/` and `.vibeflow/reports/arbiter-decisions.md`. Invoke via `/vibeflow:apply-arbiter-patch` to actually apply.
 disable-model-invocation: true
-allowed-tools: Read Write Grep Glob Bash(jq *) Bash(mkdir *)
+allowed-tools: Read Write Grep Glob Bash(jq *) Bash(mkdir *) Bash(rm *)
 context: fork
 agent: Explore
 ---
@@ -186,6 +186,22 @@ Every run writes to `.vibeflow/`:
 - `.vibeflow/reports/arbiter-decisions.md`
 - `.vibeflow/state/patches/<session>/manifest.json`
 - `.vibeflow/state/patches/<session>/NN-<slug>.patch` (one per APPLY)
+
+## Final Step: Drain the consensus-needed marker (Sprint 16-B)
+
+After writing all output files, defensively drain the Sprint 16-A
+marker even though the orchestrator already dropped it:
+
+```bash
+rm -f "$(vf_state_dir)/consensus-needed.json"
+rm -f "$(vf_state_dir)/review-pending.json"
+```
+
+**Why:** when the operator invokes `/vibeflow:consensus-arbiter`
+directly (not via the orchestrator auto-chain) the marker may still
+be in place from a prior skill run. Leaving it set would block the
+very next `/vibeflow:apply-arbiter-patch` call — the arbiter's
+entire point. Drain unconditionally at the end of a successful run.
 
 ## Downstream Dependencies
 
