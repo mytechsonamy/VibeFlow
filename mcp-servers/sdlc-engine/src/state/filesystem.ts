@@ -534,6 +534,10 @@ function applyEventToState(
       return {
         ...state,
         currentPhase: event.payload.to,
+        // The engine resets satisfiedCriteria on every phase transition —
+        // each phase has its own gate criteria. Replay must mirror that
+        // semantic so the rebuilt rollup matches the live rollup.
+        satisfiedCriteria: [],
         updatedAt: event.recordedAt,
         revision: event.revision,
       };

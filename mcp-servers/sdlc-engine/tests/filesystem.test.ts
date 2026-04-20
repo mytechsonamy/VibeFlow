@@ -526,6 +526,8 @@ describe("FilesystemStateStore", () => {
       }),
       { context: { actor: "test" } },
     );
+    // Mirror the engine's advancePhase semantics — criteria reset on
+    // every phase transition (engine.ts:153). Replay must agree.
     await store.transact(
       PROJECT_ID,
       (current) => ({
@@ -533,6 +535,7 @@ describe("FilesystemStateStore", () => {
           ...current!,
           revision: 3,
           currentPhase: "DESIGN",
+          satisfiedCriteria: [],
           updatedAt: ISO,
         },
         result: null,
@@ -543,7 +546,7 @@ describe("FilesystemStateStore", () => {
     const direct = await store.read(PROJECT_ID);
     expect(rebuilt).toEqual(direct);
     expect(rebuilt?.currentPhase).toBe("DESIGN");
-    expect(rebuilt?.satisfiedCriteria).toEqual(["prd.approved"]);
+    expect(rebuilt?.satisfiedCriteria).toEqual([]);
   });
 
   it("disables fsync when VIBEFLOW_STATE_FSYNC=off", async () => {
