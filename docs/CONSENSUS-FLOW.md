@@ -12,8 +12,14 @@ missing.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ L2: Skill prose auto-invokes /vibeflow:consensus-orchestrator    │
-│     after writing outputs to .vibeflow/reports/                  │
+│ L2: Skill writes .vibeflow/state/consensus-needed.json marker    │
+│     (Sprint 16-A). consensus-gate PreToolUse hook blocks every   │
+│     Bash|Write|Edit call until the operator runs the required    │
+│     /vibeflow:consensus-orchestrator command. Orchestrator and   │
+│     arbiter/apply skills drain the marker on success (16-B).     │
+│     The old skill-prose invoke is a best-effort fallback for     │
+│     the main-agent case — forked subagents cannot invoke slash   │
+│     commands, so the marker is what actually closes the gap.     │
 └───────────────────────────┬──────────────────────────────────────┘
                             │
                             ▼
@@ -24,7 +30,8 @@ missing.
 │   - gemini CLI     (90s)     → append_cli_verdict() to jsonl    │
 │                                                                  │
 │  consensus-aggregator.sh tallies the jsonl, writes verdict.json  │
-│  orchestrator drains review-pending.json on success              │
+│  orchestrator drains review-pending.json AND                     │
+│  consensus-needed.json on APPROVED/NEEDS_REVISION/REJECTED       │
 └───────────────────────────┬──────────────────────────────────────┘
                             │
                             ├─ status=APPROVED ─► advance unblocked (L3)
@@ -115,6 +122,56 @@ is active so you don't forget you set it:
 VibeFlow: auto-consensus disabled via VF_SKIP_AUTO_CONSENSUS=1 for this session.
 ```
 
+## Layer 2 in detail: the consensus-needed marker (Sprint 16-A)
+
+Before Sprint 16, "Layer 2" was purely prose — each analysis skill
+ended with `/vibeflow:consensus-orchestrator <path>` and trusted
+Claude to invoke it. That worked in direct main-agent invocations
+but failed in any forked subagent, since forked subagents have no
+slash-command dispatch. The result: reports landed in
+`.vibeflow/reports/`, `/vibeflow:advance` blocked, the operator had
+no idea why.
+
+Sprint 16-A replaced the trust with a filesystem marker.
+
+**How it works:**
+
+1. Every L1 analysis skill's **Final Step** now writes
+   `.vibeflow/state/consensus-needed.json` with:
+   ```json
+   {
+     "artifact": ".vibeflow/reports/<primary-report>.md",
+     "requiredCommand": "/vibeflow:consensus-orchestrator <path>",
+     "createdAt": "<ISO-8601 UTC>",
+     "createdBy": "<skill-name>"
+   }
+   ```
+2. `hooks/scripts/consensus-gate.sh` (`PreToolUse` on
+   `Bash|Write|Edit`) reads the marker on every tool call. If it
+   exists, the hook blocks the call with a stderr message naming
+   `requiredCommand`. Claude Code surfaces that message to the
+   model — the next response runs the orchestrator.
+3. Pass-throughs (the hook does NOT block):
+   - Writes targeting `.vibeflow/**` (framework state must stay
+     writable during the arbiter/apply flow)
+   - Bash commands containing `vibeflow:consensus-*` or
+     `vibeflow:apply-arbiter-patch`
+   - Bash commands removing the marker
+4. Drains (who deletes `consensus-needed.json`):
+   - `consensus-orchestrator` on APPROVED / NEEDS_REVISION / REJECTED
+   - `consensus-arbiter` at end of successful run
+   - `apply-arbiter-patch` as final step
+5. Bypass (per-call only): `VF_SKIP_CONSENSUS_GATE=1 <your-command>`.
+   The phase-gate in Layer 3 still ignores this; it is a
+   noise-reducer for explicit operator overrides.
+
+**Why the marker instead of a slash-command invoke:** Claude Code
+has no programmatic `SlashCommand` tool. A skill cannot instruct
+Claude to run `/foo` in a way that actually fires; it can only
+print text. Prose works as a hint but is defeated by context
+compaction, forking, or a busy main agent. A file on disk survives
+all three.
+
 ## Troubleshooting
 
 ### "codex never showed up in the verdict file"
@@ -168,6 +225,22 @@ The apply skill prints a `git checkout HEAD -- <file>` line for
 the touched files. No auto-revert — we'd rather leave recovery to
 you than compound the damage with a guess.
 
+### "consensus-gate is blocking every command and I can't get out"
+
+Run the `requiredCommand` named in the block message — that's the
+fast path. If you need to bypass for a single call (e.g. you're
+manually inspecting state), prefix with `VF_SKIP_CONSENSUS_GATE=1`.
+To drain the marker without running consensus:
+
+```
+rm -f .vibeflow/state/consensus-needed.json
+```
+
+The hook whitelists `rm *consensus-needed.json*` so this always
+passes through. Note that the phase-gate (Layer 3) will still
+refuse `/vibeflow:advance` — the marker drain doesn't create a
+consensus record.
+
 ## Files
 
 | Path | Role |
@@ -176,6 +249,7 @@ you than compound the damage with a guess.
 | `skills/consensus-arbiter/SKILL.md` | Layer 4 decision + diff synthesis |
 | `skills/apply-arbiter-patch/SKILL.md` | Operator apply |
 | `hooks/scripts/consensus-aggregator.sh` | jsonl tally + verdict.json |
+| `hooks/scripts/consensus-gate.sh` | Layer 2 PreToolUse block until marker drains (Sprint 16-A) |
 | `hooks/scripts/trigger-ai-review.sh` | Post-commit marker |
 | `hooks/scripts/load-sdlc-context.sh` | SessionStart marker drain |
 | `mcp-servers/sdlc-engine/src/phases.ts` | Phase-scoped exit criteria |
