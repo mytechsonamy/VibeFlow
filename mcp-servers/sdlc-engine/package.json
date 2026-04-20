@@ -1,6 +1,6 @@
 {
   "name": "@vibeflow/sdlc-engine",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "VibeFlow SDLC orchestration + project state MCP server",
   "private": true,
   "type": "module",

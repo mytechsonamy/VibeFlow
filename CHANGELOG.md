@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] — 2026-04-20
+
+Generic phase enforcement. Write/Edit tool calls are now gated per
+phase by a new `phase-write-guard` hook, closing the gap that let
+`/vibeflow:init` scaffold source code during REQUIREMENTS.
+
+### Added
+- `hooks/scripts/phase-write-guard.sh` — PreToolUse hook on
+  `Write|Edit`. Reads `hooks/scripts/phase-policy.json`, matches the
+  target file against the current phase's allow/warn/deny globs, and
+  exits 2 on deny. Fail-safe allow when the policy file or `python3`
+  is missing. Per-call bypass: `VF_ALLOW_PHASE_WRITE=1`.
+- `hooks/scripts/phase-policy.json` — path policy for all seven
+  phases. `.vibeflow/**` + `vibeflow.config.json` are always allowed
+  so the framework never self-blocks. TESTING `warn`s on non-test
+  `src/` writes; DEPLOYMENT `warn`s on `src/`.
+- `skills/phase-policy.json` — advisory skill→phases registry for
+  all 31 skills. Sprint 13 uses it only for documentation + the
+  skill self-check template; Sprint 14 can layer invocation-level
+  gating on top.
+- `docs/PHASE-BOUNDARIES.md` — user-facing reference (allow/warn/
+  deny table per phase, escape hatch docs, troubleshooting).
+- `tests/integration/sprint-13.sh` — 55 assertions pinning the
+  policy structure, the hook wire-up, the init skill regression,
+  the four Phase Contracts, and the retrospective sprint docs.
+- Phase Contract sections on five high-risk skills: `init`,
+  `component-test-writer`, `release-decision-engine`,
+  `test-strategy-planner`, `coverage-analyzer`. Each reads
+  `currentPhase` and refuses to run outside its allowed phase(s).
+- Retrospective docs: `docs/SPRINT-11.md`, `docs/SPRINT-12.md`,
+  `docs/SPRINT-13.md`.
+- `_lib.sh` helpers: `vf_policy_path`, `vf_relpath`,
+  `vf_phase_decision`.
+
+### Changed
+- `hooks/hooks.json` gains a third PreToolUse entry for the new
+  guard (`matcher: "Write|Edit"`).
+- `skills/init/SKILL.md` rewritten: Step 4 no longer invokes
+  `codebase-explorer`, no longer scaffolds tests or modifies `src/`;
+  the Sprint 11-E `mode` legacy prompt removed (config template
+  trimmed to match).
+- `hooks/tests/run.sh` `[S13-A]` section: +15 assertions covering
+  every allow/warn/deny branch of the guard and both escape hatches.
+- `docs/GETTING-STARTED.md` unchanged in this sprint — already
+  points at the GitHub-source marketplace flow from Sprint 12.
+- Plugin version `2.0.2 → 2.1.0`. sdlc-engine `1.0.1 → 1.1.0`.
+- `CLAUDE.md` baseline updated to 1753 across 13 test layers.
+
+### Upgrade
+
+```bash
+claude plugin marketplace update vibeflow
+claude plugin install vibeflow@vibeflow
+```
+
+Behaviour change: existing sessions that tried to write source code
+in REQUIREMENTS/DESIGN/ARCHITECTURE/PLANNING will now see the
+`phase-write-guard` block message. Either advance the phase with
+`/vibeflow:advance` or use `VF_ALLOW_PHASE_WRITE=1 <tool>` for
+one-shot overrides. See `docs/PHASE-BOUNDARIES.md` for the full
+allow/warn/deny table.
+
+---
+
 ## [2.0.2] — 2026-04-20
 
 Schema fix — `.claude-plugin/plugin.json`'s `repository` and `bugs`
