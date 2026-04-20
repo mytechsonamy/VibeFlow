@@ -741,6 +741,90 @@ rm -rf "$DIR"
 unset VIBEFLOW_CWD
 
 # ---------------------------------------------------------------------------
+echo "== consensus-aggregator.sh round-aware [S17-A] =="
+
+# Orchestrator writes current-round.txt before each round; aggregator
+# reads it, filters jsonl by round, and accumulates rounds[] in
+# verdict.json.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+tmp_cfg="$DIR/vibeflow.config.json.tmp"
+jq '. + {consensus: {quorum: 1}}' "$DIR/vibeflow.config.json" > "$tmp_cfg" \
+  && mv "$tmp_cfg" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"
+mkdir -p "$CONS_DIR"
+
+# Round 1 — NEEDS_REVISION (single reviewer, criticalIssues=0 so not
+# REJECTED, but agreement 1.0 so not NEEDS_REVISION… actually single
+# APPROVED gives APPROVED). We want a non-APPROVED round 1. Use a
+# claude-reviewer line that says NEEDS_REVISION.
+echo "1" > "$CONS_DIR/r17.current-round.txt"
+INPUT='{"session_id":"r17","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: NEEDS_REVISION\ncritical issues: 1"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+VERDICT_FILE="$CONS_DIR/r17.verdict.json"
+[[ -f "$VERDICT_FILE" ]] && pass "[S17-A] round 1 verdict file written" \
+  || fail "[S17-A] round 1 verdict file written"
+if [[ -f "$VERDICT_FILE" ]]; then
+  R1_LEN="$(jq -r '.rounds | length' "$VERDICT_FILE")"
+  assert_eq "[S17-A] verdict.rounds has 1 entry after round 1" "1" "$R1_LEN"
+  R1_NUM="$(jq -r '.rounds[0].round' "$VERDICT_FILE")"
+  assert_eq "[S17-A] round 1 entry has round=1" "1" "$R1_NUM"
+  R1_STATUS="$(jq -r '.status' "$VERDICT_FILE")"
+  assert_eq "[S17-A] round 1 top-level status preserved" "REJECTED" "$R1_STATUS"
+  # criticalIssues=1 for single reviewer: criticalTotal=1, threshold is >=2.
+  # But agreement=0 (0 APPROVED / 1 total) → <0.5 → REJECTED.
+fi
+
+# Round 2 — orchestrator advances round marker, runs new reviewer.
+# Verdict this time: APPROVED with 0 critical. Single-reviewer quorum,
+# so aggregator finalises and appends to rounds[].
+echo "2" > "$CONS_DIR/r17.current-round.txt"
+INPUT='{"session_id":"r17","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+if [[ -f "$VERDICT_FILE" ]]; then
+  R2_LEN="$(jq -r '.rounds | length' "$VERDICT_FILE")"
+  assert_eq "[S17-A] verdict.rounds has 2 entries after round 2" "2" "$R2_LEN"
+  R2_NUM="$(jq -r '.rounds[1].round' "$VERDICT_FILE")"
+  assert_eq "[S17-A] round 2 entry has round=2" "2" "$R2_NUM"
+  R2_STATUS="$(jq -r '.status' "$VERDICT_FILE")"
+  assert_eq "[S17-A] round 2 top-level status APPROVED (latest)" "APPROVED" "$R2_STATUS"
+  FINAL_ROUND="$(jq -r '.finalRound' "$VERDICT_FILE")"
+  assert_eq "[S17-A] verdict.finalRound == 2" "2" "$FINAL_ROUND"
+fi
+
+# Archival — each round's jsonl is archived under a round-numbered name
+# when current-round.txt is present.
+R1_ARCHIVE="$CONS_DIR/r17.r1.archived.jsonl"
+R2_ARCHIVE="$CONS_DIR/r17.r2.archived.jsonl"
+[[ -f "$R1_ARCHIVE" ]] && pass "[S17-A] round 1 jsonl archived as r1.archived.jsonl" \
+  || fail "[S17-A] round 1 jsonl archived as r1.archived.jsonl"
+[[ -f "$R2_ARCHIVE" ]] && pass "[S17-A] round 2 jsonl archived as r2.archived.jsonl" \
+  || fail "[S17-A] round 2 jsonl archived as r2.archived.jsonl"
+
+# Round-marker sanity: if marker is absent, CURRENT_ROUND defaults to 1.
+DIR2="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR2"
+jq '. + {consensus: {quorum: 1}}' "$DIR2/vibeflow.config.json" > "$DIR2/cfg.tmp" \
+  && mv "$DIR2/cfg.tmp" "$DIR2/vibeflow.config.json"
+INPUT='{"session_id":"legacy","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+LV="$DIR2/.vibeflow/state/consensus/legacy.verdict.json"
+if [[ -f "$LV" ]]; then
+  LEGACY_ROUND="$(jq -r '.finalRound' "$LV")"
+  assert_eq "[S17-A] no marker → finalRound defaults to 1" "1" "$LEGACY_ROUND"
+  # Legacy archival: single-round session uses epoch-suffix archive
+  LEGACY_ARCHIVES="$(ls "$DIR2/.vibeflow/state/consensus/" | grep 'legacy\.[0-9]*\.archived\.jsonl' | head -1)"
+  if [[ -n "$LEGACY_ARCHIVES" ]]; then
+    pass "[S17-A] legacy single-round keeps epoch-suffix archive name"
+  else
+    fail "[S17-A] legacy single-round keeps epoch-suffix archive name"
+  fi
+fi
+
+rm -rf "$DIR" "$DIR2"
+unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
 echo "== consensus-gate.sh [S16-A] =="
 
 GATE="$SCRIPTS/consensus-gate.sh"

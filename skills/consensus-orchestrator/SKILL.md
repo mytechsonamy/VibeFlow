@@ -148,20 +148,36 @@ Once the aggregator has written `.vibeflow/state/consensus/<session>.verdict.jso
    `consensus-needed.json` is present. If the orchestrator forgets to
    drain it, no further tool call (including the arbiter chain below)
    will succeed without operator bypass.
-2. If `status == NEEDS_REVISION`, chain into the arbiter:
+2. If `status == NEEDS_REVISION`, present the operator with BOTH
+   downstream paths (Sprint 17-D/E) — the arbiter is still the
+   default auto-chain, specialist is the opt-in deep-rewrite:
    ```
    /vibeflow:consensus-arbiter <session-id>
+       — mechanical diff-first patches from reviewer suggestions[]
+   /vibeflow:consensus-specialist <session-id>
+       — phase-specific subagent deeply rewrites the artifact
+         (PRD-rewriter for REQUIREMENTS, ADR-author for
+         ARCHITECTURE, etc.) and emits one large diff-first patch
    ```
-   The arbiter reads each reviewer's `suggestions[]` + the current
-   phase + domain, decides per-suggestion which apply now vs defer
-   vs reject, and emits diff-first patches under
-   `.vibeflow/state/patches/<session>/` without touching source
-   files. Apply with `/vibeflow:apply-arbiter-patch`.
+   Default behaviour is still to auto-chain the arbiter — it's
+   conservative and mechanical. Specialist is invoked explicitly
+   when reviewer feedback is structural enough that small patches
+   won't cut it.
 3. If `status == REJECTED`, do NOT auto-chain — leave the decision
    to the operator. Emit a short note citing the verdict path.
    **Still drain `consensus-needed.json`** (done in step 1) —
    REJECTED means the operator has been told; blocking every
    further tool call after that is pure friction.
+4. If `status == HUMAN_APPROVAL_REQUIRED` (Sprint 17-C), emit a
+   visible advisory naming the final agreement ratio and how to
+   advance:
+   ```
+   N rounds exhausted without ≥ approvalThreshold agreement.
+   Current agreement: <ratio>. Proceed with:
+     /vibeflow:advance <next-phase> --humanOverrideNote "<reason>"
+   Or run the specialist for a deep rewrite first:
+     /vibeflow:consensus-specialist <session-id>
+   ```
 
 ### Step 4: Consensus Calculation
 
@@ -185,13 +201,134 @@ else:
   status = "NEEDS_REVISION" // Always UPPERCASE
 ```
 
-### Step 5: Disagreement Resolution
-If AIs disagree significantly (>30 point spread):
-1. Round 1: Share each AI's review with the others
-2. Round 2: Each AI reconsiders with full context
-3. Round 3: If still no consensus, escalate to human
+### Step 5: Iterative Negotiation Rounds (Sprint 17-A)
 
-Max 3 negotiation rounds. After that: human decision required.
+When round-1 doesn't converge (not APPROVED, not REJECTED), re-run
+the full reviewer panel in subsequent rounds with each reviewer
+seeing the others' prior-round verdicts + top-3 critical findings
+embedded in the prompt. Continues until one of:
+
+1. **Early convergence** — `agreement ≥ consensus.approvalThreshold`
+   (default 0.90) AND `criticalTotal == 0`. Status written as
+   APPROVED.
+2. **Max iterations reached** — configurable via
+   `consensus.maxIterations` (default 5). At round N with no
+   convergence, status becomes `HUMAN_APPROVAL_REQUIRED` (Sprint
+   17-C, pass-with-audit) or stays NEEDS_REVISION/REJECTED
+   according to the standard rules.
+3. **Hard reject** — `criticalDedup ≥ ceil(quorum/2)` OR
+   `agreement < 0.5`. Stops iteration immediately; status REJECTED.
+
+**Configuration:**
+- `consensus.maxIterations`: integer, default 5
+- `consensus.approvalThreshold`: float, default 0.90
+- `consensus.iteration.enabled`: boolean, default true. Set false
+  to force single-round behaviour (rollback switch).
+
+**Round marker:** before each round, write the integer round number
+to `.vibeflow/state/consensus/<session>.current-round.txt`. The
+aggregator reads this to tag each jsonl line with `round: N` and
+filters aggregation to the current round only. `verdict.json`
+accumulates a `rounds: [...]` array with one entry per finalised
+round — the orchestrator reads this to decide whether to continue.
+
+**Round N ≥ 2 prompt template:**
+
+```
+[original review prompt]
+
+---
+
+PRIOR ROUND (round N-1) VERDICT SUMMARY:
+
+claude-reviewer (round N-1): <verdict>, score=<n>, critical=<n>
+  Top findings:
+  1. <title> — <one-line rationale>
+  2. <title> — <one-line rationale>
+  3. <title> — <one-line rationale>
+
+codex (round N-1): <verdict>, score=<n>, critical=<n>
+  Top findings: [same shape]
+
+gemini (round N-1): <verdict>, score=<n>, critical=<n>
+  Top findings: [same shape]
+
+Overall agreement: <ratio>. Your own round N-1 verdict was
+<verdict> — reconsider in light of the other reviewers' points.
+Your new verdict should be one of APPROVED / NEEDS_REVISION /
+REJECTED. Output ONLY JSON per the agreed schema.
+```
+
+Keep each reviewer's summary block ≤500 tokens — the full jsonl
+remains on disk for arbiter/specialist downstream, the prompt only
+carries the distilled signal.
+
+**Iteration control pseudo-flow (orchestrator runs this after each
+round's aggregator finalise):**
+
+```bash
+MAX_ROUNDS="$(vf_config_get '.consensus.maxIterations' || echo 5)"
+THRESHOLD="$(vf_config_get '.consensus.approvalThreshold' || echo 0.90)"
+ENABLED="$(vf_config_get '.consensus.iteration.enabled' || echo true)"
+
+for round in $(seq 1 "$MAX_ROUNDS"); do
+  echo "$round" > "$CONS_DIR/$SESSION_ID.current-round.txt"
+
+  if [[ "$round" -gt 1 ]]; then
+    # Build round-N prompt suffix from verdict.json.rounds[round-2]
+    PRIOR_SUMMARY="$(jq -r --argjson r $((round-1)) '
+      .rounds | map(select(.round == $r)) | .[0] // {}' \
+      "$CONS_DIR/$SESSION_ID.verdict.json")"
+    # Inject PRIOR_SUMMARY into the review prompt (≤500 tok / reviewer).
+  fi
+
+  # … run codex (timeout 90) → append_cli_verdict with $round
+  # … run gemini (timeout 90) → append_cli_verdict with $round
+  # … fork claude-reviewer (its SubagentStop fires aggregator)
+
+  # Aggregator has now written verdict.json with rounds[round-1]
+  STATUS="$(jq -r '.status' "$CONS_DIR/$SESSION_ID.verdict.json")"
+  CRIT="$(jq -r '.criticalTotal' "$CONS_DIR/$SESSION_ID.verdict.json")"
+  AGREE="$(jq -r '.agreement' "$CONS_DIR/$SESSION_ID.verdict.json")"
+
+  # Early-stop checks
+  if [[ "$STATUS" == "APPROVED" ]]; then
+    iterationStopReason="earlyConverged"; break
+  fi
+  if [[ "$STATUS" == "REJECTED" ]]; then
+    iterationStopReason="hardReject"; break
+  fi
+  if [[ "$ENABLED" != "true" ]]; then
+    iterationStopReason="iterationDisabled"; break
+  fi
+done
+
+if (( round >= MAX_ROUNDS )) && [[ -z "$iterationStopReason" ]]; then
+  iterationStopReason="maxRounds"
+  # Sprint 17-C: ambiguous-but-close → HUMAN_APPROVAL_REQUIRED
+  if (( $(echo "$AGREE >= 0.5" | bc -l) )); then
+    jq '.status = "HUMAN_APPROVAL_REQUIRED"' \
+      "$CONS_DIR/$SESSION_ID.verdict.json" > /tmp/v && \
+      mv /tmp/v "$CONS_DIR/$SESSION_ID.verdict.json"
+  fi
+fi
+
+# Update verdict.json with the stop reason.
+jq --arg r "$iterationStopReason" '.iterationStopReason = $r' \
+  "$CONS_DIR/$SESSION_ID.verdict.json" > /tmp/v && \
+  mv /tmp/v "$CONS_DIR/$SESSION_ID.verdict.json"
+
+# Clean up the round marker — future single-round invocations on
+# the same session should start from round 1 again.
+rm -f "$CONS_DIR/$SESSION_ID.current-round.txt"
+```
+
+### Step 5b: Single-round fallback
+
+If `consensus.iteration.enabled` is false, or the config is missing,
+or the orchestrator is run on a host without `bc` / `jq`, the loop
+falls through to round 1 only. The aggregator still writes a valid
+`rounds: [{round:1, …}]` array — downstream consumers don't change.
 
 ## Output Format
 ```markdown

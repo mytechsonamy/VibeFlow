@@ -107,12 +107,26 @@ fi
 
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 REVIEW_LOG="$CONS_DIR/$SESSION_ID.jsonl"
+
+# Sprint 17-A: round-aware. Orchestrator writes the current round number
+# to `<sid>.current-round.txt` before each negotiation round. Default 1
+# when the marker is missing — single-round sessions keep working.
+CURRENT_ROUND=1
+ROUND_MARKER="$CONS_DIR/$SESSION_ID.current-round.txt"
+if [[ -f "$ROUND_MARKER" ]]; then
+  MARKER_VAL="$(head -n 1 "$ROUND_MARKER" 2>/dev/null | tr -d '[:space:]')"
+  if [[ "$MARKER_VAL" =~ ^[0-9]+$ ]] && (( MARKER_VAL >= 1 )); then
+    CURRENT_ROUND="$MARKER_VAL"
+  fi
+fi
+
 jq -n -c \
   --arg ts "$TS" \
   --arg reviewer "$SUBAGENT" \
   --arg verdict "$VERDICT" \
   --argjson critical "$CRITICAL" \
-  '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical}' \
+  --argjson round "$CURRENT_ROUND" \
+  '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, round:$round}' \
   >> "$REVIEW_LOG"
 
 # Expected reviewer count is driven by which CLIs are on PATH + any
@@ -134,7 +148,7 @@ else
   EXPECTED="$EXPECTED_DETECTED"
 fi
 
-COUNT="$(wc -l < "$REVIEW_LOG" | tr -d ' ')"
+COUNT="$(jq -s --argjson round "$CURRENT_ROUND" 'map(select((.round // 1) == $round)) | length' < "$REVIEW_LOG" 2>/dev/null || wc -l < "$REVIEW_LOG" | tr -d ' ')"
 
 # Timeout: if the oldest review in the log is older than 600 seconds and
 # quorum has not been reached, force-finalize the batch with a `timeout:
@@ -167,15 +181,23 @@ fi
 # the status is demoted from APPROVED to NEEDS_REVISION (a partial
 # quorum cannot ship a clean APPROVED verdict — the missing reviewer
 # could have objected).
-AGG="$(jq -s '
-  {
-    total: length,
-    approved: (map(select(.verdict == "APPROVED")) | length),
-    needsRevision: (map(select(.verdict == "NEEDS_REVISION")) | length),
-    rejected: (map(select(.verdict == "REJECTED")) | length),
-    unknown: (map(select(.verdict == "UNKNOWN")) | length),
-    criticalTotal: (map(.criticalIssues) | add // 0)
-  }
+# Sprint 17-A: aggregation is now per-round. Filter jsonl to lines whose
+# `round` matches CURRENT_ROUND (default 1 for legacy single-round
+# sessions). `total`, `approved`, `criticalTotal`, `agreement`, `status`
+# are the CURRENT round's values — these stay top-level so existing
+# consumers (tests, arbiter, phase-gate) keep working untouched. A new
+# `rounds[]` array accumulates per-round snapshots across negotiation
+# rounds; orchestrator reads it to decide whether to invoke round N+1.
+AGG="$(jq -s --argjson round "$CURRENT_ROUND" '
+  map(select((.round // 1) == $round))
+  | {
+      total: length,
+      approved: (map(select(.verdict == "APPROVED")) | length),
+      needsRevision: (map(select(.verdict == "NEEDS_REVISION")) | length),
+      rejected: (map(select(.verdict == "REJECTED")) | length),
+      unknown: (map(select(.verdict == "UNKNOWN")) | length),
+      criticalTotal: (map(.criticalIssues) | add // 0)
+    }
   | . + { agreement: (if .total > 0 then (.approved / .total) else 0 end) }
   | . + {
       status: (
@@ -189,24 +211,54 @@ AGG="$(jq -s '
 ' < "$REVIEW_LOG")"
 
 VERDICT_FILE="$CONS_DIR/$SESSION_ID.verdict.json"
+
+# Read existing rounds[] so we preserve history across negotiation rounds.
+EXISTING_ROUNDS="[]"
+if [[ -f "$VERDICT_FILE" ]]; then
+  EXISTING_ROUNDS="$(jq -c '.rounds // []' "$VERDICT_FILE" 2>/dev/null || echo "[]")"
+fi
+
+# Compose verdict.json: top-level = current round's numbers (back-compat);
+# add `round` + `finalRound` + `rounds[]` (each entry is a minimal
+# per-round snapshot so the orchestrator can see agreement curve).
 echo "$AGG" \
   | jq --arg ts "$TS" \
        --arg session "$SESSION_ID" \
        --argjson expected "$EXPECTED" \
        --argjson count "$COUNT" \
        --argjson timed_out "$TIMED_OUT" \
+       --argjson round "$CURRENT_ROUND" \
+       --argjson existingRounds "$EXISTING_ROUNDS" \
        '. + {
+          round: $round,
+          finalRound: $round,
           finalizedAt: $ts,
           sessionId: $session,
           expectedReviewers: $expected,
           receivedReviewers: $count,
           timeout: $timed_out,
           status: (if $timed_out and .status == "APPROVED" then "NEEDS_REVISION" else .status end)
-        }' > "$VERDICT_FILE"
+        }
+        | . as $current
+        | . + {
+            rounds: ($existingRounds + [{
+              round: $round,
+              agreement: $current.agreement,
+              criticalTotal: $current.criticalTotal,
+              status: $current.status,
+              timeout: $timed_out,
+              finalizedAt: $ts
+            }])
+          }' > "$VERDICT_FILE"
 
-# Roll the session log forward: archive it so a subsequent run in the same
-# session starts fresh rather than stacking on an already-finalized batch.
-mv "$REVIEW_LOG" "$CONS_DIR/$SESSION_ID.$(date -u +%s).archived.jsonl"
+# Archive current round's log so the next round starts on an empty jsonl.
+# Legacy name kept for single-round callers; new name includes round
+# number for multi-round sessions so the audit trail is navigable.
+if [[ "$CURRENT_ROUND" -eq 1 ]] && [[ ! -f "$ROUND_MARKER" ]]; then
+  mv "$REVIEW_LOG" "$CONS_DIR/$SESSION_ID.$(date -u +%s).archived.jsonl"
+else
+  mv "$REVIEW_LOG" "$CONS_DIR/$SESSION_ID.r${CURRENT_ROUND}.archived.jsonl"
+fi
 
 echo '{"continue": true}'
 exit 0
