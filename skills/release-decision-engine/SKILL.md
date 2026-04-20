@@ -9,6 +9,20 @@ agent: Explore
 
 # Release Decision Engine
 
+## Phase Contract
+
+This skill runs in **DEPLOYMENT** only. Before any other step, read
+`vibeflow.config.json`'s `currentPhase`. If it is not DEPLOYMENT, emit:
+
+> release-decision-engine is for DEPLOYMENT phase; current is
+> `<phase>`. Complete TESTING gates (coverage, mutation, UAT) and run
+> `/vibeflow:advance` first.
+
+…and stop. The engine is read-only by design (no Write tool), so the
+hook never sees it, but a phase-mismatched invocation would produce a
+misleading verdict on incomplete inputs — the self-check catches that
+before any file is read.
+
 The final gate in the VibeFlow pipeline. Produces an explainable, deterministic release decision.
 
 ## Input

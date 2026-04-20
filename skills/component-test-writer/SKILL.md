@@ -8,6 +8,19 @@ agent: Explore
 
 # Component Test Writer
 
+## Phase Contract
+
+This skill runs in **DEVELOPMENT** or **TESTING** only. Before any other
+step, read `vibeflow.config.json`'s `currentPhase`. If it is not in
+{DEVELOPMENT, TESTING}, emit:
+
+> component-test-writer is for DEVELOPMENT or TESTING phase; current is
+> `<phase>`. Run `/vibeflow:test-strategy-planner` (PLANNING) first and
+> `/vibeflow:advance` into DEVELOPMENT before writing tests.
+
+…and stop. The PreToolUse `phase-write-guard` hook will also reject any
+test-file writes this skill attempts outside those phases.
+
 An L1 Truth-Validation skill. Takes a source file (or a small set of
 files) and produces test files whose structure the reader can audit in
 fifteen seconds. This skill does not run tests — it only generates them.

@@ -8,6 +8,19 @@ agent: Explore
 
 # Coverage Analyzer
 
+## Phase Contract
+
+This skill runs in **TESTING** only. Before any other step, read
+`vibeflow.config.json`'s `currentPhase`. If it is not TESTING, emit:
+
+> coverage-analyzer is for TESTING phase; current is `<phase>`. Run
+> `/vibeflow:advance` after DEVELOPMENT completes before analyzing
+> coverage.
+
+…and stop. Analyzing coverage mid-DEVELOPMENT against a partial test
+suite produces a misleading floor; the P0-zero-uncovered invariant is
+only meaningful after TESTING has run the full suite.
+
 An L2 Truth-Execution skill. Line coverage is a lower bound on
 quality — "did the tests run this line?" — but most teams stop
 there. This skill adds two things that matter more:

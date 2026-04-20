@@ -8,6 +8,20 @@ agent: Explore
 
 # Test Strategy Planner
 
+## Phase Contract
+
+This skill runs in **PLANNING** only. Before any other step, read
+`vibeflow.config.json`'s `currentPhase`. If it is not PLANNING, emit:
+
+> test-strategy-planner is for PLANNING phase; current is `<phase>`. In
+> REQUIREMENTS, run `/vibeflow:prd-quality-analyzer` first; advance
+> through DESIGN and ARCHITECTURE with `/vibeflow:advance`; only then
+> plan the test strategy.
+
+…and stop. The scenario-set.md this skill produces feeds every
+downstream test-writer — generating it with a stale or un-approved PRD
+poisons the rest of the pipeline.
+
 This is the KEYSTONE skill in the VibeFlow testing pipeline. scenario-set.md produced here is required by 80% of downstream test skills.
 
 ## Input
