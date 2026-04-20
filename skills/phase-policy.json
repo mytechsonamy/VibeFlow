@@ -127,6 +127,14 @@
       "phases": "ALL",
       "description": "Sprint 17.1 wrapper around sdlc_advance_phase MCP tool. Validates target phase, parses optional humanOverrideNote for HUMAN_APPROVAL_REQUIRED advances, surfaces exit-criterion failures with remediation suggestions."
     },
+    "quality-gates": {
+      "phases": ["DEVELOPMENT"],
+      "description": "Sprint 18-F. Runs lint + typecheck + unit-tests from vibeflow.config.json.tech.* and auto-satisfies `quality.gates.passed`. Pairs with consensus-orchestrator (which satisfies `code.reviewed` on APPROVED commit review) to unblock DEVELOPMENT → TESTING advance without manual MCP calls."
+    },
+    "deploy-verifier": {
+      "phases": ["DEPLOYMENT"],
+      "description": "Sprint 18-G. Post-deployment smoke test: CI pipeline status (dev-ops MCP) + endpoint curl + observability health dashboard. Auto-satisfies `deployment.verified` + `health.checks.passed`. Writes the consensus-needed marker so `consensus.deployment.approved` still flows through multi-AI review."
+    },
     "repo-fingerprint": {
       "phases": "ALL",
       "description": "Brownfield codebase scan. Read-only."

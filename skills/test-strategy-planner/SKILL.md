@@ -136,6 +136,48 @@ scenario-set.md is consumed by:
 
 **CRITICAL**: This skill MUST run before any skill that consumes scenario-set.md.
 
+## Auto-satisfy PLANNING criteria (Sprint 18-B — MANDATORY)
+
+After the test strategy is written, auto-satisfy the
+`test-strategy.approved` exit criterion via the sdlc-engine MCP
+tool. This skill is **generative** (it doesn't compute a
+pass/fail verdict — it produces a strategy document), so the
+satisfy call is **unconditional**: if the report is on disk, the
+strategy is authored. The orthogonal `consensus.planning.approved`
+criterion is still gated by the multi-AI review on the same
+document.
+
+```bash
+PROJECT_ID="$(vf_config_get '.project')"
+```
+
+Then call:
+
+```
+mcp__sdlc-engine__sdlc_satisfy_criterion {
+  "projectId": "<project id>",
+  "criterion": "test-strategy.approved"
+}
+```
+
+Emit a one-line confirmation:
+
+```
+Recorded: test-strategy.approved.
+```
+
+Fallback on MCP unavailability:
+
+```
+sdlc-engine MCP unavailable — satisfy manually:
+mcp__sdlc-engine__sdlc_satisfy_criterion {projectId:…, criterion:'test-strategy.approved'}
+```
+
+The other PLANNING exit criterion, `sprint.planned`, is operator-
+driven and documented in `docs/AUTO-SATISFY.md` — it's a team
+ritual (Linear/Jira ticket creation, capacity planning) outside
+VibeFlow's scope.
+
 ## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
 
 After your output files are written to `.vibeflow/reports/`, your

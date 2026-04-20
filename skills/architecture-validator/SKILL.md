@@ -225,6 +225,51 @@ This skill's output feeds:
 - `release-decision-engine` — `criticalPolicyViolations` flows into
   the release hard-blocker list
 
+## Auto-satisfy ARCHITECTURE criteria (Sprint 18-A — MANDATORY)
+
+After the architecture report is written, auto-satisfy the
+`adr.recorded` exit criterion via the sdlc-engine MCP tool — but
+**only when the verdict is not BLOCKED**. A BLOCKED verdict
+means policy violations are serious enough that any ADR the
+skill produced is unsafe to count as "recorded and accepted"; the
+gate correctly stays closed until the violations are resolved.
+
+Read the verdict from the report:
+```bash
+PROJECT_ID="$(vf_config_get '.project')"
+VERDICT="$(grep -m1 '^Verdict:' .vibeflow/reports/architecture-report.md \
+  | awk '{print $2}' | tr -d '[:space:]')"
+```
+
+Then, **only if `VERDICT != "BLOCKED"`**:
+
+```
+mcp__sdlc-engine__sdlc_satisfy_criterion {
+  "projectId": "<project id>",
+  "criterion": "adr.recorded"
+}
+```
+
+Emit a one-line confirmation:
+
+```
+Recorded: adr.recorded (verdict=<APPROVED|NEEDS_REVISION>, ADRs under .vibeflow/artifacts/adr/).
+```
+
+On BLOCKED, instead emit a visible advisory naming the violating
+policy + the ADRs that need revision. Do NOT call the MCP tool.
+
+If the sdlc-engine MCP isn't reachable, fall back to:
+
+```
+sdlc-engine MCP unavailable — satisfy manually:
+mcp__sdlc-engine__sdlc_satisfy_criterion {projectId:…, criterion:'adr.recorded'}
+```
+
+The other ARCHITECTURE exit criterion —
+`consensus.architecture.approved` — is the consensus-orchestrator's
+responsibility (recorded automatically in Sprint 17.2).
+
 ## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
 
 After your output files are written to `.vibeflow/reports/`, your

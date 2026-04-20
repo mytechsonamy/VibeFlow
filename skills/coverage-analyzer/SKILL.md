@@ -332,6 +332,55 @@ no config knob that opens the gate.
 - `traceability-engine` — reads `requirements.json` to keep
   the RTM current with real coverage data.
 
+## Auto-satisfy TESTING criteria (Sprint 18-C — MANDATORY)
+
+After the coverage report is written, auto-satisfy the
+`coverage.met` exit criterion **only when the verdict is PASS**.
+The two rules that determine PASS (overall line coverage ≥
+domain threshold AND every P0 file at 100% line + branch) are
+already applied by the skill; the gate correctly stays closed
+on NEEDS_REVISION / BLOCKED verdicts.
+
+Read the verdict:
+
+```bash
+PROJECT_ID="$(vf_config_get '.project')"
+VERDICT="$(grep -m1 '^Verdict:' .vibeflow/reports/coverage-report.md \
+  | awk '{print $2}' | tr -d '[:space:]')"
+```
+
+Then, **only if `VERDICT == "PASS"`**:
+
+```
+mcp__sdlc-engine__sdlc_satisfy_criterion {
+  "projectId": "<project id>",
+  "criterion": "coverage.met"
+}
+```
+
+Emit a one-line confirmation:
+
+```
+Recorded: coverage.met (line=<N>%, P0 zero-uncovered ✓).
+```
+
+On NEEDS_REVISION or BLOCKED, emit a visible advisory naming
+the gap (e.g. "overall line coverage 71% < 80% general threshold"
+or "P0 file X has 0% branch coverage on 3 lines") and do NOT
+call the MCP tool.
+
+Fallback on MCP unavailability:
+
+```
+sdlc-engine MCP unavailable — satisfy manually:
+mcp__sdlc-engine__sdlc_satisfy_criterion {projectId:…, criterion:'coverage.met'}
+```
+
+The other TESTING exit criteria — `mutation.score.acceptable`
+(satisfied by mutation-test-runner) and
+`consensus.testing.approved` (satisfied by consensus-orchestrator)
+— are handled by their respective skills.
+
 ## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
 
 After your output files are written to `.vibeflow/reports/`, your

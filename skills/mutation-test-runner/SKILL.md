@@ -327,3 +327,81 @@ not a flag on the skill.
 - `component-test-writer` — reads `weak-assertions.md` when
   regenerating tests, so the next iteration tightens the weak
   assertions automatically.
+
+## Auto-satisfy TESTING criteria (Sprint 18-D — MANDATORY)
+
+After the mutation report is written, auto-satisfy the
+`mutation.score.acceptable` exit criterion **only when the
+verdict is PASS**. PASS means both rules held:
+
+1. Every P0-code mutant was killed, equivalent, or runtime-error
+   (zero P0 survivors).
+2. Overall `mutationScore >= threshold(domain)` (financial 0.80,
+   healthcare 0.85, e-commerce 0.78, general 0.75).
+
+NEEDS_REVISION (close miss) and BLOCKED (P0 survivor present)
+keep the criterion unsatisfied, so the phase gate correctly
+closes.
+
+Read the verdict:
+```bash
+PROJECT_ID="$(vf_config_get '.project')"
+VERDICT="$(grep -m1 '^Verdict:' .vibeflow/reports/mutation-report.md \
+  | awk '{print $2}' | tr -d '[:space:]')"
+```
+
+Then, **only if `VERDICT == "PASS"`**:
+
+```
+mcp__sdlc-engine__sdlc_satisfy_criterion {
+  "projectId": "<project id>",
+  "criterion": "mutation.score.acceptable"
+}
+```
+
+Emit a one-line confirmation:
+
+```
+Recorded: mutation.score.acceptable (score=<N.NN>, P0 zero-survivor ✓).
+```
+
+On NEEDS_REVISION or BLOCKED, emit a visible advisory naming the
+gap (score, domain threshold, and any P0 survivor file) and do
+NOT call the MCP tool.
+
+Fallback on MCP unavailability:
+
+```
+sdlc-engine MCP unavailable — satisfy manually:
+mcp__sdlc-engine__sdlc_satisfy_criterion {projectId:…, criterion:'mutation.score.acceptable'}
+```
+
+## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C / 18-D)
+
+After the mutation report + auto-satisfy step, Write the
+auto-consensus marker at `.vibeflow/state/consensus-needed.json`:
+
+```json
+{
+  "artifact": ".vibeflow/reports/mutation-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/mutation-report.md",
+  "createdAt": "<current UTC ISO-8601 timestamp>",
+  "createdBy": "mutation-test-runner"
+}
+```
+
+Sprint 16-A's `consensus-gate` hook blocks every `Bash|Write|Edit`
+tool call while the marker is present, surfacing the
+`requiredCommand` to the operator until they run the orchestrator
+— which drains the marker on any terminal verdict (APPROVED /
+NEEDS_REVISION / REJECTED / HUMAN_APPROVAL_REQUIRED) and
+auto-records the consensus into project state (Sprint 17.2).
+The orchestrator covers the third TESTING exit criterion,
+`consensus.testing.approved`, on successful review.
+
+**Skip condition (Final Step: Auto-Consensus)**: if
+`VF_SKIP_AUTO_CONSENSUS=1` is set, do NOT write the marker. Log
+"auto-consensus skipped by env (VF_SKIP_AUTO_CONSENSUS)" and
+stop. The phase-gate still blocks `/vibeflow:advance` until a
+fresh consensus record exists — the env bypass is call-scoped,
+not phase-scoped.

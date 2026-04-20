@@ -199,6 +199,53 @@ Failure modes:
 - Project state missing (`sdlc_get_state` returns null): the
   MCP server auto-seeds on first write, so this is not a blocker.
 
+#### 3c.0b — DEVELOPMENT-phase auto-satisfy code.reviewed (Sprint 18-E)
+
+DEVELOPMENT is the one phase without a scoped
+`consensus.<phase>.approved` exit criterion (Sprint 15-C
+excluded it because commit-time review is the authoritative
+review signal). That means DEVELOPMENT's `code.reviewed` exit
+criterion needs its own satisfier — and the orchestrator's
+DEVELOPMENT verdict is exactly that signal: "reviewers have
+seen this code and either approved it outright or accepted it
+under explicit human override."
+
+When **all three** of these hold:
+
+1. `PHASE == DEVELOPMENT` (from `vibeflow.config.json.currentPhase`)
+2. `STATUS == APPROVED` OR `STATUS == HUMAN_APPROVAL_REQUIRED`
+3. The record-consensus call above succeeded (or was skipped
+   only because MCP was unreachable — in the MCP-unreachable
+   case, skip this step too; the operator's fallback path
+   covers both criteria)
+
+also call:
+
+```
+mcp__sdlc-engine__sdlc_satisfy_criterion {
+  "projectId": "<project id>",
+  "criterion": "code.reviewed"
+}
+```
+
+Emit a one-line confirmation:
+
+```
+Recorded: code.reviewed (phase=DEVELOPMENT, verdict=<APPROVED|HUMAN_APPROVAL_REQUIRED>).
+```
+
+On REJECTED / NEEDS_REVISION in DEVELOPMENT: do NOT satisfy
+`code.reviewed`. The gate correctly blocks DEVELOPMENT →
+TESTING until a fresh review lands as APPROVED /
+HUMAN_APPROVAL_REQUIRED. This is idempotent — the engine's
+event log records `alreadyPresent: true` if satisfy is called
+again after a prior successful call.
+
+The other DEVELOPMENT exit criterion,
+`quality.gates.passed`, is satisfied by
+`/vibeflow:quality-gates` (Sprint 18-F) — orthogonal signal
+(lint/typecheck/unit-tests rather than multi-AI review).
+
 #### 3c.1 — Marker cleanup + follow-up (per-status)
 
 1. If `status ∈ {APPROVED, NEEDS_REVISION}`, drain **both** markers:
