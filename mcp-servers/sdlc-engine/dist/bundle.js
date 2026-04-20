@@ -19600,6 +19600,137 @@ function statusFromScore(agreement, criticalIssues) {
   return ConsensusStatus.NEEDS_REVISION;
 }
 
+// dist/phases.js
+var PhaseIdSchema = external_exports.enum([
+  "REQUIREMENTS",
+  "DESIGN",
+  "ARCHITECTURE",
+  "PLANNING",
+  "DEVELOPMENT",
+  "TESTING",
+  "DEPLOYMENT"
+]);
+var DEFAULT_PHASE_ORDER = Object.freeze([
+  {
+    id: "REQUIREMENTS",
+    label: "Requirements",
+    entryCriteria: ["project.initialized"],
+    exitCriteria: [
+      "prd.approved",
+      "testability.score>=60",
+      "consensus.requirements.approved"
+    ]
+  },
+  {
+    id: "DESIGN",
+    label: "Design",
+    entryCriteria: ["prd.approved"],
+    exitCriteria: [
+      "design.approved",
+      "accessibility.verified",
+      "consensus.design.approved"
+    ]
+  },
+  {
+    id: "ARCHITECTURE",
+    label: "Architecture",
+    entryCriteria: ["design.approved"],
+    exitCriteria: ["adr.recorded", "consensus.architecture.approved"]
+  },
+  {
+    id: "PLANNING",
+    label: "Planning",
+    entryCriteria: ["adr.recorded"],
+    exitCriteria: [
+      "test-strategy.approved",
+      "sprint.planned",
+      "consensus.planning.approved"
+    ]
+  },
+  {
+    id: "DEVELOPMENT",
+    label: "Development",
+    entryCriteria: ["sprint.planned"],
+    // DEVELOPMENT intentionally has no per-phase consensus exit — every
+    // large commit already trips hooks/scripts/trigger-ai-review.sh, so
+    // requiring a session-scoped consensus record here would double-gate.
+    exitCriteria: ["code.reviewed", "quality.gates.passed"]
+  },
+  {
+    id: "TESTING",
+    label: "Testing",
+    entryCriteria: ["code.reviewed"],
+    exitCriteria: [
+      "coverage.met",
+      "mutation.score.acceptable",
+      "consensus.testing.approved"
+    ]
+  },
+  {
+    id: "DEPLOYMENT",
+    label: "Deployment",
+    entryCriteria: ["release.decision.go"],
+    exitCriteria: [
+      "deployment.verified",
+      "health.checks.passed",
+      "consensus.deployment.approved"
+    ]
+  }
+]);
+var CONSENSUS_CRITERION_PATTERN = /^consensus\.([a-z]+)\.approved$/;
+var PhaseRegistry = class {
+  phases;
+  indexById;
+  constructor(phases = DEFAULT_PHASE_ORDER) {
+    if (phases.length === 0) {
+      throw new Error("PhaseRegistry requires at least one phase");
+    }
+    const seen = /* @__PURE__ */ new Set();
+    for (const p of phases) {
+      if (seen.has(p.id)) {
+        throw new Error(`Duplicate phase id in registry: ${p.id}`);
+      }
+      seen.add(p.id);
+    }
+    this.phases = phases;
+    this.indexById = new Map(phases.map((p, i) => [p.id, i]));
+  }
+  all() {
+    return this.phases;
+  }
+  has(id) {
+    return this.indexById.has(id);
+  }
+  get(id) {
+    const idx = this.indexById.get(id);
+    if (idx === void 0) {
+      throw new Error(`Unknown phase: ${id}`);
+    }
+    return this.phases[idx];
+  }
+  indexOf(id) {
+    const idx = this.indexById.get(id);
+    if (idx === void 0) {
+      throw new Error(`Unknown phase: ${id}`);
+    }
+    return idx;
+  }
+  next(id) {
+    const idx = this.indexOf(id);
+    const nextIdx = idx + 1;
+    return nextIdx < this.phases.length ? this.phases[nextIdx] : null;
+  }
+  first() {
+    return this.phases[0];
+  }
+  last() {
+    return this.phases[this.phases.length - 1];
+  }
+  isFinal(id) {
+    return this.indexOf(id) === this.phases.length - 1;
+  }
+};
+
 // dist/validation.js
 var PhaseTransitionValidator = class {
   registry;
@@ -19637,11 +19768,26 @@ var PhaseTransitionValidator = class {
     }
     const current = this.registry.get(req.from);
     const satisfied = new Set(req.satisfiedCriteria);
-    const missing = current.exitCriteria.filter((c) => !satisfied.has(c));
+    const missing = [];
+    for (const criterion of current.exitCriteria) {
+      const scopeMatch = CONSENSUS_CRITERION_PATTERN.exec(criterion);
+      if (scopeMatch) {
+        const expectedPhase = scopeMatch[1].toUpperCase();
+        const lastPhaseOk = req.lastConsensusPhase !== void 0 && req.lastConsensusPhase !== null && req.lastConsensusPhase === expectedPhase;
+        const lastVerdictOk = req.lastConsensus === ConsensusStatus.APPROVED;
+        const legacyArchitectureAlias = expectedPhase === "ARCHITECTURE" && satisfied.has("consensus.approved");
+        if (!legacyArchitectureAlias && (!lastPhaseOk || !lastVerdictOk)) {
+          missing.push(criterion);
+        }
+      } else if (!satisfied.has(criterion)) {
+        missing.push(criterion);
+      }
+    }
     if (missing.length > 0) {
       errors.push(`Exit criteria not met for ${req.from}: ${missing.join(", ")}`);
     }
-    if (req.lastConsensus !== void 0 && req.lastConsensus !== null && req.lastConsensus !== ConsensusStatus.APPROVED) {
+    const hasScopedConsensus = current.exitCriteria.some((c) => CONSENSUS_CRITERION_PATTERN.test(c));
+    if (!hasScopedConsensus && req.lastConsensus !== void 0 && req.lastConsensus !== null && req.lastConsensus !== ConsensusStatus.APPROVED) {
       errors.push(`Cannot advance from ${req.from}: last consensus is ${req.lastConsensus}, expected ${ConsensusStatus.APPROVED}`);
     }
     return { ok: errors.length === 0, errors };
@@ -19729,6 +19875,7 @@ var SdlcEngine = class {
         to: input.to,
         satisfiedCriteria: base.satisfiedCriteria,
         lastConsensus: base.lastConsensus?.status ?? null,
+        lastConsensusPhase: base.lastConsensus?.phase ?? null,
         force: input.force ?? false
       });
       if (!transition.ok) {
@@ -19771,113 +19918,6 @@ var PhaseTransitionError = class extends Error {
     this.errors = errors;
     this.state = state;
     this.name = "PhaseTransitionError";
-  }
-};
-
-// dist/phases.js
-var PhaseIdSchema = external_exports.enum([
-  "REQUIREMENTS",
-  "DESIGN",
-  "ARCHITECTURE",
-  "PLANNING",
-  "DEVELOPMENT",
-  "TESTING",
-  "DEPLOYMENT"
-]);
-var DEFAULT_PHASE_ORDER = Object.freeze([
-  {
-    id: "REQUIREMENTS",
-    label: "Requirements",
-    entryCriteria: ["project.initialized"],
-    exitCriteria: ["prd.approved", "testability.score>=60"]
-  },
-  {
-    id: "DESIGN",
-    label: "Design",
-    entryCriteria: ["prd.approved"],
-    exitCriteria: ["design.approved", "accessibility.verified"]
-  },
-  {
-    id: "ARCHITECTURE",
-    label: "Architecture",
-    entryCriteria: ["design.approved"],
-    exitCriteria: ["adr.recorded", "consensus.approved"]
-  },
-  {
-    id: "PLANNING",
-    label: "Planning",
-    entryCriteria: ["adr.recorded"],
-    exitCriteria: ["test-strategy.approved", "sprint.planned"]
-  },
-  {
-    id: "DEVELOPMENT",
-    label: "Development",
-    entryCriteria: ["sprint.planned"],
-    exitCriteria: ["code.reviewed", "quality.gates.passed"]
-  },
-  {
-    id: "TESTING",
-    label: "Testing",
-    entryCriteria: ["code.reviewed"],
-    exitCriteria: ["coverage.met", "mutation.score.acceptable"]
-  },
-  {
-    id: "DEPLOYMENT",
-    label: "Deployment",
-    entryCriteria: ["release.decision.go"],
-    exitCriteria: ["deployment.verified", "health.checks.passed"]
-  }
-]);
-var PhaseRegistry = class {
-  phases;
-  indexById;
-  constructor(phases = DEFAULT_PHASE_ORDER) {
-    if (phases.length === 0) {
-      throw new Error("PhaseRegistry requires at least one phase");
-    }
-    const seen = /* @__PURE__ */ new Set();
-    for (const p of phases) {
-      if (seen.has(p.id)) {
-        throw new Error(`Duplicate phase id in registry: ${p.id}`);
-      }
-      seen.add(p.id);
-    }
-    this.phases = phases;
-    this.indexById = new Map(phases.map((p, i) => [p.id, i]));
-  }
-  all() {
-    return this.phases;
-  }
-  has(id) {
-    return this.indexById.has(id);
-  }
-  get(id) {
-    const idx = this.indexById.get(id);
-    if (idx === void 0) {
-      throw new Error(`Unknown phase: ${id}`);
-    }
-    return this.phases[idx];
-  }
-  indexOf(id) {
-    const idx = this.indexById.get(id);
-    if (idx === void 0) {
-      throw new Error(`Unknown phase: ${id}`);
-    }
-    return idx;
-  }
-  next(id) {
-    const idx = this.indexOf(id);
-    const nextIdx = idx + 1;
-    return nextIdx < this.phases.length ? this.phases[nextIdx] : null;
-  }
-  first() {
-    return this.phases[0];
-  }
-  last() {
-    return this.phases[this.phases.length - 1];
-  }
-  isFinal(id) {
-    return this.indexOf(id) === this.phases.length - 1;
   }
 };
 

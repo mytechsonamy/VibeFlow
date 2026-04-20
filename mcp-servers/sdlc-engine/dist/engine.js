@@ -91,6 +91,7 @@ export class SdlcEngine {
                 to: input.to,
                 satisfiedCriteria: base.satisfiedCriteria,
                 lastConsensus: base.lastConsensus?.status ?? null,
+                lastConsensusPhase: base.lastConsensus?.phase ?? null,
                 force: input.force ?? false,
             });
             if (!transition.ok) {

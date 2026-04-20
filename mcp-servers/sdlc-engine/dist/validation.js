@@ -1,3 +1,4 @@
+import { CONSENSUS_CRITERION_PATTERN } from "./phases.js";
 import { ConsensusStatus } from "./consensus.js";
 /**
  * Phase transition validation (Bug #5 fix).
@@ -50,11 +51,44 @@ export class PhaseTransitionValidator {
         }
         const current = this.registry.get(req.from);
         const satisfied = new Set(req.satisfiedCriteria);
-        const missing = current.exitCriteria.filter((c) => !satisfied.has(c));
+        // Sprint 15-C: walk exit criteria. Standard criteria are looked up
+        // in the satisfied set as before. `consensus.<phase>.approved`
+        // criteria additionally require that `lastConsensusPhase` matches
+        // the phase slug AND `lastConsensus == APPROVED`. That keeps a
+        // fresh REQUIREMENTS consensus from lingering into DESIGN advance.
+        const missing = [];
+        for (const criterion of current.exitCriteria) {
+            const scopeMatch = CONSENSUS_CRITERION_PATTERN.exec(criterion);
+            if (scopeMatch) {
+                const expectedPhase = scopeMatch[1].toUpperCase();
+                const lastPhaseOk = req.lastConsensusPhase !== undefined &&
+                    req.lastConsensusPhase !== null &&
+                    req.lastConsensusPhase === expectedPhase;
+                const lastVerdictOk = req.lastConsensus === ConsensusStatus.APPROVED;
+                // Sprint 15-C back-compat: pre-v2.3.0 ARCHITECTURE projects
+                // satisfied the old `consensus.approved` criterion directly.
+                // Accept that as if they had the new scoped form. Drop in
+                // v2.4.0 once the in-flight projects have turned over.
+                const legacyArchitectureAlias = expectedPhase === "ARCHITECTURE" &&
+                    satisfied.has("consensus.approved");
+                if (!legacyArchitectureAlias && (!lastPhaseOk || !lastVerdictOk)) {
+                    missing.push(criterion);
+                }
+            }
+            else if (!satisfied.has(criterion)) {
+                missing.push(criterion);
+            }
+        }
         if (missing.length > 0) {
             errors.push(`Exit criteria not met for ${req.from}: ${missing.join(", ")}`);
         }
-        if (req.lastConsensus !== undefined &&
+        // Legacy global check — only fires when the from-phase does NOT
+        // carry a phase-scoped consensus criterion (i.e. DEVELOPMENT,
+        // which retains the old cross-phase APPROVED requirement). The
+        // scope-aware branch above already handles phased fazes.
+        const hasScopedConsensus = current.exitCriteria.some((c) => CONSENSUS_CRITERION_PATTERN.test(c));
+        if (!hasScopedConsensus &&
+            req.lastConsensus !== undefined &&
             req.lastConsensus !== null &&
             req.lastConsensus !== ConsensusStatus.APPROVED) {
             errors.push(`Cannot advance from ${req.from}: last consensus is ${req.lastConsensus}, expected ${ConsensusStatus.APPROVED}`);

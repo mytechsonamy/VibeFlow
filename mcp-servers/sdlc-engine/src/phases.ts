@@ -23,45 +23,75 @@ export const DEFAULT_PHASE_ORDER: readonly PhaseDefinition[] = Object.freeze([
     id: "REQUIREMENTS",
     label: "Requirements",
     entryCriteria: ["project.initialized"],
-    exitCriteria: ["prd.approved", "testability.score>=60"],
+    exitCriteria: [
+      "prd.approved",
+      "testability.score>=60",
+      "consensus.requirements.approved",
+    ],
   },
   {
     id: "DESIGN",
     label: "Design",
     entryCriteria: ["prd.approved"],
-    exitCriteria: ["design.approved", "accessibility.verified"],
+    exitCriteria: [
+      "design.approved",
+      "accessibility.verified",
+      "consensus.design.approved",
+    ],
   },
   {
     id: "ARCHITECTURE",
     label: "Architecture",
     entryCriteria: ["design.approved"],
-    exitCriteria: ["adr.recorded", "consensus.approved"],
+    exitCriteria: ["adr.recorded", "consensus.architecture.approved"],
   },
   {
     id: "PLANNING",
     label: "Planning",
     entryCriteria: ["adr.recorded"],
-    exitCriteria: ["test-strategy.approved", "sprint.planned"],
+    exitCriteria: [
+      "test-strategy.approved",
+      "sprint.planned",
+      "consensus.planning.approved",
+    ],
   },
   {
     id: "DEVELOPMENT",
     label: "Development",
     entryCriteria: ["sprint.planned"],
+    // DEVELOPMENT intentionally has no per-phase consensus exit — every
+    // large commit already trips hooks/scripts/trigger-ai-review.sh, so
+    // requiring a session-scoped consensus record here would double-gate.
     exitCriteria: ["code.reviewed", "quality.gates.passed"],
   },
   {
     id: "TESTING",
     label: "Testing",
     entryCriteria: ["code.reviewed"],
-    exitCriteria: ["coverage.met", "mutation.score.acceptable"],
+    exitCriteria: [
+      "coverage.met",
+      "mutation.score.acceptable",
+      "consensus.testing.approved",
+    ],
   },
   {
     id: "DEPLOYMENT",
     label: "Deployment",
     entryCriteria: ["release.decision.go"],
-    exitCriteria: ["deployment.verified", "health.checks.passed"],
+    exitCriteria: [
+      "deployment.verified",
+      "health.checks.passed",
+      "consensus.deployment.approved",
+    ],
   },
 ]);
+
+/**
+ * Regex for the Sprint 15-C scope-aware consensus criterion. Matches
+ * `consensus.<phase-slug>.approved`. `<phase-slug>` is lowercase
+ * PhaseId, e.g. `consensus.requirements.approved`.
+ */
+export const CONSENSUS_CRITERION_PATTERN = /^consensus\.([a-z]+)\.approved$/;
 
 /**
  * Phase order is data-driven (Bug #9 fix): sequencing is derived from the

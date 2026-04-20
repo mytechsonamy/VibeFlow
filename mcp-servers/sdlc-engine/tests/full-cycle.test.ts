@@ -67,8 +67,14 @@ describe("SdlcEngine full phase cycle", () => {
     expect(final?.currentPhase).toBe("DEPLOYMENT");
     expect(registry.isFinal(final!.currentPhase)).toBe(true);
 
-    // Revisions: 1 (init) + 6 steps × (2 criteria + 1 consensus + 1 advance) = 1 + 24 = 25.
-    expect(final?.revision).toBe(25);
+    // Revisions: 1 (init) + per-phase (exit criteria count + 1 consensus + 1 advance).
+    // Sprint 15-C added phase-scoped consensus criteria so the per-phase
+    // counts are: REQUIREMENTS 3, DESIGN 3, ARCHITECTURE 2, PLANNING 3,
+    // DEVELOPMENT 2, TESTING 3 (DEPLOYMENT exit criteria are walked at
+    // the start of the next transition, not here). Total write count
+    // = 1 + (3+1+1) + (3+1+1) + (2+1+1) + (3+1+1) + (2+1+1) + (3+1+1)
+    // = 1 + 5 + 5 + 4 + 5 + 4 + 5 = 29.
+    expect(final?.revision).toBe(29);
   });
 
   it("cannot advance past the final phase", async () => {
@@ -111,9 +117,15 @@ describe("SdlcEngine full phase cycle", () => {
     });
     expect(after.lastConsensus?.status).toBe(ConsensusStatus.NEEDS_REVISION);
 
+    // Sprint 15-C: REQUIREMENTS carries a scoped consensus criterion,
+    // so a NEEDS_REVISION verdict fails the scoped check and the
+    // criterion appears in the "Exit criteria not met" error. The
+    // legacy "consensus is NEEDS_REVISION" message still fires for
+    // phases without a scoped criterion (DEVELOPMENT), covered by
+    // validation-consensus.test.ts.
     await expect(
       engine.advancePhase({ projectId: "p1", to: "DESIGN" }),
-    ).rejects.toThrowError(/consensus is NEEDS_REVISION/);
+    ).rejects.toThrowError(/consensus\.requirements\.approved/);
 
     // Force=true bypasses the consensus gate and completes the advance.
     const { state } = await engine.advancePhase({

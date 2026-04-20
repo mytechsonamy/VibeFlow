@@ -9,6 +9,12 @@ export interface PhaseDefinition {
 }
 export declare const DEFAULT_PHASE_ORDER: readonly PhaseDefinition[];
 /**
+ * Regex for the Sprint 15-C scope-aware consensus criterion. Matches
+ * `consensus.<phase-slug>.approved`. `<phase-slug>` is lowercase
+ * PhaseId, e.g. `consensus.requirements.approved`.
+ */
+export declare const CONSENSUS_CRITERION_PATTERN: RegExp;
+/**
  * Phase order is data-driven (Bug #9 fix): sequencing is derived from the
  * registry contents, never from hardcoded if/switch chains.
  */

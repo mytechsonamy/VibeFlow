@@ -5,6 +5,13 @@ export interface PhaseTransitionRequest {
     readonly to: PhaseId;
     readonly satisfiedCriteria: readonly string[];
     readonly lastConsensus?: ConsensusStatus | null;
+    /**
+     * Sprint 15-C: if the source phase carries a `consensus.<phase>.approved`
+     * exit criterion, the validator also checks that `lastConsensusPhase`
+     * matches — stale consensus from an earlier phase no longer satisfies
+     * the gate.
+     */
+    readonly lastConsensusPhase?: PhaseId | null;
     /** When true, bypass gate criteria — still enforces structural rules. */
     readonly force?: boolean;
 }

@@ -15,6 +15,9 @@ describe("Bug #5 — phase transitions are validated", () => {
       to: "DESIGN",
       satisfiedCriteria: ["prd.approved", "testability.score>=60"],
       lastConsensus: ConsensusStatus.APPROVED,
+      // Sprint 15-C: phase-scoped consensus criterion requires the
+      // recorded consensus to name the matching phase.
+      lastConsensusPhase: "REQUIREMENTS",
     });
     expect(result.ok).toBe(true);
     expect(result.errors).toEqual([]);
@@ -27,6 +30,7 @@ describe("Bug #5 — phase transitions are validated", () => {
       to: "ARCHITECTURE",
       satisfiedCriteria: ["prd.approved", "testability.score>=60"],
       lastConsensus: ConsensusStatus.APPROVED,
+      lastConsensusPhase: "REQUIREMENTS",
     });
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => /must advance exactly one step/.test(e))).toBe(
@@ -63,6 +67,7 @@ describe("Bug #5 — phase transitions are validated", () => {
       to: "DESIGN",
       satisfiedCriteria: ["prd.approved"], // missing testability.score>=60
       lastConsensus: ConsensusStatus.APPROVED,
+      lastConsensusPhase: "REQUIREMENTS",
     });
     expect(result.ok).toBe(false);
     expect(
@@ -70,18 +75,22 @@ describe("Bug #5 — phase transitions are validated", () => {
     ).toBe(true);
   });
 
-  it("blocks advance when last consensus is NEEDS_REVISION", () => {
+  it("blocks advance when last consensus is NEEDS_REVISION (scoped)", () => {
+    // Sprint 15-C: REQUIREMENTS carries `consensus.requirements.approved`
+    // as an exit criterion, so a NEEDS_REVISION verdict fails the
+    // scoped check and the criterion is listed as missing.
     const v = mkValidator();
     const result = v.validate({
       from: "REQUIREMENTS",
       to: "DESIGN",
       satisfiedCriteria: ["prd.approved", "testability.score>=60"],
       lastConsensus: ConsensusStatus.NEEDS_REVISION,
+      lastConsensusPhase: "REQUIREMENTS",
     });
     expect(result.ok).toBe(false);
-    expect(result.errors.some((e) => /consensus is NEEDS_REVISION/.test(e))).toBe(
-      true,
-    );
+    expect(
+      result.errors.some((e) => /consensus\.requirements\.approved/.test(e)),
+    ).toBe(true);
   });
 
   it("blocks advance when last consensus is REJECTED", () => {
@@ -91,6 +100,7 @@ describe("Bug #5 — phase transitions are validated", () => {
       to: "DESIGN",
       satisfiedCriteria: ["prd.approved", "testability.score>=60"],
       lastConsensus: ConsensusStatus.REJECTED,
+      lastConsensusPhase: "REQUIREMENTS",
     });
     expect(result.ok).toBe(false);
   });
