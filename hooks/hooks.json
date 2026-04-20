@@ -40,6 +40,15 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/test-optimizer.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/phase-write-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
