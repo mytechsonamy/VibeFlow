@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.1] — 2026-04-22
+
+Process-gap patch. CLAUDE.md's "Sprint Tracking" policy asked
+for every sprint to land a `docs/SPRINT-N.md` file; in practice
+the last one committed was `SPRINT-13.md` and Sprints 14-18
+shipped with plans only in the ephemeral
+`~/.claude/plans/<slug>.md` scratch location. This patch closes
+the gap two ways: a new hook that auto-writes plan docs into
+the repo on every `ExitPlanMode`, and five backfilled
+`SPRINT-14.md`..`SPRINT-18.md` docs reconstructed from
+release-notes, CHANGELOG entries, and git log.
+
+### Added
+- **`hooks/scripts/save-plan-doc.sh`** (new) — PostToolUse hook
+  registered on `ExitPlanMode` matcher. Reads stdin's `cwd`
+  (Claude Code fills this with the project root), finds the
+  most-recently-modified markdown in `~/.claude/plans/`, parses
+  the plan title for `/^#\s*Sprint\s+(\d+)/`, and copies the
+  plan to `<cwd>/docs/SPRINT-<N>.md`. Non-sprint plans (no
+  match) fall back to `<cwd>/docs/plans/<slug>-<YYYYMMDD>.md`.
+  Fail-safes: missing jq / empty stdin / non-VibeFlow project
+  (guard via `vibeflow.config.json` presence check) all exit 0
+  silently. Bypass: `VF_SKIP_PLAN_SAVE=1`. Never blocks
+  ExitPlanMode.
+- **`docs/SPRINT-14.md`..`docs/SPRINT-18.md`** (5 new) —
+  backfilled from release-notes + CHANGELOG + git log. Each
+  one cites the shipping tag, branch, and commit SHAs for every
+  ticket. Sprint 17 rolls up v2.5.1..v2.5.4 patches as
+  "Known follow-ups" so the doc captures the full Sprint-17
+  arc.
+- **`docs/plans/`** directory with `.gitkeep` so the fallback
+  path exists even before the first non-sprint plan lands.
+- **ROADMAP.md "Completed Sprints Appendix"** — short index
+  linking sprints 8-18 with ship dates and themes. The
+  narrative per-sprint rows above stop at Sprint 7; this
+  appendix covers 8-18 without rewriting the whole section.
+- **`[S19-PLAN]`** section in `hooks/tests/run.sh` — 7
+  assertions covering sprint-numbered title write, non-sprint
+  fallback, missing-config guard, `VF_SKIP_PLAN_SAVE=1`
+  bypass, hooks.json wiring. Hooks baseline: 110 → 117.
+- `CLAUDE.md` Sprint Tracking section notes the new hook + the
+  backfill.
+- `release-notes/2.6.1.md`.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.6.0 → 2.6.1
+- `.claude-plugin/marketplace.json`: 2.6.0 → 2.6.1
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.6.0 → 2.6.1
+- `@vibeflow/sdlc-engine`: 1.4.0 (unchanged — no engine code)
+- Hooks baseline: 110 → 117 (+7)
+- Total baseline: ~2173 → ~2180
+
+---
+
 ## [2.6.0] — 2026-04-21
 
 Sprint 18 — full auto-satisfy rollout. Every automatable SDLC

@@ -87,6 +87,32 @@ MyVibe Framework (SDLC orchestration) + TruthLayer (requirements-first validatio
 
 ---
 
+## Completed Sprints Appendix (8-18)
+
+The per-sprint rows above stop at Sprint 7 because the roadmap
+narrative was never updated past v1.2. Every sprint after that
+shipped with its own `docs/SPRINT-N.md` file — this appendix is
+the short index. Details in each sprint's doc + the matching
+`release-notes/*.md`.
+
+| Sprint | Shipped | Theme | Doc |
+|---|---|---|---|
+| 8 | v1.3.0 (2026-04-17) | Prerelease workflow + multi-tarball fix + CI wiring | [SPRINT-8.md](SPRINT-8.md) |
+| 9 | v1.4.0 (2026-04-17) | SemVer tarball selection + gtar fallback + release branch guard | [SPRINT-9.md](SPRINT-9.md) |
+| 10 | v1.5.0 (2026-04-19) | `release.sh --notes-file` pre-fill; PG-matrix retirement | [SPRINT-10.md](SPRINT-10.md) |
+| 11 | v2.0.0 (2026-04-20, breaking) | Filesystem-only state store; SQLite + Postgres + TEAM-MODE.md retired | [SPRINT-11.md](SPRINT-11.md) |
+| 12 | v2.0.1 + v2.0.2 hotfix (2026-04-20) | esbuild-bundled MCP servers + `github:` marketplace source | [SPRINT-12.md](SPRINT-12.md) |
+| 13 | v2.1.0 (2026-04-20) | Generic phase enforcement via phase-write-guard hook + PHASE-BOUNDARIES.md | [SPRINT-13.md](SPRINT-13.md) |
+| 14 | v2.2.0 (2026-04-20) | Consensus flow mode-independent; reviewer-class filter; 4 skill Write contracts | [SPRINT-14.md](SPRINT-14.md) |
+| 15 | v2.3.0 (2026-04-20) | MyVibe closed loop: CLI verdict plumbing + arbiter + apply-arbiter-patch | [SPRINT-15.md](SPRINT-15.md) |
+| 16 | v2.4.0 (2026-04-20) | Deterministic auto-consensus chain via `consensus-gate.sh` PreToolUse + marker pattern | [SPRINT-16.md](SPRINT-16.md) |
+| 17 | v2.5.0 (2026-04-20) + patches v2.5.1-.4 (2026-04-21) | Iterative consensus rounds + phase specialists + HUMAN_APPROVAL_REQUIRED; `/vibeflow:advance` shipped; `.mcp.json` `${CLAUDE_PLUGIN_ROOT}` fix | [SPRINT-17.md](SPRINT-17.md) |
+| 18 | v2.6.0 (2026-04-21) | Full auto-satisfy rollout across every phase; `quality-gates` + `deploy-verifier` skills | [SPRINT-18.md](SPRINT-18.md) |
+
+---
+
+---
+
 ## Skill Inventory (30 Total)
 
 ### Built (9) — Sprint 1

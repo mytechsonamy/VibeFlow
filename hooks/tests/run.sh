@@ -1038,6 +1038,111 @@ assert_eq "[S16-A] empty stdin → allow (exit 0)" "0" "$RC"
 rm -rf "$DIR"
 unset VIBEFLOW_CWD
 
+# ---------------------------------------------------------------------------
+echo "== save-plan-doc.sh [S19-PLAN] =="
+
+SPD="$SCRIPTS/save-plan-doc.sh"
+[[ -x "$SPD" ]] && pass "[S19-PLAN] save-plan-doc.sh is executable" \
+  || fail "[S19-PLAN] save-plan-doc.sh is executable"
+
+# Sprint-numbered title → docs/SPRINT-N.md
+DIR="$(make_project REQUIREMENTS)"
+FAKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/vf-planhome-XXXXXX")"
+mkdir -p "$FAKE_HOME/.claude/plans"
+cat > "$FAKE_HOME/.claude/plans/sprint99-test.md" <<'PLAN_EOF'
+# Sprint 99 — Hook smoke test
+
+## Context
+Testing save-plan-doc hook fixture.
+PLAN_EOF
+INPUT="$(jq -n --arg cwd "$DIR" '{cwd:$cwd, tool_name:"ExitPlanMode", tool_input:{}, tool_response:{}}')"
+HOME_ORIG="$HOME"
+export HOME="$FAKE_HOME"
+printf '%s' "$INPUT" | bash "$SPD" 2>/dev/null
+export HOME="$HOME_ORIG"
+if [[ -f "$DIR/docs/SPRINT-99.md" ]]; then
+  pass "[S19-PLAN] sprint-numbered title writes docs/SPRINT-99.md"
+else
+  fail "[S19-PLAN] sprint-numbered title writes docs/SPRINT-99.md"
+fi
+if [[ -f "$DIR/docs/SPRINT-99.md" ]] && grep -q "# Sprint 99" "$DIR/docs/SPRINT-99.md"; then
+  pass "[S19-PLAN] written SPRINT-99.md preserves plan content"
+else
+  fail "[S19-PLAN] written SPRINT-99.md preserves plan content"
+fi
+rm -rf "$DIR" "$FAKE_HOME"
+
+# Non-sprint title → docs/plans/<slug>-<date>.md fallback
+DIR="$(make_project REQUIREMENTS)"
+FAKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/vf-planhome-XXXXXX")"
+mkdir -p "$FAKE_HOME/.claude/plans"
+cat > "$FAKE_HOME/.claude/plans/refactor-plan.md" <<'PLAN_EOF'
+# Refactor — lift consensus rule into shared lib
+
+## Context
+Not a sprint, just a refactor.
+PLAN_EOF
+INPUT="$(jq -n --arg cwd "$DIR" '{cwd:$cwd, tool_name:"ExitPlanMode", tool_input:{}, tool_response:{}}')"
+HOME_ORIG="$HOME"
+export HOME="$FAKE_HOME"
+printf '%s' "$INPUT" | bash "$SPD" 2>/dev/null
+export HOME="$HOME_ORIG"
+FALLBACK_COUNT="$(find "$DIR/docs/plans" -maxdepth 1 -name 'refactor*' -type f 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$FALLBACK_COUNT" -ge 1 ]]; then
+  pass "[S19-PLAN] non-sprint title falls back to docs/plans/<slug>-*.md"
+else
+  fail "[S19-PLAN] non-sprint title falls back to docs/plans/<slug>-*.md"
+fi
+rm -rf "$DIR" "$FAKE_HOME"
+
+# Guard: no vibeflow.config.json → no write
+DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-nonproj-XXXXXX")"
+FAKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/vf-planhome-XXXXXX")"
+mkdir -p "$FAKE_HOME/.claude/plans"
+cat > "$FAKE_HOME/.claude/plans/sprint77-should-not-save.md" <<'PLAN_EOF'
+# Sprint 77 — Should NOT save
+
+(No vibeflow.config.json in target cwd.)
+PLAN_EOF
+INPUT="$(jq -n --arg cwd "$DIR" '{cwd:$cwd, tool_name:"ExitPlanMode", tool_input:{}, tool_response:{}}')"
+HOME_ORIG="$HOME"
+export HOME="$FAKE_HOME"
+printf '%s' "$INPUT" | bash "$SPD" 2>/dev/null
+export HOME="$HOME_ORIG"
+if [[ ! -f "$DIR/docs/SPRINT-77.md" ]]; then
+  pass "[S19-PLAN] non-VibeFlow project → no write (guard)"
+else
+  fail "[S19-PLAN] non-VibeFlow project → no write (guard)"
+fi
+rm -rf "$DIR" "$FAKE_HOME"
+
+# Env bypass VF_SKIP_PLAN_SAVE=1
+DIR="$(make_project REQUIREMENTS)"
+FAKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/vf-planhome-XXXXXX")"
+mkdir -p "$FAKE_HOME/.claude/plans"
+cat > "$FAKE_HOME/.claude/plans/sprint55-bypass.md" <<'PLAN_EOF'
+# Sprint 55 — Bypass test
+PLAN_EOF
+INPUT="$(jq -n --arg cwd "$DIR" '{cwd:$cwd, tool_name:"ExitPlanMode", tool_input:{}, tool_response:{}}')"
+HOME_ORIG="$HOME"
+export HOME="$FAKE_HOME"
+printf '%s' "$INPUT" | VF_SKIP_PLAN_SAVE=1 bash "$SPD" 2>/dev/null
+export HOME="$HOME_ORIG"
+if [[ ! -f "$DIR/docs/SPRINT-55.md" ]]; then
+  pass "[S19-PLAN] VF_SKIP_PLAN_SAVE=1 → no write"
+else
+  fail "[S19-PLAN] VF_SKIP_PLAN_SAVE=1 → no write"
+fi
+rm -rf "$DIR" "$FAKE_HOME"
+
+# hooks.json wiring
+HJSON="$REPO_ROOT/hooks/hooks.json"
+if jq -e '.hooks.PostToolUse[] | select(.matcher == "ExitPlanMode") | .hooks[] | select(.command | test("save-plan-doc"))' "$HJSON" >/dev/null 2>&1; then
+  pass "[S19-PLAN] hooks.json PostToolUse registers save-plan-doc on ExitPlanMode"
+else
+  fail "[S19-PLAN] hooks.json PostToolUse registers save-plan-doc on ExitPlanMode"
+fi
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

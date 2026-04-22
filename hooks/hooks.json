@@ -80,6 +80,15 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/trigger-ai-review.sh"
           }
         ]
+      },
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/save-plan-doc.sh"
+          }
+        ]
       }
     ],
     "SubagentStop": [
