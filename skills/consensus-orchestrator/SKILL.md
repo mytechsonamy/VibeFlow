@@ -30,21 +30,90 @@ API billing concern to gate on.
 ### Step 2: Claude Review (Always Available)
 Use the claude-reviewer subagent for native review. This always runs.
 
+### Step 2b: Resolve the review input (Sprint 19-B — primaryArtifact)
+
+Before spawning any reviewer, resolve what the panel is actually
+reviewing. `$ARGUMENTS` may be:
+
+1. **A marker JSON path** (`.vibeflow/state/consensus-needed.json`
+   or a file whose content includes a `primaryArtifact` field) —
+   the Sprint 19-A marker schema v2 case.
+2. **A plain file path** — legacy single-file invocation
+   (pre-v2.7.0). Treated as the primary with no evidence.
+
+```bash
+# Marker v2 resolution
+if jq -e '.primaryArtifact' "$ARGUMENTS" >/dev/null 2>&1; then
+  PRIMARY="$(jq -r '.primaryArtifact' "$ARGUMENTS")"
+  mapfile -t EVIDENCE_FILES < <(jq -r '.evidence[]?' "$ARGUMENTS" 2>/dev/null)
+else
+  PRIMARY="$ARGUMENTS"   # legacy path — full file content is the primary
+  EVIDENCE_FILES=()
+fi
+
+[ -f "$PRIMARY" ] || { echo "primary artifact not found: $PRIMARY"; exit 1; }
+```
+
+**Primary excerpt when too large.** If `wc -c "$PRIMARY"` exceeds
+roughly 30 000 tokens (~120 KB), feed reviewers:
+
+- The first 40% of the document (head)
+- The last 15% (tail)
+- Findings-anchored excerpts: for each evidence entry, pull the
+  top-priority finding's `target.file` + `target.line_range`
+  context (±20 lines around the anchor in the primary)
+
+Smaller primaries go in whole. The specialist path (if triggered
+downstream) always receives the full file; excerption only affects
+the reviewer prompt.
+
+**Evidence distillation.** For each evidence file, extract:
+
+- First heading + verdict line
+- Top 3 critical / high findings (ordered by severity)
+- Any `Summary` / `Aggregate` section
+
+Inline as a ≤500-token block per evidence source in the reviewer
+prompt (see Step 3 below).
+
 ### Step 3: External AI Reviews (CLI-availability only)
 Run every CLI that is on `PATH`. Skip the ones that aren't — never
 gate on a mode switch, environment variable, or config flag.
 
+**Reviewer prompt shape (Sprint 19-B).** Every reviewer (codex,
+gemini, claude-reviewer) receives the same structure — `PRIMARY`
+is the thing under review, `EVIDENCE` is context:
+
+```
+Review the PRIMARY ARTIFACT below for quality/security/maintainability.
+Your verdict decides whether this artifact is ready for phase exit.
+
+PRIMARY ARTIFACT UNDER REVIEW:
+<$PRIMARY content, excerpted per Step 2b if > 30k tokens>
+
+SUPPORTING EVIDENCE (analyzer context — informational, not the target):
+1. <EVIDENCE_FILES[0] filename>:
+   <distilled ≤500 tokens: verdict line + top-3 findings>
+2. <EVIDENCE_FILES[1] filename>:
+   <distilled>
+...
+
+Your verdict is about the PRIMARY, not the evidence reports.
+Output ONLY valid JSON per the agreed schema.
+```
+
 **ChatGPT Review (via codex CLI):**
 ```bash
 if command -v codex &>/dev/null; then
-  cat <artifact> | codex exec "Review this for quality, security, maintainability. Return JSON: {score, issues, verdict}" -m $openaiModel --skip-git-repo-check --ephemeral
+  build_review_prompt > /tmp/vf_review_prompt  # primary + evidence block
+  codex exec "$(cat /tmp/vf_review_prompt)" -m $openaiModel --skip-git-repo-check --ephemeral
 fi
 ```
 
 **Gemini Review (via gemini CLI):**
 ```bash
 if command -v gemini &>/dev/null; then
-  (echo "Review this for quality, security, maintainability. Return JSON: {score, issues, verdict}" && cat <artifact>) | gemini --model $geminiModel
+  build_review_prompt | gemini --model $geminiModel
 fi
 ```
 
@@ -119,9 +188,33 @@ append_cli_verdict() {
     >> "$LOG"
 }
 
+# Sprint 19-B: build the PRIMARY + EVIDENCE review prompt once and
+# feed it to both CLIs. See Step 2b for $PRIMARY / $EVIDENCE_FILES
+# resolution. The prompt structure names PRIMARY ARTIFACT UNDER
+# REVIEW explicitly so reviewers know the evidence reports are
+# context, not targets.
+build_review_prompt() {
+  cat <<PROMPT
+Review the PRIMARY ARTIFACT below for quality/security/maintainability.
+Your verdict decides whether this artifact is ready for phase exit.
+Output ONLY valid JSON matching: {verdict:APPROVED|NEEDS_REVISION|REJECTED,
+score:0-100, criticalIssues:[{id, target:{file, line_range:[s,e]}, title, rationale}],
+summary:string, suggestions:[{id, type, target:{file, line_range:[s,e]},
+rationale, proposed_change, priority, phase_relevance:[]}]}
+
+PRIMARY ARTIFACT UNDER REVIEW ($PRIMARY):
+$(excerpt_if_large "$PRIMARY")
+
+SUPPORTING EVIDENCE (analyzer context — informational, not the target):
+$(for e in "\${EVIDENCE_FILES[@]}"; do echo "--- $e ---"; distill_evidence "$e"; done)
+
+Your verdict is about the PRIMARY, not the evidence reports.
+PROMPT
+}
+
 # codex — 90s per-CLI timeout so aggregator never sits on its 600s global wait.
 if command -v codex >/dev/null 2>&1; then
-  CODEX_OUT="$(timeout 90 codex exec "Review this for quality/security/maintainability. Output ONLY valid JSON matching {verdict:APPROVED|NEEDS_REVISION|REJECTED, score:0-100, criticalIssues:N, summary:string, suggestions:[{id,type,target:{file,line_range:[s,e]},rationale,proposed_change,priority,phase_relevance:[]}]}" -m "$openaiModel" --skip-git-repo-check --ephemeral < "$ARTIFACT" 2>&1)"
+  CODEX_OUT="$(build_review_prompt | timeout 90 codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
@@ -132,9 +225,10 @@ if command -v codex >/dev/null 2>&1; then
   fi
 fi
 
-# gemini — same shape.
+# gemini — same shape. Shares build_review_prompt so both CLIs see
+# the same PRIMARY + EVIDENCE framing.
 if command -v gemini >/dev/null 2>&1; then
-  GEMINI_OUT="$(timeout 90 sh -c "(echo 'Review this for quality/security/maintainability. Output ONLY valid JSON {verdict, score, criticalIssues, summary, suggestions[]}' && cat '$ARTIFACT') | gemini --model '$geminiModel'" 2>&1)"
+  GEMINI_OUT="$(build_review_prompt | timeout 90 gemini --model "$geminiModel" 2>&1)"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"

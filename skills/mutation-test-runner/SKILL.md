@@ -383,6 +383,12 @@ auto-consensus marker at `.vibeflow/state/consensus-needed.json`:
 
 ```json
 {
+  "primaryArtifact": ".vibeflow/reports/mutation-report.md",
+  "evidence": [
+    ".vibeflow/reports/mutation-report.md",
+    ".vibeflow/reports/coverage-report.md",
+    ".vibeflow/reports/weak-assertions.md"
+  ],
   "artifact": ".vibeflow/reports/mutation-report.md",
   "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/mutation-report.md",
   "createdAt": "<current UTC ISO-8601 timestamp>",

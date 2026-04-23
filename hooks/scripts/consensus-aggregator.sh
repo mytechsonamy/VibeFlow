@@ -256,16 +256,24 @@ AGG="$(jq -s --argjson round "$CURRENT_ROUND" '
     }
   | . + { agreement: (if .total > 0 then (.approved / .total) else 0 end) }
   | . + {
-      # Sprint 17-B: REJECTED requires a MAJORITY of reviewers to
-      # reject, not just sub-0.5 approval ratio. 3 unanimous
-      # NEEDS_REVISION reviewers (approved=0) previously tripped the
-      # `agreement<0.5` rule and became REJECTED — that misread "all
-      # want revision" as "all reject". Now rejected-majority is the
-      # rejection trigger; anything else with some critical findings
-      # stays NEEDS_REVISION and can flow to the arbiter.
+      # Sprint 19-C: reviewer sentiment is authoritative. The pre-19
+      # `criticalTotal >= 2 → REJECTED` path fired even when ZERO
+      # reviewers actually voted REJECTED (FlowBridge_TR case:
+      # 2× NEEDS_REVISION + 1× APPROVED, criticalTotal=2, rejected=0
+      # → used to go REJECTED, now correctly NEEDS_REVISION).
+      #
+      # New rule:
+      #   1) strict reject majority            → REJECTED
+      #   2) ≥1 reject vote AND ≥2 critical    → REJECTED (escalation)
+      #   3) agreement ≥ 0.9 AND zero critical → APPROVED
+      #   4) otherwise                         → NEEDS_REVISION
+      #
+      # The critical count becomes a modifier that requires actual
+      # reviewer rejection to escalate; no reject votes ⇒ iteration
+      # can continue through the arbiter/specialist path.
       status: (
-        if .criticalTotal >= 2 then "REJECTED"
-        elif (.rejected * 2) > .total then "REJECTED"
+        if (.rejected * 2) > .total then "REJECTED"
+        elif .rejected >= 1 and .criticalTotal >= 2 then "REJECTED"
         elif .agreement >= 0.9 and .criticalTotal == 0 then "APPROVED"
         else "NEEDS_REVISION"
         end

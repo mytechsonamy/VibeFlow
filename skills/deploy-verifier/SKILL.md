@@ -229,8 +229,13 @@ for the third DEPLOYMENT criterion:
 
 ```json
 {
+  "primaryArtifact": "release-notes/<version>.md",
+  "evidence": [
+    ".vibeflow/reports/deploy-verification.md",
+    ".vibeflow/reports/release-decision.md"
+  ],
   "artifact": ".vibeflow/reports/deploy-verification.md",
-  "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/deploy-verification.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator release-notes/<version>.md",
   "createdAt": "<current UTC ISO-8601 timestamp>",
   "createdBy": "deploy-verifier"
 }

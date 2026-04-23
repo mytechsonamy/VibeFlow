@@ -188,12 +188,24 @@ is to Write the auto-consensus marker at
 
 ```json
 {
+  "primaryArtifact": "<PRD path from $ARGUMENTS, e.g. docs/FlowBridge_TR_SRS_v1_1.docx>",
+  "evidence": [
+    ".vibeflow/reports/prd-quality-report.md",
+    ".vibeflow/reports/prd-cost-avoidance.md"
+  ],
   "artifact": ".vibeflow/reports/prd-quality-report.md",
-  "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/prd-quality-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator <PRD path>",
   "createdAt": "<current UTC ISO-8601 timestamp>",
   "createdBy": "prd-quality-analyzer"
 }
 ```
+
+**Sprint 19-A — primaryArtifact + evidence (marker v2).** The
+orchestrator reviews `primaryArtifact` (the PRD itself); the
+`evidence[]` array carries analyzer reports that give the
+reviewer panel context. `artifact` stays as the legacy single-
+file field for `consensus-gate.sh` back-compat — no hook change
+needed.
 
 Sprint 16-A's `consensus-gate` hook reads this marker on every
 `Bash | Write | Edit` tool call and refuses the call with a stderr

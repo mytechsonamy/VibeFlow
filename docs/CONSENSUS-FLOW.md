@@ -1,7 +1,8 @@
 # Consensus Flow
 
 VibeFlow's consensus loop is the runtime half of the MyVibe
-promise: an artifact produced by any analysis skill is reviewed by
+promise: a **primary artifact** (the PRD, the ADR, the test
+strategy — the thing the team is actually building) is reviewed by
 Claude + codex + gemini; the verdicts flow through an arbiter that
 turns suggestions into diff-first patches; the operator applies
 those patches with a single command. Four layers, each independently
@@ -24,7 +25,8 @@ missing.
                             │
                             ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│ L1: consensus-orchestrator runs                                  │
+│ L1: consensus-orchestrator runs (Sprint 19-B: reviews primary,   │
+│     not report — analyzer reports become evidence context)       │
 │   - claude-reviewer subagent  → SubagentStop → aggregator        │
 │   - codex CLI      (90s)     → append_cli_verdict() to jsonl    │
 │   - gemini CLI     (90s)     → append_cli_verdict() to jsonl    │
@@ -245,7 +247,9 @@ consensus record.
 
 | Path | Role |
 |---|---|
-| `skills/consensus-orchestrator/SKILL.md` | Layer 1 + auto-chain to arbiter |
+| `skills/consensus-orchestrator/SKILL.md` | Layer 1 + auto-chain to arbiter; Sprint 19-B resolves marker v2 → primary + evidence |
+| `docs/PRIMARY-ARTIFACT.md` | Sprint 19-A marker v2 schema + per-phase primary table |
+| `skills/phase-runner/SKILL.md` | Sprint 19-F end-to-end phase orchestrator (one command: analyzer → consensus → specialist → apply → advance) |
 | `skills/consensus-arbiter/SKILL.md` | Layer 4 decision + diff synthesis |
 | `skills/apply-arbiter-patch/SKILL.md` | Operator apply |
 | `hooks/scripts/consensus-aggregator.sh` | jsonl tally + verdict.json |

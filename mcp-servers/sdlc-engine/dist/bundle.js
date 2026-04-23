@@ -17782,12 +17782,20 @@ var ConsensusConfigSchema = external_exports.object({
   approvalThreshold: 0.9,
   iteration: { enabled: true }
 });
+var PhaseRunnerConfigSchema = external_exports.object({
+  autoAdvance: external_exports.boolean().default(true),
+  maxConvergenceAttempts: external_exports.number().int().min(1).max(10).default(3)
+}).default({
+  autoAdvance: true,
+  maxConvergenceAttempts: 3
+});
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
     dir: external_exports.string().optional()
   }).default({}),
-  consensus: ConsensusConfigSchema
+  consensus: ConsensusConfigSchema,
+  phaseRunner: PhaseRunnerConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17796,7 +17804,8 @@ function resolveConfig(cwd = process.cwd()) {
   return EngineConfigSchema.parse({
     project,
     stateStore: dir ? { dir } : {},
-    consensus: fileConfig.consensus ?? {}
+    consensus: fileConfig.consensus ?? {},
+    phaseRunner: fileConfig.phaseRunner ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17815,10 +17824,18 @@ function loadFileConfig(cwd) {
         consensus = parsed.data;
       }
     }
+    let phaseRunner;
+    if (typeof raw.phaseRunner === "object" && raw.phaseRunner !== null) {
+      const parsed = PhaseRunnerConfigSchema.safeParse(raw.phaseRunner);
+      if (parsed.success) {
+        phaseRunner = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
       ...dir ? { stateStore: { dir } } : {},
-      ...consensus ? { consensus } : {}
+      ...consensus ? { consensus } : {},
+      ...phaseRunner ? { phaseRunner } : {}
     };
   } catch {
     return {};

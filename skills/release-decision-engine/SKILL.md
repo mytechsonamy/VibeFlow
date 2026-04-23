@@ -146,6 +146,13 @@ After your output files are written to `.vibeflow/reports/`, your
 
 ```json
 {
+  "primaryArtifact": ".vibeflow/reports/release-decision.md",
+  "evidence": [
+    ".vibeflow/reports/release-decision.md",
+    ".vibeflow/reports/coverage-report.md",
+    ".vibeflow/reports/mutation-report.md",
+    ".vibeflow/reports/deploy-verification.md"
+  ],
   "artifact": ".vibeflow/reports/release-decision.md",
   "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/release-decision.md",
   "createdAt": "<current UTC ISO-8601 timestamp>",

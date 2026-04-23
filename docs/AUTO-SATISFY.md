@@ -1,5 +1,12 @@
 # Auto-Satisfy Criteria Matrix
 
+> **One-command alternative (Sprint 19-F):** `/vibeflow:phase-runner`
+> runs the current phase's analyzer(s) + consensus-orchestrator +
+> specialist/arbiter + apply + `sdlc_advance_phase` in sequence.
+> The per-skill entry points below are what phase-runner composes;
+> invoke them individually when you want manual control.
+
+
 Every SDLC phase in VibeFlow has exit criteria that must be
 satisfied before `/vibeflow:advance` lets the project move to the
 next phase. Sprint 17.2 and Sprint 18 make the bulk of these

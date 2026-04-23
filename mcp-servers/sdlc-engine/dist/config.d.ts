@@ -38,6 +38,24 @@ export declare const ConsensusConfigSchema: z.ZodDefault<z.ZodObject<{
     } | undefined;
 }>>;
 export type ConsensusConfig = z.infer<typeof ConsensusConfigSchema>;
+/**
+ * Sprint 19-G: phase-runner bounds. `autoAdvance` gates whether
+ * the runner calls `sdlc_advance_phase` automatically on APPROVED;
+ * `maxConvergenceAttempts` bounds the specialist-apply cycles on
+ * top of `consensus.maxIterations` (each attempt runs a full
+ * reviewer-round loop).
+ */
+export declare const PhaseRunnerConfigSchema: z.ZodDefault<z.ZodObject<{
+    autoAdvance: z.ZodDefault<z.ZodBoolean>;
+    maxConvergenceAttempts: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    autoAdvance: boolean;
+    maxConvergenceAttempts: number;
+}, {
+    autoAdvance?: boolean | undefined;
+    maxConvergenceAttempts?: number | undefined;
+}>>;
+export type PhaseRunnerConfig = z.infer<typeof PhaseRunnerConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -73,6 +91,16 @@ export declare const EngineConfigSchema: z.ZodObject<{
             enabled?: boolean | undefined;
         } | undefined;
     }>>;
+    phaseRunner: z.ZodDefault<z.ZodObject<{
+        autoAdvance: z.ZodDefault<z.ZodBoolean>;
+        maxConvergenceAttempts: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        autoAdvance: boolean;
+        maxConvergenceAttempts: number;
+    }, {
+        autoAdvance?: boolean | undefined;
+        maxConvergenceAttempts?: number | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
@@ -86,6 +114,10 @@ export declare const EngineConfigSchema: z.ZodObject<{
         };
         quorum?: number | undefined;
     };
+    phaseRunner: {
+        autoAdvance: boolean;
+        maxConvergenceAttempts: number;
+    };
 }, {
     project: string;
     stateStore?: {
@@ -98,6 +130,10 @@ export declare const EngineConfigSchema: z.ZodObject<{
         iteration?: {
             enabled?: boolean | undefined;
         } | undefined;
+    } | undefined;
+    phaseRunner?: {
+        autoAdvance?: boolean | undefined;
+        maxConvergenceAttempts?: number | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

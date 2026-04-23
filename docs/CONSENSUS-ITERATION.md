@@ -155,6 +155,49 @@ a new `phase_advanced` event without `humanOverrideNote` supersedes
 it — keeping the override present in the operator's peripheral
 vision.
 
+## Auto-chain on apply (Sprint 19-E)
+
+Before v2.7.0, the operator had to invoke
+`/vibeflow:consensus-orchestrator` again after
+`/vibeflow:apply-arbiter-patch` to verify that the patches
+actually converged the primary artifact. Sprint 19-E closes that
+gap: on successful apply (plus passing tests when `--run-tests`),
+the skill writes a fresh `consensus-needed.json` marker pointing
+back at the same primaryArtifact, and `consensus-gate` blocks
+the next tool call with the required command.
+
+```
+apply-arbiter-patch (round N succeeds)
+  │
+  ▼  Step 9: auto-chain writes marker v2
+consensus-needed.json:
+  primaryArtifact = <carried from original session>
+  evidence        = original evidence + arbiter-decisions.md
+  autoChain       = { round: N+1, parentSessionId: <sid> }
+  │
+  ▼
+consensus-gate blocks next Bash/Write/Edit with:
+  "RUN THIS NEXT: /vibeflow:consensus-orchestrator <primary>"
+  │
+  ▼
+round N+1 reviewer panel evaluates the UPDATED artifact
+```
+
+**Guardrails:**
+- `--no-chain` CLI flag or `VF_SKIP_AUTO_CHAIN=1` env override.
+- Max-iterations stop: if `N+1 > consensus.maxIterations`, write
+  `.vibeflow/reports/max-iterations-reached.md` advisory instead.
+- Convergence-stall guard: if
+  `|verdict(N).agreement - verdict(N-1).agreement| ≤ 0.05` and
+  `N ≥ 2`, write `.vibeflow/reports/convergence-stalled.md` and
+  stop. Prevents infinite spin when specialist rewrites aren't
+  actually moving the needle.
+
+**Iteration storage.** Tracked in the existing `verdict.json.round`
+field (Sprint 17-A) — no new `manifest.iteration` state file. Apply
+reads the latest `round`, increments, and writes the next-round
+marker carrying the same primary artifact.
+
 ## Escape hatches
 
 - **`consensus.iteration.enabled: false`** — single-round behaviour

@@ -33,6 +33,25 @@ export const ConsensusConfigSchema = z
 
 export type ConsensusConfig = z.infer<typeof ConsensusConfigSchema>;
 
+/**
+ * Sprint 19-G: phase-runner bounds. `autoAdvance` gates whether
+ * the runner calls `sdlc_advance_phase` automatically on APPROVED;
+ * `maxConvergenceAttempts` bounds the specialist-apply cycles on
+ * top of `consensus.maxIterations` (each attempt runs a full
+ * reviewer-round loop).
+ */
+export const PhaseRunnerConfigSchema = z
+  .object({
+    autoAdvance: z.boolean().default(true),
+    maxConvergenceAttempts: z.number().int().min(1).max(10).default(3),
+  })
+  .default({
+    autoAdvance: true,
+    maxConvergenceAttempts: 3,
+  });
+
+export type PhaseRunnerConfig = z.infer<typeof PhaseRunnerConfigSchema>;
+
 export const EngineConfigSchema = z.object({
   project: z.string().min(1),
   stateStore: z
@@ -41,6 +60,7 @@ export const EngineConfigSchema = z.object({
     })
     .default({}),
   consensus: ConsensusConfigSchema,
+  phaseRunner: PhaseRunnerConfigSchema,
 });
 
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
@@ -63,6 +83,7 @@ export function resolveConfig(cwd: string = process.cwd()): EngineConfig {
     project,
     stateStore: dir ? { dir } : {},
     consensus: fileConfig.consensus ?? {},
+    phaseRunner: fileConfig.phaseRunner ?? {},
   });
 }
 
@@ -90,10 +111,20 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
         consensus = parsed.data;
       }
     }
+    // Sprint 19-G: phase-runner config, same silent-fallback pattern
+    // as consensus — malformed fields keep the schema defaults.
+    let phaseRunner: PhaseRunnerConfig | undefined;
+    if (typeof raw.phaseRunner === "object" && raw.phaseRunner !== null) {
+      const parsed = PhaseRunnerConfigSchema.safeParse(raw.phaseRunner);
+      if (parsed.success) {
+        phaseRunner = parsed.data;
+      }
+    }
     return {
       ...(typeof project === "string" ? { project } : {}),
       ...(dir ? { stateStore: { dir } } : {}),
       ...(consensus ? { consensus } : {}),
+      ...(phaseRunner ? { phaseRunner } : {}),
     };
   } catch {
     return {};

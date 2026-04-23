@@ -6,6 +6,7 @@ import {
   resolveConfig,
   EngineConfigSchema,
   ConsensusConfigSchema,
+  PhaseRunnerConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -228,5 +229,34 @@ describe("resolveConfig — consensus (Sprint 17-F)", () => {
     const cfg = resolveConfig(tmpDir);
     expect(cfg.consensus.approvalThreshold).toBe(0.9);
     expect(cfg.consensus.maxIterations).toBe(5);
+  });
+});
+
+describe("PhaseRunnerConfigSchema (Sprint 19-G)", () => {
+  it("applies defaults when field is omitted", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.phaseRunner.autoAdvance).toBe(true);
+    expect(cfg.phaseRunner.maxConvergenceAttempts).toBe(3);
+  });
+
+  it("accepts a partial phaseRunner object and fills the rest", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      phaseRunner: { autoAdvance: false },
+    });
+    expect(cfg.phaseRunner.autoAdvance).toBe(false);
+    expect(cfg.phaseRunner.maxConvergenceAttempts).toBe(3);
+  });
+
+  it("rejects maxConvergenceAttempts outside [1, 10]", () => {
+    expect(
+      PhaseRunnerConfigSchema.safeParse({ maxConvergenceAttempts: 0 }).success,
+    ).toBe(false);
+    expect(
+      PhaseRunnerConfigSchema.safeParse({ maxConvergenceAttempts: 11 }).success,
+    ).toBe(false);
+    expect(
+      PhaseRunnerConfigSchema.safeParse({ maxConvergenceAttempts: 3 }).success,
+    ).toBe(true);
   });
 });

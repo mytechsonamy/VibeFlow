@@ -7,6 +7,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.7.0] — 2026-04-23
+
+Sprint 19 — refocus consensus on primary artifacts + end-to-end
+phase automation. Addresses three architectural gaps the
+FlowBridge_TR walkthrough exposed: (1) consensus reviewed the
+analyzer's **report** instead of the PRD itself, so reviewer
+feedback targeted report quality rather than the PRD's
+readiness; (2) the aggregator's mechanical `criticalTotal >= 2
+→ REJECTED` rule fired on zero-reject verdicts, breaking
+iteration; (3) there was no single command to walk a phase
+through analyzer → consensus → specialist → apply → advance.
+
+### Added
+- **Marker schema v2** (Sprint 19-A) — every analysis skill's
+  Final Step marker now carries `primaryArtifact` (the PRD,
+  ADR, test strategy — the thing being reviewed) and
+  `evidence[]` (analyzer reports as context). Legacy
+  `artifact` + `requiredCommand` fields retained so
+  `consensus-gate.sh` works unchanged. 8 analyzer skills
+  updated: prd-quality-analyzer, architecture-validator,
+  test-strategy-planner, traceability-engine,
+  coverage-analyzer, mutation-test-runner,
+  release-decision-engine, deploy-verifier. `quality-gates`
+  stays marker-less (it satisfies its criterion directly,
+  no consensus round).
+- **`docs/PRIMARY-ARTIFACT.md`** — full marker v2 schema +
+  per-phase primary map + evidence distillation rules +
+  back-compat notes.
+- **Orchestrator primary-artifact resolution** (Sprint 19-B)
+  — `consensus-orchestrator` Step 2b reads the incoming
+  marker, resolves `primaryArtifact` + `evidence[]`, builds
+  reviewer prompts with `PRIMARY ARTIFACT UNDER REVIEW` +
+  `SUPPORTING EVIDENCE` blocks. Evidence distilled to ≤500
+  tokens/source; primary excerpted (head+tail+findings-
+  anchored) when >30k tokens. Legacy single-file invocation
+  still works for pre-v2.7.0 callers.
+- **`skills/phase-runner/SKILL.md`** (Sprint 19-F) — new
+  one-command phase orchestrator. Runs the current phase's
+  registered analyzer(s), invokes consensus-orchestrator on
+  the primary, auto-chains arbiter/specialist → apply on
+  NEEDS_REVISION, calls `mcp__sdlc-engine__sdlc_advance_phase`
+  MCP tool directly on APPROVED. Bounded by
+  `phaseRunner.autoAdvance` + `phaseRunner.maxConvergenceAttempts`.
+  `--pause-between-steps`, `--no-auto-advance`, `--no-auto-chain`
+  flags.
+- **`PhaseRunnerConfigSchema`** in sdlc-engine config
+  (`autoAdvance: true`, `maxConvergenceAttempts: 3`; ranges
+  validated; silent fallback on malformed values). +3 unit
+  tests.
+- **`apply-arbiter-patch` Step 9 auto-chain** (Sprint 19-E)
+  — after successful apply + passing tests, writes a fresh
+  `consensus-needed.json` marker pointing at the same
+  primaryArtifact for iteration N+1. Reads `verdict.json.round`
+  (Sprint 17-A field; no new state file) to compute next
+  round. Guardrails: `--no-chain` flag, `VF_SKIP_AUTO_CHAIN=1`,
+  convergence-stall guard (agreement delta ≤0.05 over 2
+  rounds), `consensus.maxIterations` ceiling.
+- **`tests/integration/sprint-19.sh`** — 87 assertions across
+  `[S19-A]`..`[S19-Z]`, including a runtime regression for
+  the S19-C rule change (2 NEEDS_REVISION + 1 APPROVED +
+  critical=2 + rejected=0 → NEEDS_REVISION, not REJECTED).
+- `release-notes/2.7.0.md`.
+
+### Changed
+- **Aggregator status rule** (Sprint 19-C) — the
+  `criticalTotal >= 2 → REJECTED` path now requires
+  `rejected >= 1` as a co-condition. Zero-reject verdicts
+  with high critical counts land as NEEDS_REVISION so
+  iteration continues. Pre-19 rule wrongly promoted 2
+  NEEDS_REVISION + 1 APPROVED to REJECTED despite no
+  reviewer actually voting reject.
+- **Specialist guardrail** (Sprint 19-D) — `consensus-specialist`
+  Step 1 gains a 4-case decision matrix: APPROVED stops,
+  genuine REJECTED (rejected≥1) stops with operator triage,
+  NEEDS_REVISION / HUMAN_APPROVAL_REQUIRED dispatch. The
+  "soft REJECTED" case the S19-C refactor eliminates gets a
+  defensive "treat as NEEDS_REVISION" branch for pre-2.7.0
+  verdict files.
+- `skills/phase-policy.json` registers `phase-runner` (phases:
+  ALL).
+- `docs/CONSENSUS-FLOW.md` diagram + file table updated for
+  primary-artifact refocus.
+- `docs/CONSENSUS-ITERATION.md` gains "Auto-chain on apply"
+  section with convergence-stall + max-iterations guards.
+- `docs/AUTO-SATISFY.md` header note points at phase-runner
+  as the one-command alternative.
+
+### Version bumps
+- `.claude-plugin/plugin.json`: 2.6.1 → 2.7.0
+- `.claude-plugin/marketplace.json`: 2.6.1 → 2.7.0
+- `mcp-servers/sdlc-engine/package.json`: 1.4.0 → 1.5.0
+  (new PhaseRunnerConfigSchema export)
+- `tests/integration/sprint-4.sh` `EXPECTED_PLUGIN_VERSION`:
+  2.6.1 → 2.7.0
+- Test layers: 18 → 19 (new `sprint-19.sh` at 87 assertions)
+- sdlc-engine unit: 157 → 160 (+3 PhaseRunner schema tests)
+- Total baseline: 2180 → 2270 (+90)
+
+---
+
 ## [2.6.1] — 2026-04-22
 
 Process-gap patch. CLAUDE.md's "Sprint Tracking" policy asked

@@ -62,13 +62,50 @@ fi
 [ -z "$SESSION_ID" ] && { echo "No consensus session found"; exit 1; }
 ```
 
-Read `$CONS_DIR/$SESSION_ID.verdict.json`:
-- If `status == APPROVED`: stop. Nothing to rewrite — the
-  artifact passed consensus.
-- If `status == REJECTED`: stop and advise the operator that the
-  findings require manual triage before specialist rewrite is
-  reasonable.
-- Otherwise (NEEDS_REVISION / HUMAN_APPROVAL_REQUIRED): proceed.
+Read `$CONS_DIR/$SESSION_ID.verdict.json` and apply the **4-case
+guardrail** (Sprint 19-D). The Sprint 19-C aggregator refactor
+eliminated "soft REJECTED" (0 reject votes + ≥2 critical now lands
+as NEEDS_REVISION, not REJECTED), so REJECTED always means at
+least one reviewer actually voted reject.
+
+```bash
+STATUS="$(jq -r '.status' "$VERDICT")"
+REJECTED_COUNT="$(jq -r '.rejected // 0' "$VERDICT")"
+
+case "$STATUS" in
+  APPROVED)
+    echo "Nothing to rewrite — the artifact passed consensus."
+    exit 0
+    ;;
+  REJECTED)
+    if (( REJECTED_COUNT >= 1 )); then
+      echo "Genuine reject: $REJECTED_COUNT reviewer(s) voted REJECTED."
+      echo "Findings require operator triage before specialist rewrite is reasonable."
+      exit 0
+    fi
+    # Fall through — zero-reject REJECTED shouldn't happen post-S19-C,
+    # but the path stays defensive for pre-2.7.0 verdict files.
+    echo "Soft REJECTED detected (legacy verdict, 0 reject votes). Treating as NEEDS_REVISION."
+    ;;
+  NEEDS_REVISION|HUMAN_APPROVAL_REQUIRED)
+    : # dispatch specialist — the common case
+    ;;
+  *)
+    echo "Unknown verdict status: $STATUS"
+    exit 1
+    ;;
+esac
+```
+
+**The 4-case decision matrix:**
+
+| Status | rejected≥1 | Action |
+|---|---|---|
+| APPROVED | — | stop: "nothing to rewrite" |
+| REJECTED | ≥1 | stop: "genuine reject — operator triage" |
+| REJECTED | 0 (legacy) | proceed as NEEDS_REVISION |
+| NEEDS_REVISION | any | dispatch specialist |
+| HUMAN_APPROVAL_REQUIRED | any | dispatch specialist (per Sprint 17-C) |
 
 ### Step 2: Resolve phase
 

@@ -278,8 +278,12 @@ After your output files are written to `.vibeflow/reports/`, your
 
 ```json
 {
+  "primaryArtifact": "docs/architecture.md",
+  "evidence": [
+    ".vibeflow/reports/architecture-report.md"
+  ],
   "artifact": ".vibeflow/reports/architecture-report.md",
-  "requiredCommand": "/vibeflow:consensus-orchestrator .vibeflow/reports/architecture-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator docs/architecture.md",
   "createdAt": "<current UTC ISO-8601 timestamp>",
   "createdBy": "architecture-validator"
 }

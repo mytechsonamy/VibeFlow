@@ -41,6 +41,10 @@ Flags:
   package.json scripts). On failure, print the `git checkout`
   command that rolls back the last patch set.
 - `--dry-run` — show the diff summary and exit without applying.
+- `--no-chain` — skip Sprint 19-E auto-chain (Step 9). Apply the
+  patch, record the outcome, drain markers, and stop. Operator
+  must invoke `/vibeflow:consensus-orchestrator <primary>` manually
+  to verify convergence.
 
 ## Process
 
@@ -167,7 +171,8 @@ Append an `applied/<session>.json` under
 ### Step 8: Drain the consensus-needed marker (Sprint 16-B)
 
 After the applied/<session>.json record is written (and before
-exiting), defensively drain both consensus markers:
+writing the auto-chain marker in Step 9), drain both consensus
+markers so the PREVIOUS iteration is closed cleanly:
 
 ```bash
 rm -f "$(vf_state_dir)/consensus-needed.json"
@@ -180,6 +185,120 @@ a stored session — in which case the marker from the original
 analysis skill is still set and the next tool call would be blocked
 by `consensus-gate.sh`. Draining here closes the loop no matter how
 the skill was reached.
+
+### Step 9: Auto-chain next consensus round (Sprint 19-E)
+
+Apply completed successfully — if `--run-tests` was set, the suite
+also passed. The natural next question is "did the patch actually
+converge?" Until Sprint 19, operators had to hand-invoke the
+orchestrator on the updated artifact. Step 9 closes the loop:
+writes a fresh `consensus-needed.json` marker for iteration N+1
+so `consensus-gate` blocks the next tool call with the required
+command.
+
+**Skip conditions** (all exit before marker write):
+
+- `--no-chain` CLI flag was passed.
+- `VF_SKIP_AUTO_CHAIN=1` env override.
+- `git apply` failed or tests failed (covered by earlier steps
+  returning non-zero — we only reach Step 9 on success).
+- Convergence stall: `verdict(round).agreement -
+  verdict(round-1).agreement <= 0.05` AND `round >= 2`. Emits
+  `.vibeflow/reports/convergence-stalled.md` with the agreement
+  curve and stops.
+- Max iterations: if `nextRound > consensus.maxIterations`
+  (default 5 per Sprint 17-F), write
+  `.vibeflow/reports/max-iterations-reached.md` and stop.
+
+```bash
+# Sprint 19-E auto-chain. Reads verdict.round (Sprint 17-A) to
+# compute the next iteration. Skipped via --no-chain or VF_SKIP_AUTO_CHAIN=1.
+if [[ "${NO_CHAIN:-0}" == "1" ]] || [[ "${VF_SKIP_AUTO_CHAIN:-}" == "1" ]]; then
+  echo "Auto-chain opt-out honoured. Run /vibeflow:consensus-orchestrator <primary> manually to verify convergence."
+  exit 0
+fi
+
+VERDICT_FILE="$(vf_state_dir)/consensus/$SESSION_ID.verdict.json"
+[ -f "$VERDICT_FILE" ] || exit 0
+
+CURRENT_ROUND="$(jq -r '.round // .finalRound // 1' "$VERDICT_FILE")"
+MAX_ITER="$(vf_config_get '.consensus.maxIterations' 2>/dev/null || echo 5)"
+NEXT_ROUND=$((CURRENT_ROUND + 1))
+
+if (( NEXT_ROUND > MAX_ITER )); then
+  cat > .vibeflow/reports/max-iterations-reached.md <<EOF
+# Max Iterations Reached
+
+Session: $SESSION_ID
+Reached round $CURRENT_ROUND of maxIterations=$MAX_ITER.
+Convergence did not land as APPROVED within the configured budget.
+
+Next options:
+- Raise consensus.maxIterations in vibeflow.config.json
+- Review verdict.json.rounds[] agreement curve and triage manually
+- Advance via /vibeflow:advance with humanOverrideNote="…" (per Sprint 17-C)
+EOF
+  exit 0
+fi
+
+# Convergence-stall guard (round >= 2 only — round 1 has no prior).
+if (( CURRENT_ROUND >= 2 )); then
+  DELTA="$(jq -r --argjson r $((CURRENT_ROUND - 1)) \
+    '(.rounds | map(select(.round == $r + 1))[0].agreement)
+     - (.rounds | map(select(.round == $r))[0].agreement)' \
+    "$VERDICT_FILE" 2>/dev/null || echo "0")"
+  # "stalled" = delta in [-0.05, 0.05]
+  if awk -v d="$DELTA" 'BEGIN{exit !(d <= 0.05 && d >= -0.05)}'; then
+    cat > .vibeflow/reports/convergence-stalled.md <<EOF
+# Convergence Stalled
+
+Session: $SESSION_ID
+Agreement delta round $((CURRENT_ROUND - 1)) → $CURRENT_ROUND: $DELTA (≤ 0.05).
+Two consecutive rounds with negligible movement; auto-chain halted to avoid spinning.
+
+Rounds so far:
+$(jq -r '.rounds[] | "  round \(.round): agreement=\(.agreement), criticalTotal=\(.criticalTotal), status=\(.status)"' "$VERDICT_FILE")
+
+Manual next step:
+- /vibeflow:consensus-specialist $SESSION_ID (deep rewrite)
+- or /vibeflow:advance with humanOverrideNote if results are good enough
+EOF
+    exit 0
+  fi
+fi
+
+# Read primaryArtifact from the draining marker (preserved from the
+# original analysis skill's Sprint 19-A marker).
+PRIMARY="$PRIMARY_ARTIFACT_FROM_ORIGINAL_MARKER"     # carried from Step 1's manifest read
+EVIDENCE_JSON="$ORIGINAL_EVIDENCE_JSON"              # same source
+
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+jq -n \
+  --arg primary "$PRIMARY" \
+  --argjson evidence "$(printf '%s' "$EVIDENCE_JSON" | jq -c '. + [".vibeflow/reports/arbiter-decisions.md"]')" \
+  --arg legacy "$PRIMARY" \
+  --arg cmd "/vibeflow:consensus-orchestrator $PRIMARY" \
+  --arg ts "$TS" \
+  --arg sid "$SESSION_ID" \
+  --argjson round "$NEXT_ROUND" \
+  '{
+    primaryArtifact: $primary,
+    evidence: $evidence,
+    artifact: $legacy,
+    requiredCommand: $cmd,
+    createdAt: $ts,
+    createdBy: "apply-arbiter-patch (auto-chain)",
+    autoChain: { round: $round, parentSessionId: $sid }
+  }' > "$(vf_state_dir)/consensus-needed.json"
+
+echo "Round $CURRENT_ROUND applied. consensus-gate will block next tool call — run /vibeflow:consensus-orchestrator $PRIMARY to verify convergence (round $NEXT_ROUND). Use --no-chain or VF_SKIP_AUTO_CHAIN=1 to opt out."
+```
+
+**Why iterate on `verdict.round`, not a new manifest field?** Sprint
+17-A already writes `round` / `finalRound` into verdict.json; the
+orchestrator increments it via the `current-round.txt` marker. Apply
+just reads the latest and points the next round at the
+(now-updated) primary. No new state file needed.
 
 ## Output
 
@@ -211,9 +330,14 @@ could compound the damage.
   to track which suggestion types land successfully vs. get
   reverted.
 
-## Final Step: No Auto-Consensus
+## Final Step: Auto-chain Consensus (Sprint 19-E)
 
-This skill applies a decision set; it does **not** re-invoke
-consensus. Running consensus against the just-applied changes is the
-operator's call — commit first, then `/vibeflow:consensus-orchestrator`
-on the new diff if a second opinion is warranted.
+Replaces the Sprint 17-era "no auto-consensus" stance. After
+successful apply + (optional) tests, Step 9 writes a fresh
+consensus-needed marker pointing at the same primaryArtifact for
+iteration N+1. The gate blocks the next tool call with the
+required command, closing the converge-then-verify loop.
+
+Opt-out: `--no-chain` CLI flag or `VF_SKIP_AUTO_CHAIN=1`. Skipped
+automatically when agreement stalls (Δ ≤ 0.05 over 2 rounds) or
+when `consensus.maxIterations` is exhausted.
