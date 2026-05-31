@@ -17776,11 +17776,22 @@ var ConsensusConfigSchema = external_exports.object({
   approvalThreshold: external_exports.number().min(0).max(1).default(0.9),
   iteration: external_exports.object({
     enabled: external_exports.boolean().default(true)
-  }).default({ enabled: true })
+  }).default({ enabled: true }),
+  // Sprint 21-A: primary-artifact excerption. `excerptTokenBudget`
+  // is the size above which the orchestrator excerpts a primary for
+  // the reviewer prompt (the specialist path always gets the full
+  // file). `excerptStrategy` picks section-scored selection
+  // ("semantic") vs the legacy positional head/tail ("headtail");
+  // "semantic" falls back to head/tail when the doc has no detectable
+  // section structure, so it is never worse than the legacy path.
+  excerptTokenBudget: external_exports.number().int().min(1e3).max(2e5).default(3e4),
+  excerptStrategy: external_exports.enum(["semantic", "headtail"]).default("semantic")
 }).default({
   maxIterations: 5,
   approvalThreshold: 0.9,
-  iteration: { enabled: true }
+  iteration: { enabled: true },
+  excerptTokenBudget: 3e4,
+  excerptStrategy: "semantic"
 });
 var PhaseRunnerConfigSchema = external_exports.object({
   autoAdvance: external_exports.boolean().default(true),
@@ -17797,8 +17808,14 @@ var LearningLoopConfigSchema = external_exports.object({
 var ReviewerMemoryConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true),
   maxEntriesPerArtifact: external_exports.number().int().min(1).max(50).default(5),
-  tokenBudget: external_exports.number().int().min(50).max(5e3).default(600)
-}).default({ enabled: true, maxEntriesPerArtifact: 5, tokenBudget: 600 });
+  tokenBudget: external_exports.number().int().min(50).max(5e3).default(600),
+  compaction: external_exports.enum(["recency", "theme-aware"]).default("theme-aware")
+}).default({
+  enabled: true,
+  maxEntriesPerArtifact: 5,
+  tokenBudget: 600,
+  compaction: "theme-aware"
+});
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({

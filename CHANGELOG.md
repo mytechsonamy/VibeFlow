@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.9.0] — 2026-05-31
+
+Sprint 21 — signal-quality refinement. Sharpens three coarse
+inputs/outputs of the consensus loop with no new mechanics:
+
+- **Semantic excerption (S21-A).** `consensus-orchestrator` excerpts
+  oversized primaries by **section score** (evidence-finding density +
+  reviewer-memory hits + keyword overlap) instead of positional
+  head/tail. `consensus.excerptStrategy` (`semantic` default |
+  `headtail`) + `consensus.excerptTokenBudget` (30000). Falls back to
+  head/tail when a doc has no section structure. New
+  `skills/consensus-orchestrator/references/excerption.md`.
+- **Theme-aware memory compaction (S21-B).** Reviewer-memory entries
+  dropped past the cap fold into a per-artifact recurrence summary with
+  a `seenCount` (Jaccard title match) instead of silent recency drop;
+  `consensus-orchestrator` surfaces recurring criticals first.
+  `reviewerMemory.compaction` (`theme-aware` default | `recency`).
+- **Progress ledger (S21-C/D).** `phase-runner` writes
+  `.vibeflow/state/phase-runner-progress.json` at each step boundary;
+  `/vibeflow:status` renders a Phase-Runner Progress section with a
+  stale-guard.
+- **Config (S21-E).** `ConsensusConfigSchema` += `excerptTokenBudget` +
+  `excerptStrategy`; `ReviewerMemoryConfigSchema` += `compaction`.
+
+Docs: `docs/EXCERPTION.md`, `docs/PROGRESS-LEDGER.md`, plus
+`REVIEWER-MEMORY.md` / `CONSENSUS-FLOW.md` refreshes. Tests: sdlc-engine
+168→173, hooks 133→139, new `sprint-21.sh` (65). Total baseline 2379 →
+2455.
+
+- `.claude-plugin/plugin.json`: 2.8.0 → 2.9.0
+- `@vibeflow/sdlc-engine`: 1.6.0 → 1.7.0
+
+---
+
 ## [2.8.0] — 2026-05-31
 
 Sprint 20 — close the L3 learning loop. The fast loop (per-run

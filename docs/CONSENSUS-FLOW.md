@@ -280,3 +280,21 @@ Two side-effects of the flow above feed the L3 Truth-Evolution layer:
 
 Both degrade cleanly: absent history/memory ⇒ no rows, no block, and
 the round behaves exactly as it did pre-Sprint-20.
+
+## Sprint 21 signal-quality refinements
+
+Three refinements sharpen the loop's inputs/outputs without changing its
+mechanics:
+
+- **Semantic excerption** — when a primary exceeds
+  `consensus.excerptTokenBudget`, the reviewer prompt now carries
+  **section-scored** excerpts (evidence density + reviewer-memory hits +
+  keyword overlap) instead of positional head/tail. See
+  [EXCERPTION.md](EXCERPTION.md).
+- **Theme-aware memory compaction** — reviewer-memory entries dropped
+  past the cap fold into a recurrence summary (`seenCount`) so a
+  long-standing objection keeps its signal. See
+  [REVIEWER-MEMORY.md](REVIEWER-MEMORY.md).
+- **Progress ledger** — `phase-runner` writes
+  `.vibeflow/state/phase-runner-progress.json`, rendered by
+  `/vibeflow:status`. See [PROGRESS-LEDGER.md](PROGRESS-LEDGER.md).

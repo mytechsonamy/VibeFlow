@@ -30,5 +30,26 @@ Read vibeflow.config.json and .vibeflow/ directory to compile project status.
 - Last phase transition timestamp
 - Recent skill invocations
 
+### 5. Phase-Runner Progress (Sprint 21-D)
+If `.vibeflow/state/phase-runner-progress.json` exists, render a
+"Phase-Runner Progress" block from it:
+
+- `currentStep` and `status` (running / approved / stalled / rejected /
+  advanced / blocked)
+- `attempt` of `maxConvergenceAttempts`
+- completed vs total `steps[]` (e.g. "4 of 6 steps") with each step's
+  `name` + `status` + `detail`
+
+**Stale-guard — do not show a phantom run.** Skip the block entirely
+when the ledger is stale:
+- its `phase` ≠ the live `currentPhase` (a leftover ledger from an
+  earlier phase), **or**
+- its `startedAt` predates the last phase-transition timestamp (the
+  run finished and the phase already advanced past it).
+
+A ledger whose `status` is terminal (`advanced` / `approved` /
+`rejected`) for the *current* phase may still be shown as the last
+completed run, clearly labelled "last run" rather than "in progress".
+
 ## Output
 Display a concise status summary directly in the conversation. Do not create a file.

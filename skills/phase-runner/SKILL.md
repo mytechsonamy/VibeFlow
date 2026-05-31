@@ -79,6 +79,42 @@ MAX_CONV="$(vf_config_get '.phaseRunner.maxConvergenceAttempts' 2>/dev/null || e
 MAX_ITER="$(vf_config_get '.consensus.maxIterations' 2>/dev/null || echo 5)"
 ```
 
+### Step 1b: Initialise the progress ledger (Sprint 21-C)
+
+`phase-runner` is a long walk (up to `maxConvergenceAttempts` ×
+`maxIterations` reviewer rounds). So the operator can see where a run
+is, write a structured ledger to
+`.vibeflow/state/phase-runner-progress.json` and update it at **every
+step boundary**. `/vibeflow:status` reads this file (Sprint 21-D).
+
+```bash
+LEDGER="$(vf_state_dir)/phase-runner-progress.json"
+# Fresh ledger at run start — overwrites any stale prior run so a new
+# walk never shows a phantom step from last time.
+jq -n -c --arg phase "$CURRENT" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson maxConv "$MAX_CONV" \
+  '{phase:$phase, startedAt:$ts, status:"running", attempt:1,
+    maxConvergenceAttempts:$maxConv, currentStep:"init", steps:[]}' \
+  > "$LEDGER"
+
+# Helper used at every boundary below. Appends/updates a step and sets
+# currentStep; pass status running|done|failed|skipped and an optional detail.
+vf_progress() {                 # vf_progress <step-name> <status> [detail]
+  local name="$1" st="$2" detail="${3:-}"
+  local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  jq -c --arg name "$name" --arg st "$st" --arg detail "$detail" --arg ts "$ts" '
+    .currentStep = $name
+    | .steps = ((.steps // []) | map(select(.name != $name))
+        + [{name:$name, status:$st, detail:$detail, updatedAt:$ts}])' \
+    "$LEDGER" > "$LEDGER.tmp" && mv "$LEDGER.tmp" "$LEDGER"
+}
+```
+
+Call `vf_progress` at each boundary: `analyzer:<name>` (running→done),
+`consensus-round-<attempt>` (running, with `detail="agreement=<n>"`),
+`specialist` / `arbiter`, `apply`, and `advance`. At the very end set
+the terminal status (Step 5).
+
 ### Step 2: Run phase analyzers
 
 Look up the phase's analyzer list from the hardcoded map. For each:
@@ -160,6 +196,16 @@ exit codes, verdict.json summaries per attempt, patch manifests
 applied, and final status. Operators who want to audit a run
 have a single doc to read.
 
+**Finalise the ledger (Sprint 21-C).** Set the terminal status so
+`/vibeflow:status` stops showing a "running" walk:
+
+```bash
+FINAL=advanced   # or: approved | stalled | rejected | blocked
+jq -c --arg st "$FINAL" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '.status = $st | .finishedAt = $ts' \
+  "$LEDGER" > "$LEDGER.tmp" && mv "$LEDGER.tmp" "$LEDGER"
+```
+
 ## Flags
 
 - `--pause-between-steps` — after each analyzer + each consensus
@@ -192,8 +238,11 @@ have a single doc to read.
   To walk multiple phases, invoke phase-runner multiple times
   (auto-advance makes the next invocation land on the new
   phase automatically).
-- **No runtime TUI**: progress is prose-only. A TUI/progress
-  bar is Sprint 21+ out-of-scope.
+- **No interactive TUI**: there is no live-redrawing terminal UI.
+  Sprint 21-C ships a structured progress **ledger**
+  (`.vibeflow/state/phase-runner-progress.json`) that `/vibeflow:status`
+  renders on demand (Sprint 21-D) — a real redrawing TUI would need a
+  host-side renderer and stays Sprint 22+ out-of-scope.
 
 ## See also
 

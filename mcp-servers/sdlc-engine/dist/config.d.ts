@@ -22,12 +22,16 @@ export declare const ConsensusConfigSchema: z.ZodDefault<z.ZodObject<{
     }, {
         enabled?: boolean | undefined;
     }>>;
+    excerptTokenBudget: z.ZodDefault<z.ZodNumber>;
+    excerptStrategy: z.ZodDefault<z.ZodEnum<["semantic", "headtail"]>>;
 }, "strip", z.ZodTypeAny, {
     maxIterations: number;
     approvalThreshold: number;
     iteration: {
         enabled: boolean;
     };
+    excerptTokenBudget: number;
+    excerptStrategy: "semantic" | "headtail";
     quorum?: number | undefined;
 }, {
     quorum?: number | undefined;
@@ -36,6 +40,8 @@ export declare const ConsensusConfigSchema: z.ZodDefault<z.ZodObject<{
     iteration?: {
         enabled?: boolean | undefined;
     } | undefined;
+    excerptTokenBudget?: number | undefined;
+    excerptStrategy?: "semantic" | "headtail" | undefined;
 }>>;
 export type ConsensusConfig = z.infer<typeof ConsensusConfigSchema>;
 /**
@@ -84,20 +90,27 @@ export type LearningLoopConfig = z.infer<typeof LearningLoopConfigSchema>;
  * block and the aggregator stops appending memory entries);
  * `maxEntriesPerArtifact` caps the per-(reviewer, artifact) store;
  * `tokenBudget` bounds the injected memory block (chars ≈ tokens × 4).
+ * `compaction` (Sprint 21-B) picks what happens when the cap is hit:
+ * "recency" silently drops the oldest entry; "theme-aware" folds the
+ * dropped entry's criticals into a rolling recurrence summary so a
+ * long-standing objection keeps its "this keeps coming back" signal.
  * Defaults match consensus-aggregator.sh + consensus-orchestrator.
  */
 export declare const ReviewerMemoryConfigSchema: z.ZodDefault<z.ZodObject<{
     enabled: z.ZodDefault<z.ZodBoolean>;
     maxEntriesPerArtifact: z.ZodDefault<z.ZodNumber>;
     tokenBudget: z.ZodDefault<z.ZodNumber>;
+    compaction: z.ZodDefault<z.ZodEnum<["recency", "theme-aware"]>>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
     maxEntriesPerArtifact: number;
     tokenBudget: number;
+    compaction: "recency" | "theme-aware";
 }, {
     enabled?: boolean | undefined;
     maxEntriesPerArtifact?: number | undefined;
     tokenBudget?: number | undefined;
+    compaction?: "recency" | "theme-aware" | undefined;
 }>>;
 export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
@@ -120,12 +133,16 @@ export declare const EngineConfigSchema: z.ZodObject<{
         }, {
             enabled?: boolean | undefined;
         }>>;
+        excerptTokenBudget: z.ZodDefault<z.ZodNumber>;
+        excerptStrategy: z.ZodDefault<z.ZodEnum<["semantic", "headtail"]>>;
     }, "strip", z.ZodTypeAny, {
         maxIterations: number;
         approvalThreshold: number;
         iteration: {
             enabled: boolean;
         };
+        excerptTokenBudget: number;
+        excerptStrategy: "semantic" | "headtail";
         quorum?: number | undefined;
     }, {
         quorum?: number | undefined;
@@ -134,6 +151,8 @@ export declare const EngineConfigSchema: z.ZodObject<{
         iteration?: {
             enabled?: boolean | undefined;
         } | undefined;
+        excerptTokenBudget?: number | undefined;
+        excerptStrategy?: "semantic" | "headtail" | undefined;
     }>>;
     phaseRunner: z.ZodDefault<z.ZodObject<{
         autoAdvance: z.ZodDefault<z.ZodBoolean>;
@@ -162,14 +181,17 @@ export declare const EngineConfigSchema: z.ZodObject<{
         enabled: z.ZodDefault<z.ZodBoolean>;
         maxEntriesPerArtifact: z.ZodDefault<z.ZodNumber>;
         tokenBudget: z.ZodDefault<z.ZodNumber>;
+        compaction: z.ZodDefault<z.ZodEnum<["recency", "theme-aware"]>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         maxEntriesPerArtifact: number;
         tokenBudget: number;
+        compaction: "recency" | "theme-aware";
     }, {
         enabled?: boolean | undefined;
         maxEntriesPerArtifact?: number | undefined;
         tokenBudget?: number | undefined;
+        compaction?: "recency" | "theme-aware" | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
@@ -182,6 +204,8 @@ export declare const EngineConfigSchema: z.ZodObject<{
         iteration: {
             enabled: boolean;
         };
+        excerptTokenBudget: number;
+        excerptStrategy: "semantic" | "headtail";
         quorum?: number | undefined;
     };
     phaseRunner: {
@@ -197,6 +221,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
         enabled: boolean;
         maxEntriesPerArtifact: number;
         tokenBudget: number;
+        compaction: "recency" | "theme-aware";
     };
 }, {
     project: string;
@@ -210,6 +235,8 @@ export declare const EngineConfigSchema: z.ZodObject<{
         iteration?: {
             enabled?: boolean | undefined;
         } | undefined;
+        excerptTokenBudget?: number | undefined;
+        excerptStrategy?: "semantic" | "headtail" | undefined;
     } | undefined;
     phaseRunner?: {
         autoAdvance?: boolean | undefined;
@@ -224,6 +251,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
         enabled?: boolean | undefined;
         maxEntriesPerArtifact?: number | undefined;
         tokenBudget?: number | undefined;
+        compaction?: "recency" | "theme-aware" | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

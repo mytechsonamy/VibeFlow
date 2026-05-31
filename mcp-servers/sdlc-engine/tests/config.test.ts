@@ -367,3 +367,49 @@ describe("resolveConfig — learningLoop + reviewerMemory (Sprint 20-H)", () => 
     expect(cfg.reviewerMemory.tokenBudget).toBe(600);
   });
 });
+
+describe("ConsensusConfigSchema excerption (Sprint 21-E)", () => {
+  it("applies excerpt defaults when omitted", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.consensus.excerptTokenBudget).toBe(30000);
+    expect(cfg.consensus.excerptStrategy).toBe("semantic");
+  });
+
+  it("accepts a partial consensus object and fills excerpt defaults", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      consensus: { maxIterations: 7 },
+    });
+    expect(cfg.consensus.maxIterations).toBe(7);
+    expect(cfg.consensus.excerptTokenBudget).toBe(30000);
+    expect(cfg.consensus.excerptStrategy).toBe("semantic");
+  });
+
+  it("rejects an unknown excerptStrategy and out-of-range budget", () => {
+    expect(
+      ConsensusConfigSchema.safeParse({ excerptStrategy: "magic" }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ excerptTokenBudget: 999 }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ excerptStrategy: "headtail" }).success,
+    ).toBe(true);
+  });
+});
+
+describe("ReviewerMemoryConfigSchema compaction (Sprint 21-E)", () => {
+  it("defaults compaction to theme-aware", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.reviewerMemory.compaction).toBe("theme-aware");
+  });
+
+  it("accepts recency and rejects an unknown compaction mode", () => {
+    expect(
+      ReviewerMemoryConfigSchema.safeParse({ compaction: "recency" }).success,
+    ).toBe(true);
+    expect(
+      ReviewerMemoryConfigSchema.safeParse({ compaction: "lru" }).success,
+    ).toBe(false);
+  });
+});

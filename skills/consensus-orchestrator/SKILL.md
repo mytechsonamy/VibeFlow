@@ -54,14 +54,37 @@ fi
 [ -f "$PRIMARY" ] || { echo "primary artifact not found: $PRIMARY"; exit 1; }
 ```
 
-**Primary excerpt when too large.** If `wc -c "$PRIMARY"` exceeds
-roughly 30 000 tokens (~120 KB), feed reviewers:
+**Primary excerpt when too large (Sprint 21-A — semantic).** If
+`wc -c "$PRIMARY"` exceeds `consensus.excerptTokenBudget` (default
+30 000 tokens ≈ 120 KB), excerpt the primary for the reviewer prompt.
+The strategy is `consensus.excerptStrategy` (default `semantic`;
+`headtail` forces the legacy positional behaviour).
 
-- The first 40% of the document (head)
-- The last 15% (tail)
-- Findings-anchored excerpts: for each evidence entry, pull the
-  top-priority finding's `target.file` + `target.line_range`
-  context (±20 lines around the anchor in the primary)
+`semantic` is **section-scored selection** — feed reviewers the
+sections that matter, not the sections that happen to be at the top:
+
+1. **Split** the primary into sections by markdown headings
+   (`^#{1,6} `) — and by form-feed / page breaks for `.docx`-derived
+   text. A doc with **no detectable section structure falls back** to
+   the head-40% / tail-15% positional excerpt below (never worse than
+   the legacy path).
+2. **Score** each section (see `references/excerption.md` for the
+   exact formula):
+   - **evidence-finding density** — count of evidence findings whose
+     `target.line_range` / quoted text lands in the section;
+   - **reviewer-memory hits** — section text matching prior `criticals`
+     from this artifact's Sprint 20-D memory store (reuse the signal
+     the loop already has — contested sections score higher);
+   - **evidence-summary keyword overlap** — Jaccard(section words,
+     distilled-evidence words).
+3. **Select** the first section (title/overview) **always**, then fill
+   the remaining budget with the highest-scored sections, emitted in
+   **document order** so reviewers read a coherent doc.
+4. Append the same **findings-anchored ±20-line windows** as before for
+   any top-priority finding whose section didn't make the cut.
+
+`headtail` (and the no-sections fallback): first 40% (head) + last 15%
+(tail) + findings-anchored ±20-line windows.
 
 Smaller primaries go in whole. The specialist path (if triggered
 downstream) always receives the full file; excerption only affects
@@ -212,10 +235,20 @@ build_memory_block() {
   [[ -f "$mem" ]] || return 0
   local budget; budget="$(vf_config_get '.reviewerMemory.tokenBudget' 2>/dev/null || echo 600)"
   [[ "$budget" =~ ^[0-9]+$ ]] || budget=600
+  # Sprint 21-B: render the theme-aware recurrence summary FIRST
+  # (highest seenCount → a long-standing unresolved objection leads the
+  # block), then the most-recent detail entries. A "recency"-mode store
+  # simply has no summary row, so this degrades to recent-detail only.
   local body
   body="$(jq -s -r --arg primary "$PRIMARY" '
-    map(select(.primaryArtifact == $primary)) | reverse
-    | .[] | "- [round \(.round) · \(.status)] \((.criticals // []) | join("; "))"' \
+    map(select(.primaryArtifact == $primary)) as $rows
+    | (($rows | map(select(.type == "summary")) | .[0]) // null) as $sum
+    | ($rows | map(select(.type != "summary")) | reverse) as $details
+    | (
+        (if $sum then (($sum.recurringCriticals // []) | sort_by(-.seenCount)
+           | map("- RECURRING (seen \(.seenCount)×): \(.title)")) else [] end)
+        + ($details | map("- [round \(.round) · \(.status)] \((.criticals // []) | join("; "))"))
+      ) | .[]' \
     "$mem" 2>/dev/null || true)"
   [[ -n "$body" ]] || return 0
   body="$(printf '%s' "$body" | head -c "$(( budget * 4 ))")"
@@ -228,6 +261,37 @@ Verify whether these were addressed. Do NOT re-raise resolved items;
 escalate (raise as critical) any that recur unaddressed.
 ---
 MEM
+}
+
+# Sprint 21-A: excerpt the primary for the reviewer prompt when it
+# exceeds consensus.excerptTokenBudget (chars ≈ tokens × 4). Strategy
+# is consensus.excerptStrategy ("semantic" default | "headtail"). The
+# specialist path always gets the full file — this only shapes what
+# reviewers read. See references/excerption.md for the scoring formula.
+excerpt_if_large() {
+  local f="$1"
+  local budget; budget="$(vf_config_get '.consensus.excerptTokenBudget' 2>/dev/null || echo 30000)"
+  [[ "$budget" =~ ^[0-9]+$ ]] || budget=30000
+  local maxchars=$(( budget * 4 ))
+  local bytes; bytes="$(wc -c < "$f" 2>/dev/null || echo 0)"
+  if (( bytes <= maxchars )); then cat "$f"; return 0; fi   # small → whole
+
+  local strategy; strategy="$(vf_config_get '.consensus.excerptStrategy' 2>/dev/null || echo semantic)"
+  # Section split on markdown headings + form-feed page breaks.
+  local sections; sections="$(grep -cE '^#{1,6} |\f' "$f" 2>/dev/null || echo 0)"
+  if [[ "$strategy" == "semantic" ]] && (( sections >= 2 )); then
+    # Score each section by evidence-finding density + reviewer-memory
+    # hits + evidence-keyword Jaccard; ALWAYS include section 1; fill
+    # the budget with the top-scored sections in document order; append
+    # findings-anchored ±20-line windows for any uncut top finding.
+    # (Implemented per references/excerption.md; emits the selected
+    # sections to stdout.)
+    vf_excerpt_semantic "$f" "$maxchars"
+  else
+    # headtail (and the no-sections fallback): head 40% + tail 15%
+    # + findings-anchored windows.
+    vf_excerpt_headtail "$f" "$maxchars"
+  fi
 }
 
 # Sprint 19-B: build the PRIMARY + EVIDENCE review prompt once and

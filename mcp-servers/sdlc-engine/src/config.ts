@@ -24,11 +24,22 @@ export const ConsensusConfigSchema = z
         enabled: z.boolean().default(true),
       })
       .default({ enabled: true }),
+    // Sprint 21-A: primary-artifact excerption. `excerptTokenBudget`
+    // is the size above which the orchestrator excerpts a primary for
+    // the reviewer prompt (the specialist path always gets the full
+    // file). `excerptStrategy` picks section-scored selection
+    // ("semantic") vs the legacy positional head/tail ("headtail");
+    // "semantic" falls back to head/tail when the doc has no detectable
+    // section structure, so it is never worse than the legacy path.
+    excerptTokenBudget: z.number().int().min(1000).max(200000).default(30000),
+    excerptStrategy: z.enum(["semantic", "headtail"]).default("semantic"),
   })
   .default({
     maxIterations: 5,
     approvalThreshold: 0.9,
     iteration: { enabled: true },
+    excerptTokenBudget: 30000,
+    excerptStrategy: "semantic",
   });
 
 export type ConsensusConfig = z.infer<typeof ConsensusConfigSchema>;
@@ -76,6 +87,10 @@ export type LearningLoopConfig = z.infer<typeof LearningLoopConfigSchema>;
  * block and the aggregator stops appending memory entries);
  * `maxEntriesPerArtifact` caps the per-(reviewer, artifact) store;
  * `tokenBudget` bounds the injected memory block (chars ≈ tokens × 4).
+ * `compaction` (Sprint 21-B) picks what happens when the cap is hit:
+ * "recency" silently drops the oldest entry; "theme-aware" folds the
+ * dropped entry's criticals into a rolling recurrence summary so a
+ * long-standing objection keeps its "this keeps coming back" signal.
  * Defaults match consensus-aggregator.sh + consensus-orchestrator.
  */
 export const ReviewerMemoryConfigSchema = z
@@ -83,8 +98,14 @@ export const ReviewerMemoryConfigSchema = z
     enabled: z.boolean().default(true),
     maxEntriesPerArtifact: z.number().int().min(1).max(50).default(5),
     tokenBudget: z.number().int().min(50).max(5000).default(600),
+    compaction: z.enum(["recency", "theme-aware"]).default("theme-aware"),
   })
-  .default({ enabled: true, maxEntriesPerArtifact: 5, tokenBudget: 600 });
+  .default({
+    enabled: true,
+    maxEntriesPerArtifact: 5,
+    tokenBudget: 600,
+    compaction: "theme-aware",
+  });
 
 export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
 

@@ -1204,8 +1204,11 @@ RMF="$RM_DIR/claude-reviewer.jsonl"
 [[ -f "$RMF" ]] && pass "[S20-D] reviewer-memory/claude-reviewer.jsonl exists" \
   || fail "[S20-D] reviewer-memory/claude-reviewer.jsonl exists"
 if [[ -f "$RMF" ]]; then
-  MEMC="$(jq -c 'select(.primaryArtifact=="docs/PRD.md")' "$RMF" | wc -l | tr -d ' ')"
-  assert_eq "[S20-D] memory capped to 5 per (reviewer, artifact)" "5" "$MEMC"
+  # Sprint 21-B: theme-aware compaction is the default, so detail entries
+  # are capped to 5 while dropped ones fold into a summary row — count
+  # only the detail entries to assert the cap still holds.
+  MEMC="$(jq -c 'select(.primaryArtifact=="docs/PRD.md" and (.type // "detail") != "summary")' "$RMF" | wc -l | tr -d ' ')"
+  assert_eq "[S20-D] memory detail entries capped to 5 per (reviewer, artifact)" "5" "$MEMC"
   HAS_NEW="$(jq -sr 'map(select(.status=="APPROVED")) | length' "$RMF")"
   assert_eq "[S20-D] newest entry retained after cap" "1" "$HAS_NEW"
 fi
@@ -1243,6 +1246,54 @@ EOF
 OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"; RC=$?
 assert_eq "[S20-F] legacy marker still blocks (exit 2)" "2" "$RC"
 assert_contains "[S20-F] legacy marker falls back to .artifact in message" "legacy-report.md" "$OUT"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
+echo "== reviewer memory theme-aware compaction [S21-B] =="
+
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus: {quorum: 1}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" \
+  && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"
+RM_DIR="$CONS_DIR/reviewer-memory"
+mkdir -p "$RM_DIR"
+echo "docs/PRD.md" > "$CONS_DIR/cmp1.primary.txt"
+echo "1" > "$CONS_DIR/cmp1.current-round.txt"
+# Pre-seed 5 detail entries at the cap, all carrying the same critical.
+for i in 1 2 3 4 5; do
+  echo "{\"recordedAt\":\"t$i\",\"phase\":\"DEVELOPMENT\",\"primaryArtifact\":\"docs/PRD.md\",\"round\":$i,\"status\":\"NEEDS_REVISION\",\"criticals\":[\"Recurring login bug\"]}"
+done > "$RM_DIR/claude-reviewer.jsonl"
+# Fire 1: structured criticalIssues → new detail with the recurring title;
+# the oldest detail drops past the cap and folds into the summary.
+INPUT='{"session_id":"cmp1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"{\"verdict\":\"NEEDS_REVISION\",\"criticalIssues\":[{\"title\":\"Recurring login bug\",\"target\":{}}]}"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+RMF="$RM_DIR/claude-reviewer.jsonl"
+SUMC="$(jq -c 'select(.type=="summary")' "$RMF" 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "[S21-B] a summary row is created on first cap overflow" "1" "$SUMC"
+SEEN1="$(jq -sr 'map(select(.type=="summary"))[0].recurringCriticals[0].seenCount // 0' "$RMF" 2>/dev/null)"
+assert_eq "[S21-B] dropped critical folds into summary (seenCount=1)" "1" "$SEEN1"
+DET1="$(jq -c 'select((.type // "detail") != "summary")' "$RMF" 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "[S21-B] detail entries still capped to 5" "5" "$DET1"
+# Fire 2: another matching drop → seenCount increments via Jaccard match.
+echo "1" > "$CONS_DIR/cmp1.current-round.txt"
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+SEEN2="$(jq -sr 'map(select(.type=="summary"))[0].recurringCriticals[0].seenCount // 0' "$RMF" 2>/dev/null)"
+assert_eq "[S21-B] recurrence increments seenCount (=2)" "2" "$SEEN2"
+TITLE="$(jq -sr 'map(select(.type=="summary"))[0].recurringCriticals[0].title // ""' "$RMF" 2>/dev/null)"
+assert_contains "[S21-B] summary keeps the recurring critical title" "Recurring login bug" "$TITLE"
+# recency mode opt-out: no summary row, pure drop.
+jq '.reviewerMemory = {compaction: "recency"}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" \
+  && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+echo "docs/ADR.md" > "$CONS_DIR/cmp2.primary.txt"
+echo "1" > "$CONS_DIR/cmp2.current-round.txt"
+for i in 1 2 3 4 5; do
+  echo "{\"recordedAt\":\"a$i\",\"phase\":\"DEVELOPMENT\",\"primaryArtifact\":\"docs/ADR.md\",\"round\":$i,\"status\":\"NEEDS_REVISION\",\"criticals\":[\"x\"]}"
+done > "$RM_DIR/gemini.jsonl"
+INPUT2='{"session_id":"cmp2","subagent_type":"gemini-reviewer","tool_response":{"content":[{"text":"{\"verdict\":\"NEEDS_REVISION\",\"criticalIssues\":[{\"title\":\"x\",\"target\":{}}]}"}]}}'
+printf '%s' "$INPUT2" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+RECSUM="$(jq -c 'select(.type=="summary")' "$RM_DIR/gemini.jsonl" 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "[S21-B] recency mode writes no summary row" "0" "$RECSUM"
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
 echo

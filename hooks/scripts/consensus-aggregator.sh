@@ -409,6 +409,10 @@ if [[ "$RM_ENABLED" != "false" ]]; then
   RM_DIR="$CONS_DIR/reviewer-memory"
   RM_CAP="$(vf_config_get '.reviewerMemory.maxEntriesPerArtifact' 2>/dev/null || echo 5)"
   [[ "$RM_CAP" =~ ^[0-9]+$ ]] || RM_CAP=5
+  # Sprint 21-B: compaction mode. "theme-aware" (default) folds entries
+  # dropped past the cap into a rolling recurrence summary so a
+  # long-standing critical keeps its seenCount; "recency" drops silently.
+  RM_COMPACTION="$(vf_config_get '.reviewerMemory.compaction' 2>/dev/null || echo "theme-aware")"
   mkdir -p "$RM_DIR"
   RM_REVIEWERS="$(jq -s -r --argjson round "$CURRENT_ROUND" \
     'map(select((.round // 1) == $round) | .reviewer) | unique | .[]' \
@@ -428,10 +432,52 @@ if [[ "$RM_ENABLED" != "false" ]]; then
     RM_FILE="$RM_DIR/$rv.jsonl"
     touch "$RM_FILE"
     RM_TMP="$RM_FILE.tmp.$$"
-    { cat "$RM_FILE"; printf '%s\n' "$RM_ENTRY"; } \
-      | jq -s -c --argjson n "$RM_CAP" \
-        'group_by(.primaryArtifact) | map(.[-$n:]) | add // [] | .[]' \
-      > "$RM_TMP" 2>/dev/null && mv "$RM_TMP" "$RM_FILE" || rm -f "$RM_TMP"
+    if [[ "$RM_COMPACTION" == "recency" ]]; then
+      # Legacy: keep the last N detail entries per artifact, drop the rest.
+      { cat "$RM_FILE"; printf '%s\n' "$RM_ENTRY"; } \
+        | jq -s -c --argjson n "$RM_CAP" \
+          'group_by(.primaryArtifact) | map(.[-$n:]) | add // [] | .[]' \
+        > "$RM_TMP" 2>/dev/null && mv "$RM_TMP" "$RM_FILE" || rm -f "$RM_TMP"
+    else
+      # theme-aware: keep the last N detail entries PLUS a per-artifact
+      # head {type:"summary", recurringCriticals:[{title,seenCount,
+      # firstSeen,lastSeen}]} that accumulates the criticals from every
+      # entry dropped past the cap. Titles are matched by Jaccard ≥ 0.6
+      # (same tokenisation as the verdict-dedup pass above).
+      { cat "$RM_FILE"; printf '%s\n' "$RM_ENTRY"; } \
+        | jq -s -c --argjson n "$RM_CAP" '
+            def norm(t): (t // "") | ascii_downcase | gsub("[^a-z0-9 ]"; " ")
+              | split(" ") | map(select(length > 2)) | unique;
+            def jac(a; b): (norm(a)) as $x | (norm(b)) as $y
+              | if ($x|length)==0 or ($y|length)==0 then 0
+                else (($x | map(select(. as $w | $y | index($w))) | length)) as $i
+                | (($x + $y) | unique | length) as $u
+                | (if $u > 0 then ($i / $u) else 0 end) end;
+            def fold($sum; $c; $ts):
+              $sum | (.recurringCriticals // []) as $rc
+              | if any($rc[]; jac(.title; $c) >= 0.6)
+                then .recurringCriticals = ($rc | map(
+                       if jac(.title; $c) >= 0.6
+                       then .seenCount += 1 | .lastSeen = $ts else . end))
+                else .recurringCriticals = ($rc + [{title:$c, seenCount:1,
+                       firstSeen:$ts, lastSeen:$ts}]) end;
+            group_by(.primaryArtifact) | map(
+              (map(select(.type=="summary")) | .[0]) as $sum0
+              | (map(select(.type != "summary"))) as $details
+              | ($details | .[($n * -1):]) as $kept
+              | (if ($details|length) > $n
+                 then ($details | .[0:($details|length - $n)]) else [] end) as $dropped
+              | (reduce ($dropped[]) as $d
+                   (($sum0 // {type:"summary",
+                      primaryArtifact: ($details[0].primaryArtifact // "unknown"),
+                      recurringCriticals: []});
+                    reduce (($d.criticals // [])[]) as $c
+                      (.; fold(.; $c; ($d.recordedAt // ""))))) as $sum
+              | (if (($sum.recurringCriticals // []) | length) > 0
+                 then [$sum] else [] end) + $kept
+            ) | add // [] | .[]' \
+        > "$RM_TMP" 2>/dev/null && mv "$RM_TMP" "$RM_FILE" || rm -f "$RM_TMP"
+    fi
   done <<< "$RM_REVIEWERS"
 fi
 

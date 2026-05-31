@@ -22,10 +22,32 @@ reviewer that voted to `.vibeflow/state/consensus/reviewer-memory/<reviewer>.jso
 
 Only the **top-3 critical titles** are kept — the signal worth
 remembering, not the full review. The store is **capped** to
-`reviewerMemory.maxEntriesPerArtifact` (default 5) entries per
-`(reviewer, primaryArtifact)`; the oldest entry for that artifact is
-dropped when the cap is exceeded. Entries for other artifacts are
-untouched.
+`reviewerMemory.maxEntriesPerArtifact` (default 5) detail entries per
+`(reviewer, primaryArtifact)`.
+
+### Compaction (Sprint 21)
+
+What happens to entries dropped past the cap is controlled by
+`reviewerMemory.compaction`:
+
+- **`theme-aware`** (default) — instead of discarding a dropped entry,
+  its criticals fold into a per-artifact **recurrence summary** row kept
+  at the head of the file:
+
+  ```json
+  { "type": "summary", "primaryArtifact": "docs/PRD.md",
+    "recurringCriticals": [
+      { "title": "Ambiguous login flow", "seenCount": 4,
+        "firstSeen": "…", "lastSeen": "…" } ] }
+  ```
+
+  Titles are matched by Jaccard similarity (≥ 0.6), so a critical that
+  keeps coming back accrues a `seenCount` instead of silently aging out
+  of the recency window. The orchestrator surfaces **recurring criticals
+  first** (highest `seenCount`) in the `PRIOR REVIEW MEMORY` block — a
+  long-standing unresolved objection leads, so reviewers escalate it.
+- **`recency`** — the pre-Sprint-21 behaviour: drop the oldest entry, no
+  summary.
 
 ## The injection
 
@@ -63,8 +85,9 @@ the first review.
 {
   "reviewerMemory": {
     "enabled": true,             // kill switch — false omits the block + stops appends
-    "maxEntriesPerArtifact": 5,  // per (reviewer, artifact) cap
-    "tokenBudget": 600           // bound on the injected block (chars ≈ tokens × 4)
+    "maxEntriesPerArtifact": 5,  // per (reviewer, artifact) detail-entry cap
+    "tokenBudget": 600,          // bound on the injected block (chars ≈ tokens × 4)
+    "compaction": "theme-aware"  // "theme-aware" (fold dropped into summary) | "recency"
   }
 }
 ```
