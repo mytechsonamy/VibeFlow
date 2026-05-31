@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.8.0] — 2026-05-31
+
+Sprint 20 — close the L3 learning loop. The fast loop (per-run
+consensus) was complete in v2.7.0; v2.8.0 builds the slow loop that
+looks across time. Three groups plus two polish items:
+
+- **Durable consensus history (S20-A).** `consensus-aggregator.sh`
+  appends one `verdict` row per finalised round to a cross-session
+  `.vibeflow/state/consensus/history.jsonl` (idempotent by
+  `{sessionId, round}`); `apply-arbiter-patch` appends an
+  `arbiter-decision` row; `consensus-orchestrator` writes a
+  `<sid>.primary.txt` sidecar so the aggregator can resolve the
+  reviewed artifact.
+- **Learning-loop consensus-history mode (S20-B/C).**
+  `learning-loop-engine` gains a fourth mode that mines the roll-up for
+  slow-converging phases, reviewer skew, recurring suggestion themes,
+  convergence stalls, primary-artifact churn, and the arbiter-decision
+  effectiveness trace (applied-theme → next-round agreement delta).
+  Writes `.vibeflow/reports/consensus-learning-report.md`.
+- **Cross-session reviewer memory (S20-D/E).** The finalize step
+  appends a bounded (top-3 criticals, capped per reviewer+artifact)
+  entry to `reviewer-memory/<reviewer>.jsonl`; the orchestrator
+  prepends a `PRIOR REVIEW MEMORY` block to each reviewer's next prompt.
+  Omitted on clean first runs.
+- **S20-F** — `consensus-gate.sh` names the primary artifact
+  (`.primaryArtifact // .artifact`) in its block message.
+- **S20-G** — `decision-recommender` consumes
+  `consensus-learning-report.md`; `consensus.*` recommendations
+  auto-detect as `gate-adjustment` decisions.
+- **Config (S20-H).** New `LearningLoopConfigSchema` +
+  `ReviewerMemoryConfigSchema` (both fully defaulted, partial-merge);
+  `reviewerMemory.enabled: false` is a full rollback switch.
+
+Docs: `docs/LEARNING-LOOP.md`, `docs/REVIEWER-MEMORY.md`, plus
+`CONSENSUS-FLOW.md` / `CONSENSUS-ITERATION.md` refreshes. Tests:
+sdlc-engine 160→168, hooks 117→133, new `sprint-20.sh` (85). Total
+baseline 2270 → 2379.
+
+- `.claude-plugin/plugin.json`: 2.7.0 → 2.8.0
+- `@vibeflow/sdlc-engine`: 1.5.0 → 1.6.0
+
+---
+
 ## [2.7.0] — 2026-04-23
 
 Sprint 19 — refocus consensus on primary artifacts + end-to-end

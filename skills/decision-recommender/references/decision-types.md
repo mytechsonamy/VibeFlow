@@ -78,7 +78,10 @@ gate is either too loose or causing friction.
 - **id**: `gate-adjustment`
 - **detectionSignature**: findings reference `gate`,
   `threshold`, or `suppression` in their descriptions;
-  OR `--type gate-adjustment`
+  OR a Sprint 20-B/C `consensus-history` finding
+  (`slow-converging-phase`, `convergence-stall`,
+  `ineffective-theme`) recommends a `consensus.*` /
+  `consensus.maxIterations` change; OR `--type gate-adjustment`
 - **requiredInputs**: the current gate's configuration
   (from the relevant `references/*.md`) AND at least one
   finding showing the gate's current behavior on real

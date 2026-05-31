@@ -10,7 +10,7 @@ prompt time is forbidden; unmatched findings land in
 Every pattern has seven fields:
 
 - **id** — stable identifier cited in reports
-- **mode** — which of the three modes it applies to
+- **mode** — which of the four modes it applies to
 - **signature** — the exact detection rule (what the skill
   looks for in the loaded inputs)
 - **minObservations** — evidence floor (≥ 3, always)
@@ -240,7 +240,96 @@ Every pattern has seven fields:
 
 ---
 
-## 4. Slope + noise-floor formulas
+## 4. `consensus-history` mode patterns
+
+Read from `.vibeflow/state/consensus/history.jsonl` (Sprint 20-A).
+`verdict` rows carry `{phase, primaryArtifact, round, status,
+agreement, counts, reviewers, suggestionThemes}`; `arbiter-decision`
+rows carry `{round, applied[], rejected[]}`. Window = last
+`learningLoop.sprintWindow` sprints (default 3).
+
+### LEARNING-SLOW-CONVERGING-PHASE
+- **mode**: consensus-history
+- **signature**: ≥ 3 sessions in the same `phase` whose maximum
+  `round` before reaching `status: APPROVED` was > 1
+- **minObservations**: 3 sessions
+- **severity**: `investigate`
+- **rationale**: a phase that repeatedly needs multiple review
+  rounds is admitting low-quality artifacts to consensus; the cost
+  is paid every sprint in extra rounds
+- **remediation**: tighten the phase's entry artifact upstream
+  (e.g. PRD acceptance criteria for REQUIREMENTS); the report names
+  the phase and its dominant `suggestionThemes`
+
+### LEARNING-REVIEWER-SKEW
+- **mode**: consensus-history
+- **signature**: one reviewer accounts for > 60% of `counts.critical`
+  summed across the window
+- **minObservations**: 3 sessions the reviewer participated in
+- **severity**: `recommend`
+- **rationale**: a reviewer holding most criticals is either the
+  only one doing deep review (a bus-factor risk) or mis-calibrated
+  (raising noise the others discount) — both are worth knowing
+- **remediation**: investigate whether the skew is signal or noise;
+  calibrate the reviewer prompt or rebalance the panel — never
+  silence the reviewer automatically
+
+### LEARNING-RECURRING-SUGGESTION-THEME
+- **mode**: consensus-history
+- **signature**: the same `suggestionThemes` value appears across
+  ≥ 3 distinct `primaryArtifact`s in the window
+- **minObservations**: 3 distinct artifacts
+- **severity**: `investigate`
+- **rationale**: a theme that recurs across unrelated artifacts is a
+  systemic upstream gap (a PRD template, an ADR convention, a
+  test-strategy default), not a per-artifact slip
+- **remediation**: route to the upstream artifact owner — fix the
+  template / convention once, not each artifact
+
+### LEARNING-CONVERGENCE-STALL
+- **mode**: consensus-history
+- **signature**: ≥ 3 stall events — `convergence-stalled.md` /
+  `max-iterations-reached.md` artifacts, or `verdict` rows where the
+  session hit `consensus.maxIterations` without APPROVED
+- **minObservations**: 3 stalls
+- **severity**: `urgent`
+- **rationale**: repeated stalls mean the iteration loop is grinding
+  without converging — wasted reviewer rounds and a blocked phase
+- **remediation**: raise `consensus.maxIterations`, escalate to the
+  phase specialist earlier, or accept HUMAN_APPROVAL_REQUIRED with
+  an audit note
+
+### LEARNING-PRIMARY-ARTIFACT-CHURN
+- **mode**: consensus-history
+- **signature**: one `primaryArtifact` consumes an outlier number of
+  total rounds across sessions (> 2× the per-artifact median over
+  the window)
+- **minObservations**: 3 sessions on the same artifact
+- **severity**: `investigate`
+- **rationale**: a single artifact eating disproportionate review
+  effort usually means it is under-specified or contested, not that
+  the reviewers are wrong
+- **remediation**: schedule a focused rewrite via the phase
+  specialist; the report names the artifact and its round history
+
+### LEARNING-INEFFECTIVE-THEME
+- **mode**: consensus-history (Sprint 20-C effectiveness trace)
+- **signature**: a theme `applied` in an `arbiter-decision` row at
+  round R is followed by an agreement delta
+  (`verdict[R+1].agreement − verdict[R].agreement`) of ≤ 0.02 across
+  ≥ 3 occurrences
+- **minObservations**: 3 applied-then-no-movement occurrences
+- **severity**: `investigate`
+- **rationale**: applying suggestions of this type reliably fails to
+  move agreement — the loop is grinding on cosmetic fixes while the
+  substantive objection stands. This is the wasted-effort signal
+- **remediation**: stop auto-applying the theme; route the
+  underlying objection to a human or the phase specialist for a
+  structural fix instead of another cosmetic patch
+
+---
+
+## 5. Slope + noise-floor formulas
 
 For every drift pattern, the skill computes slopes via
 linear regression on the data points:
@@ -271,7 +360,7 @@ over the default is how patterns stop surfacing.
 
 ---
 
-## 5. Pattern catalog rules
+## 6. Pattern catalog rules
 
 - **Never delete a pattern.** Old reports reference these
   ids; deletion orphans them. Deprecate with
@@ -292,13 +381,14 @@ over the default is how patterns stop surfacing.
 
 ---
 
-## 6. Current pattern catalog version
+## 7. Current pattern catalog version
 
-**`patternCatalogVersion: 1`**
+**`patternCatalogVersion: 2`**
 
 - test-history patterns: 5
 - production-feedback patterns: 4
 - drift-analysis patterns: 4
+- consensus-history patterns: 6 (Sprint 20-B / 20-C)
 - Minimum evidence: 3 observations per pattern
 - Noise floors: declared per signal
 

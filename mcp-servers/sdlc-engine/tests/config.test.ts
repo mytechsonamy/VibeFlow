@@ -7,6 +7,8 @@ import {
   EngineConfigSchema,
   ConsensusConfigSchema,
   PhaseRunnerConfigSchema,
+  LearningLoopConfigSchema,
+  ReviewerMemoryConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -258,5 +260,110 @@ describe("PhaseRunnerConfigSchema (Sprint 19-G)", () => {
     expect(
       PhaseRunnerConfigSchema.safeParse({ maxConvergenceAttempts: 3 }).success,
     ).toBe(true);
+  });
+});
+
+describe("LearningLoopConfigSchema (Sprint 20-H)", () => {
+  it("applies defaults when field is omitted", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.learningLoop.enabled).toBe(true);
+    expect(cfg.learningLoop.sprintWindow).toBe(3);
+    expect(cfg.learningLoop.minObservations).toBe(3);
+  });
+
+  it("accepts a partial learningLoop object and fills the rest", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      learningLoop: { sprintWindow: 6 },
+    });
+    expect(cfg.learningLoop.sprintWindow).toBe(6);
+    expect(cfg.learningLoop.minObservations).toBe(3);
+    expect(cfg.learningLoop.enabled).toBe(true);
+  });
+
+  it("rejects out-of-range sprintWindow and minObservations", () => {
+    expect(LearningLoopConfigSchema.safeParse({ sprintWindow: 0 }).success).toBe(
+      false,
+    );
+    expect(
+      LearningLoopConfigSchema.safeParse({ sprintWindow: 51 }).success,
+    ).toBe(false);
+    expect(
+      LearningLoopConfigSchema.safeParse({ minObservations: 0 }).success,
+    ).toBe(false);
+    expect(
+      LearningLoopConfigSchema.safeParse({ minObservations: 3 }).success,
+    ).toBe(true);
+  });
+});
+
+describe("ReviewerMemoryConfigSchema (Sprint 20-H)", () => {
+  it("applies defaults when field is omitted", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.reviewerMemory.enabled).toBe(true);
+    expect(cfg.reviewerMemory.maxEntriesPerArtifact).toBe(5);
+    expect(cfg.reviewerMemory.tokenBudget).toBe(600);
+  });
+
+  it("accepts a partial reviewerMemory object and fills the rest", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      reviewerMemory: { enabled: false },
+    });
+    expect(cfg.reviewerMemory.enabled).toBe(false);
+    expect(cfg.reviewerMemory.maxEntriesPerArtifact).toBe(5);
+    expect(cfg.reviewerMemory.tokenBudget).toBe(600);
+  });
+
+  it("rejects out-of-range maxEntriesPerArtifact and tokenBudget", () => {
+    expect(
+      ReviewerMemoryConfigSchema.safeParse({ maxEntriesPerArtifact: 0 }).success,
+    ).toBe(false);
+    expect(
+      ReviewerMemoryConfigSchema.safeParse({ tokenBudget: 49 }).success,
+    ).toBe(false);
+    expect(
+      ReviewerMemoryConfigSchema.safeParse({ tokenBudget: 600 }).success,
+    ).toBe(true);
+  });
+});
+
+describe("resolveConfig — learningLoop + reviewerMemory (Sprint 20-H)", () => {
+  let tmpDir: string;
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vf-cfg-s20-"));
+  });
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("merges partial learningLoop/reviewerMemory from vibeflow.config.json", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "vibeflow.config.json"),
+      JSON.stringify({
+        project: "merge-test",
+        learningLoop: { sprintWindow: 10 },
+        reviewerMemory: { tokenBudget: 1200 },
+      }),
+    );
+    const cfg = resolveConfig(tmpDir);
+    expect(cfg.learningLoop.sprintWindow).toBe(10);
+    expect(cfg.learningLoop.minObservations).toBe(3);
+    expect(cfg.reviewerMemory.tokenBudget).toBe(1200);
+    expect(cfg.reviewerMemory.maxEntriesPerArtifact).toBe(5);
+  });
+
+  it("falls back to defaults when the config fields are malformed", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "vibeflow.config.json"),
+      JSON.stringify({
+        project: "bad-test",
+        learningLoop: { sprintWindow: -1 },
+        reviewerMemory: { tokenBudget: "nope" },
+      }),
+    );
+    const cfg = resolveConfig(tmpDir);
+    expect(cfg.learningLoop.sprintWindow).toBe(3);
+    expect(cfg.reviewerMemory.tokenBudget).toBe(600);
   });
 });

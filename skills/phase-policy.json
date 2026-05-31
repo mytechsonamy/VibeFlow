@@ -100,8 +100,8 @@
       "description": "Aggregates all quality signals into GO/CONDITIONAL/BLOCKED."
     },
     "learning-loop-engine": {
-      "phases": ["DEPLOYMENT"],
-      "description": "Consumes historical reports to detect patterns. Read-only."
+      "phases": "ALL",
+      "description": "Consumes historical reports to detect patterns. Read-only. Four modes: test-history / production-feedback / drift-analysis run at DEPLOYMENT (release + retrospective pipelines); the Sprint 20-B/C consensus-history mode mines .vibeflow/state/consensus/history.jsonl for slow-converging phases, reviewer skew, recurring suggestion themes, convergence stalls, and the arbiter-decision effectiveness trace — runnable at any phase boundary. Writes .vibeflow/reports/consensus-learning-report.md in consensus-history mode."
     },
     "consensus-orchestrator": {
       "phases": "ALL",

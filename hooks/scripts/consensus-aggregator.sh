@@ -322,6 +322,119 @@ echo "$AGG" \
             }])
           }' > "$VERDICT_FILE"
 
+# Sprint 20-A: append one compact row per finalised round to the
+# cross-session consensus history roll-up. The slow loop
+# (learning-loop-engine `consensus-history` mode, Sprint 20-B/C) and
+# the reviewer-memory store (Sprint 20-D) both read this file. The
+# per-session jsonl/verdict files are siloed; this is the single
+# place every round across every session/phase accumulates.
+#
+# Idempotent: keyed by {sessionId, round}. Re-finalising the same
+# round (e.g. a re-run) REPLACES the prior row rather than appending
+# a duplicate, so the history stays one-row-per-round.
+#
+# primaryArtifact + phase are resolved from a sidecar the orchestrator
+# writes (`<sid>.primary.txt`) and the live project phase; both degrade
+# to "unknown" so a legacy single-file invocation still produces a row.
+HISTORY_FILE="$CONS_DIR/history.jsonl"
+PRIMARY_MARKER="$CONS_DIR/$SESSION_ID.primary.txt"
+HIST_PRIMARY="unknown"
+if [[ -f "$PRIMARY_MARKER" ]]; then
+  HIST_PRIMARY="$(head -n 1 "$PRIMARY_MARKER" 2>/dev/null | tr -d '\n' || echo "unknown")"
+  [[ -n "$HIST_PRIMARY" ]] || HIST_PRIMARY="unknown"
+fi
+HIST_PHASE="$(vf_current_phase 2>/dev/null || echo "unknown")"
+[[ -n "$HIST_PHASE" ]] || HIST_PHASE="unknown"
+
+# Per-reviewer breakdown + suggestion themes for THIS round, read from
+# the round log before it is archived below.
+HIST_REVIEWERS="$(jq -s -c --argjson round "$CURRENT_ROUND" \
+  'map(select((.round // 1) == $round) | {name: .reviewer, verdict: .verdict, critical: (.criticalIssues // 0)})' \
+  < "$REVIEW_LOG" 2>/dev/null || echo "[]")"
+[[ -n "$HIST_REVIEWERS" ]] || HIST_REVIEWERS="[]"
+HIST_THEMES="$(jq -s -c --argjson round "$CURRENT_ROUND" \
+  '[map(select((.round // 1) == $round) | (.suggestions // [])[] | (.type // empty)) | .[]] | unique' \
+  < "$REVIEW_LOG" 2>/dev/null || echo "[]")"
+[[ -n "$HIST_THEMES" ]] || HIST_THEMES="[]"
+
+# Build the row from the authoritative finalised verdict.json (captures
+# the timeout demotion + final status), grafting on resolved context.
+HIST_ROW="$(jq -c \
+  --arg sid "$SESSION_ID" \
+  --arg phase "$HIST_PHASE" \
+  --arg primary "$HIST_PRIMARY" \
+  --argjson reviewers "$HIST_REVIEWERS" \
+  --argjson themes "$HIST_THEMES" \
+  '{
+     type: "verdict",
+     sessionId: $sid,
+     phase: $phase,
+     primaryArtifact: $primary,
+     round: (.round // 1),
+     status: .status,
+     agreement: .agreement,
+     counts: {
+       approved: (.approved // 0),
+       needsRevision: (.needsRevision // 0),
+       rejected: (.rejected // 0),
+       critical: (.criticalTotal // 0)
+     },
+     reviewers: $reviewers,
+     suggestionThemes: $themes,
+     timeout: (.timeout // false),
+     recordedAt: (.finalizedAt // "")
+   }' "$VERDICT_FILE" 2>/dev/null || echo "")"
+
+if [[ -n "$HIST_ROW" ]]; then
+  touch "$HISTORY_FILE"
+  TMP_HIST="$HISTORY_FILE.tmp.$$"
+  # Drop any existing row for this {sessionId, round}, then append.
+  jq -c --arg sid "$SESSION_ID" --argjson round "$CURRENT_ROUND" \
+    'select((.sessionId != $sid) or ((.round // 1) != $round))' \
+    "$HISTORY_FILE" > "$TMP_HIST" 2>/dev/null || : > "$TMP_HIST"
+  printf '%s\n' "$HIST_ROW" >> "$TMP_HIST"
+  mv "$TMP_HIST" "$HISTORY_FILE"
+fi
+
+# Sprint 20-D: cross-session reviewer memory. For every reviewer that
+# voted this round, append a bounded entry to its own memory store so
+# the orchestrator (Sprint 20-E) can remind that reviewer next round /
+# next sprint what it already raised on the same artifact — closing the
+# "reviewers have amnesia" gap. Stored as JSONL for deterministic
+# capping; capped to `reviewerMemory.maxEntriesPerArtifact` (default 5)
+# entries per (reviewer, primaryArtifact). Disable via
+# `reviewerMemory.enabled=false`.
+RM_ENABLED="$(vf_config_get '.reviewerMemory.enabled' 2>/dev/null || echo "true")"
+if [[ "$RM_ENABLED" != "false" ]]; then
+  RM_DIR="$CONS_DIR/reviewer-memory"
+  RM_CAP="$(vf_config_get '.reviewerMemory.maxEntriesPerArtifact' 2>/dev/null || echo 5)"
+  [[ "$RM_CAP" =~ ^[0-9]+$ ]] || RM_CAP=5
+  mkdir -p "$RM_DIR"
+  RM_REVIEWERS="$(jq -s -r --argjson round "$CURRENT_ROUND" \
+    'map(select((.round // 1) == $round) | .reviewer) | unique | .[]' \
+    < "$REVIEW_LOG" 2>/dev/null || true)"
+  while IFS= read -r rv; do
+    [[ -n "$rv" ]] || continue
+    # Latest row for this reviewer this round → memory entry with the
+    # top-3 critical titles (the signal worth remembering).
+    RM_ENTRY="$(jq -s -c --arg rv "$rv" --argjson round "$CURRENT_ROUND" \
+      --arg phase "$HIST_PHASE" --arg primary "$HIST_PRIMARY" --arg ts "$TS" \
+      'map(select((.round // 1) == $round and .reviewer == $rv)) | last
+       | { recordedAt:$ts, phase:$phase, primaryArtifact:$primary,
+           round:$round, status:(.verdict // "UNKNOWN"),
+           criticals: ((.criticalItems // []) | map(.title // empty) | .[0:3]) }' \
+      < "$REVIEW_LOG" 2>/dev/null || echo "")"
+    [[ -n "$RM_ENTRY" && "$RM_ENTRY" != "null" ]] || continue
+    RM_FILE="$RM_DIR/$rv.jsonl"
+    touch "$RM_FILE"
+    RM_TMP="$RM_FILE.tmp.$$"
+    { cat "$RM_FILE"; printf '%s\n' "$RM_ENTRY"; } \
+      | jq -s -c --argjson n "$RM_CAP" \
+        'group_by(.primaryArtifact) | map(.[-$n:]) | add // [] | .[]' \
+      > "$RM_TMP" 2>/dev/null && mv "$RM_TMP" "$RM_FILE" || rm -f "$RM_TMP"
+  done <<< "$RM_REVIEWERS"
+fi
+
 # Archive current round's log so the next round starts on an empty jsonl.
 # Legacy name kept for single-round callers; new name includes round
 # number for multi-round sessions so the audit trail is navigable.

@@ -52,6 +52,42 @@ export const PhaseRunnerConfigSchema = z
 
 export type PhaseRunnerConfig = z.infer<typeof PhaseRunnerConfigSchema>;
 
+/**
+ * Sprint 20-H: learning-loop bounds. Governs the `consensus-history`
+ * mode (Sprint 20-B/C) of learning-loop-engine. `sprintWindow` is the
+ * default look-back when `--sprint N` is absent; `minObservations` is
+ * the evidence floor every detected pattern must clear (mirrors the
+ * skill's universal ≥ 3-observation rule); `enabled` is the kill
+ * switch. Defaults match the SKILL.md constants so bash + TS agree.
+ */
+export const LearningLoopConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    sprintWindow: z.number().int().min(1).max(50).default(3),
+    minObservations: z.number().int().min(1).max(20).default(3),
+  })
+  .default({ enabled: true, sprintWindow: 3, minObservations: 3 });
+
+export type LearningLoopConfig = z.infer<typeof LearningLoopConfigSchema>;
+
+/**
+ * Sprint 20-H: cross-session reviewer-memory bounds. `enabled` is the
+ * kill switch (false ⇒ orchestrator omits the PRIOR REVIEW MEMORY
+ * block and the aggregator stops appending memory entries);
+ * `maxEntriesPerArtifact` caps the per-(reviewer, artifact) store;
+ * `tokenBudget` bounds the injected memory block (chars ≈ tokens × 4).
+ * Defaults match consensus-aggregator.sh + consensus-orchestrator.
+ */
+export const ReviewerMemoryConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    maxEntriesPerArtifact: z.number().int().min(1).max(50).default(5),
+    tokenBudget: z.number().int().min(50).max(5000).default(600),
+  })
+  .default({ enabled: true, maxEntriesPerArtifact: 5, tokenBudget: 600 });
+
+export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
+
 export const EngineConfigSchema = z.object({
   project: z.string().min(1),
   stateStore: z
@@ -61,6 +97,8 @@ export const EngineConfigSchema = z.object({
     .default({}),
   consensus: ConsensusConfigSchema,
   phaseRunner: PhaseRunnerConfigSchema,
+  learningLoop: LearningLoopConfigSchema,
+  reviewerMemory: ReviewerMemoryConfigSchema,
 });
 
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
@@ -84,6 +122,8 @@ export function resolveConfig(cwd: string = process.cwd()): EngineConfig {
     stateStore: dir ? { dir } : {},
     consensus: fileConfig.consensus ?? {},
     phaseRunner: fileConfig.phaseRunner ?? {},
+    learningLoop: fileConfig.learningLoop ?? {},
+    reviewerMemory: fileConfig.reviewerMemory ?? {},
   });
 }
 
@@ -120,11 +160,29 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
         phaseRunner = parsed.data;
       }
     }
+    // Sprint 20-H: learning-loop + reviewer-memory config, same
+    // silent-fallback pattern — malformed fields keep schema defaults.
+    let learningLoop: LearningLoopConfig | undefined;
+    if (typeof raw.learningLoop === "object" && raw.learningLoop !== null) {
+      const parsed = LearningLoopConfigSchema.safeParse(raw.learningLoop);
+      if (parsed.success) {
+        learningLoop = parsed.data;
+      }
+    }
+    let reviewerMemory: ReviewerMemoryConfig | undefined;
+    if (typeof raw.reviewerMemory === "object" && raw.reviewerMemory !== null) {
+      const parsed = ReviewerMemoryConfigSchema.safeParse(raw.reviewerMemory);
+      if (parsed.success) {
+        reviewerMemory = parsed.data;
+      }
+    }
     return {
       ...(typeof project === "string" ? { project } : {}),
       ...(dir ? { stateStore: { dir } } : {}),
       ...(consensus ? { consensus } : {}),
       ...(phaseRunner ? { phaseRunner } : {}),
+      ...(learningLoop ? { learningLoop } : {}),
+      ...(reviewerMemory ? { reviewerMemory } : {}),
     };
   } catch {
     return {};

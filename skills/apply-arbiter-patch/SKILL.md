@@ -168,6 +168,37 @@ Append an `applied/<session>.json` under
 }
 ```
 
+**Sprint 20-A — arbiter-decision history row.** Append a second-class
+row to the cross-session roll-up `.vibeflow/state/consensus/history.jsonl`
+recording which suggestion themes this apply run accepted vs rejected,
+tagged with the round it acted on. The slow loop (learning-loop-engine
+`consensus-history` mode, Sprint 20-C) joins these `arbiter-decision`
+rows against the *next* round's `verdict` row to measure whether
+applying a theme actually moved agreement — the wasted-effort signal.
+
+```bash
+CONS_DIR="$(vf_state_dir)/consensus"
+HISTORY_FILE="$CONS_DIR/history.jsonl"
+MANIFEST="$(vf_state_dir)/patches/$SESSION/manifest.json"
+VERDICT_FILE="$CONS_DIR/$SESSION.verdict.json"
+ARB_ROUND="$(jq -r '.round // .finalRound // 1' "$VERDICT_FILE" 2>/dev/null || echo 1)"
+# Applied themes = patch targets from the manifest; rejected = manifest
+# reject[] when the arbiter populated it (else empty — applied signal is
+# what S20-C correlates on).
+APPLIED_THEMES="$(jq -c '[.apply[]?.target] | unique' "$MANIFEST" 2>/dev/null || echo "[]")"
+REJECTED_THEMES="$(jq -c '[.reject[]?.target] | unique' "$MANIFEST" 2>/dev/null || echo "[]")"
+ARB_ROW="$(jq -n -c \
+  --arg sid "$SESSION" \
+  --argjson round "$ARB_ROUND" \
+  --argjson applied "${APPLIED_THEMES:-[]}" \
+  --argjson rejected "${REJECTED_THEMES:-[]}" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{type:"arbiter-decision", sessionId:$sid, round:$round,
+    applied:$applied, rejected:$rejected, recordedAt:$ts}')"
+mkdir -p "$CONS_DIR"; touch "$HISTORY_FILE"
+printf '%s\n' "$ARB_ROW" >> "$HISTORY_FILE"
+```
+
 ### Step 8: Drain the consensus-needed marker (Sprint 16-B)
 
 After the applied/<session>.json record is written (and before

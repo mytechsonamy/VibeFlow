@@ -45,6 +45,7 @@ need help) or wrong (in which case the tool made it harder).
 | Input | Required | Notes |
 |-------|----------|-------|
 | Findings report | yes | Any `*-report.md` or `findings.json` from an L2 / L3 skill. A decision without findings is a gut call; the skill refuses. |
+| Consensus learning report | optional | `.vibeflow/reports/consensus-learning-report.md` from `learning-loop-engine --mode consensus-history` (Sprint 20-B/C). When present, its `investigate`/`urgent` findings (slow-converging phases, recurring reviewer themes, ineffective applied themes) become first-class findings the decision package must cite — framing "raise maxIterations vs tighten the PRD template vs escalate to a specialist" as an explicit options trade-off. |
 | Decision type | optional | `--type <t>` where `t` is one of the catalog entries (see `decision-types.md`). Auto-detected from the findings when absent. |
 | Team context | optional | `.vibeflow/team-context.md` — team size, sprint velocity, risk tolerance, known constraints. When present, recommendations are tuned to the team's actual capacity; when absent, the skill uses the domain default. |
 | Decision history | optional | Previous `decision-package.md` files under `.vibeflow/artifacts/decisions/`. Used to detect "we've decided this before" situations — re-asking is sometimes the right answer, but the skill flags it. |

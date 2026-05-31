@@ -90,7 +90,12 @@ if [[ -n "$CMD" ]]; then
 fi
 
 # Block: emit the operator-visible instruction the marker names.
-ARTIFACT="$(jq -r '.artifact // "unknown"' "$MARKER" 2>/dev/null || echo "unknown")"
+# Sprint 20-F: prefer the marker-schema-v2 `primaryArtifact` (the doc
+# under review — PRD/ADR/…) over the legacy `artifact` (which points
+# at the analyzer's evidence report). Falls back to `artifact` for
+# pre-v2.7.0 markers so the message never goes blank.
+PRIMARY="$(jq -r '.primaryArtifact // .artifact // "unknown"' "$MARKER" 2>/dev/null || echo "unknown")"
+EVIDENCE="$(jq -r 'if (.evidence // []) | length > 0 then (.evidence | join(", ")) else "—" end' "$MARKER" 2>/dev/null || echo "—")"
 REQUIRED_CMD="$(jq -r '.requiredCommand // "/vibeflow:consensus-orchestrator"' "$MARKER" 2>/dev/null || echo "/vibeflow:consensus-orchestrator")"
 CREATED_AT="$(jq -r '.createdAt // "?"' "$MARKER" 2>/dev/null || echo "?")"
 
@@ -99,8 +104,9 @@ VibeFlow consensus-gate: a pending cross-AI consensus review is
 blocking this tool call. An analysis skill wrote a report that
 must pass through consensus-orchestrator before any further work.
 
-Artifact:     $ARTIFACT
-Created at:   $CREATED_AT
+Primary artifact: $PRIMARY
+Evidence:         $EVIDENCE
+Created at:       $CREATED_AT
 
 RUN THIS NEXT:
   $REQUIRED_CMD

@@ -1143,6 +1143,108 @@ else
   fail "[S19-PLAN] hooks.json PostToolUse registers save-plan-doc on ExitPlanMode"
 fi
 
+# ---------------------------------------------------------------------------
+echo "== consensus history.jsonl [S20-A] =="
+
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus: {quorum: 1}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" \
+  && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"
+mkdir -p "$CONS_DIR"
+echo "docs/PRD.md" > "$CONS_DIR/h1.primary.txt"
+echo "1" > "$CONS_DIR/h1.current-round.txt"
+INPUT='{"session_id":"h1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+HIST="$CONS_DIR/history.jsonl"
+[[ -f "$HIST" ]] && pass "[S20-A] history.jsonl written on finalize" \
+  || fail "[S20-A] history.jsonl written on finalize"
+if [[ -f "$HIST" ]]; then
+  ROWS="$(wc -l < "$HIST" | tr -d ' ')"
+  assert_eq "[S20-A] one history row after round 1" "1" "$ROWS"
+  TYPE="$(jq -r 'select(.sessionId=="h1") | .type' "$HIST" | head -n1)"
+  assert_eq "[S20-A] row type is verdict" "verdict" "$TYPE"
+  PRIM="$(jq -r 'select(.sessionId=="h1") | .primaryArtifact' "$HIST" | head -n1)"
+  assert_eq "[S20-A] row carries resolved primaryArtifact" "docs/PRD.md" "$PRIM"
+  HR="$(jq -r 'select(.sessionId=="h1") | .round' "$HIST" | head -n1)"
+  assert_eq "[S20-A] row carries round" "1" "$HR"
+  HS="$(jq -r 'select(.sessionId=="h1") | .status' "$HIST" | head -n1)"
+  assert_eq "[S20-A] row carries status APPROVED" "APPROVED" "$HS"
+  KEYS_OK="$(jq -r 'select(.sessionId=="h1") | (has("counts") and has("reviewers") and has("suggestionThemes") and (.counts|has("critical")))' "$HIST" | head -n1)"
+  assert_eq "[S20-A] row has counts/reviewers/suggestionThemes" "true" "$KEYS_OK"
+fi
+# Idempotency: re-finalize the SAME {session, round} → still one row.
+echo "1" > "$CONS_DIR/h1.current-round.txt"
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+if [[ -f "$HIST" ]]; then
+  ROWS2="$(jq -c 'select(.sessionId=="h1" and (.round//1)==1)' "$HIST" | wc -l | tr -d ' ')"
+  assert_eq "[S20-A] re-finalizing same round keeps one row (idempotent)" "1" "$ROWS2"
+fi
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
+echo "== reviewer memory store [S20-D] =="
+
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus: {quorum: 1}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" \
+  && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"
+RM_DIR="$CONS_DIR/reviewer-memory"
+mkdir -p "$RM_DIR"
+echo "docs/PRD.md" > "$CONS_DIR/m1.primary.txt"
+echo "1" > "$CONS_DIR/m1.current-round.txt"
+# Pre-seed 5 entries (at the default cap) for the same (reviewer, artifact).
+for i in 1 2 3 4 5; do
+  echo "{\"recordedAt\":\"t$i\",\"phase\":\"DEVELOPMENT\",\"primaryArtifact\":\"docs/PRD.md\",\"round\":$i,\"status\":\"NEEDS_REVISION\",\"criticals\":[\"x\"]}"
+done > "$RM_DIR/claude-reviewer.jsonl"
+INPUT='{"session_id":"m1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+RMF="$RM_DIR/claude-reviewer.jsonl"
+[[ -f "$RMF" ]] && pass "[S20-D] reviewer-memory/claude-reviewer.jsonl exists" \
+  || fail "[S20-D] reviewer-memory/claude-reviewer.jsonl exists"
+if [[ -f "$RMF" ]]; then
+  MEMC="$(jq -c 'select(.primaryArtifact=="docs/PRD.md")' "$RMF" | wc -l | tr -d ' ')"
+  assert_eq "[S20-D] memory capped to 5 per (reviewer, artifact)" "5" "$MEMC"
+  HAS_NEW="$(jq -sr 'map(select(.status=="APPROVED")) | length' "$RMF")"
+  assert_eq "[S20-D] newest entry retained after cap" "1" "$HAS_NEW"
+fi
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
+echo "== consensus-gate primaryArtifact [S20-F] =="
+
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+mkdir -p "$DIR/.vibeflow/state"
+# v2 marker — block message must name the PRIMARY artifact, not the report.
+cat > "$DIR/.vibeflow/state/consensus-needed.json" <<EOF
+{
+  "primaryArtifact": "docs/FlowBridge_PRD.md",
+  "evidence": [".vibeflow/reports/prd-quality-report.md"],
+  "artifact": ".vibeflow/reports/prd-quality-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator docs/FlowBridge_PRD.md",
+  "createdAt": "2026-05-31T00:00:00Z"
+}
+EOF
+INPUT='{"tool_name":"Bash","tool_input":{"command":"npm test"}}'
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"; RC=$?
+assert_eq "[S20-F] v2 marker still blocks (exit 2)" "2" "$RC"
+assert_contains "[S20-F] block message names the PRIMARY artifact" "docs/FlowBridge_PRD.md" "$OUT"
+assert_contains "[S20-F] block message lists evidence" "prd-quality-report.md" "$OUT"
+# Legacy marker (only .artifact) falls back — no blank line, no regression.
+cat > "$DIR/.vibeflow/state/consensus-needed.json" <<EOF
+{
+  "artifact": ".vibeflow/reports/legacy-report.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator",
+  "createdAt": "2026-05-31T00:00:00Z"
+}
+EOF
+OUT="$(printf '%s' "$INPUT" | bash "$GATE" 2>&1)"; RC=$?
+assert_eq "[S20-F] legacy marker still blocks (exit 2)" "2" "$RC"
+assert_contains "[S20-F] legacy marker falls back to .artifact in message" "legacy-report.md" "$OUT"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

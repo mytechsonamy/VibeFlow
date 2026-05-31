@@ -56,6 +56,50 @@ export declare const PhaseRunnerConfigSchema: z.ZodDefault<z.ZodObject<{
     maxConvergenceAttempts?: number | undefined;
 }>>;
 export type PhaseRunnerConfig = z.infer<typeof PhaseRunnerConfigSchema>;
+/**
+ * Sprint 20-H: learning-loop bounds. Governs the `consensus-history`
+ * mode (Sprint 20-B/C) of learning-loop-engine. `sprintWindow` is the
+ * default look-back when `--sprint N` is absent; `minObservations` is
+ * the evidence floor every detected pattern must clear (mirrors the
+ * skill's universal ≥ 3-observation rule); `enabled` is the kill
+ * switch. Defaults match the SKILL.md constants so bash + TS agree.
+ */
+export declare const LearningLoopConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    sprintWindow: z.ZodDefault<z.ZodNumber>;
+    minObservations: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    sprintWindow: number;
+    minObservations: number;
+}, {
+    enabled?: boolean | undefined;
+    sprintWindow?: number | undefined;
+    minObservations?: number | undefined;
+}>>;
+export type LearningLoopConfig = z.infer<typeof LearningLoopConfigSchema>;
+/**
+ * Sprint 20-H: cross-session reviewer-memory bounds. `enabled` is the
+ * kill switch (false ⇒ orchestrator omits the PRIOR REVIEW MEMORY
+ * block and the aggregator stops appending memory entries);
+ * `maxEntriesPerArtifact` caps the per-(reviewer, artifact) store;
+ * `tokenBudget` bounds the injected memory block (chars ≈ tokens × 4).
+ * Defaults match consensus-aggregator.sh + consensus-orchestrator.
+ */
+export declare const ReviewerMemoryConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    maxEntriesPerArtifact: z.ZodDefault<z.ZodNumber>;
+    tokenBudget: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    maxEntriesPerArtifact: number;
+    tokenBudget: number;
+}, {
+    enabled?: boolean | undefined;
+    maxEntriesPerArtifact?: number | undefined;
+    tokenBudget?: number | undefined;
+}>>;
+export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -101,6 +145,32 @@ export declare const EngineConfigSchema: z.ZodObject<{
         autoAdvance?: boolean | undefined;
         maxConvergenceAttempts?: number | undefined;
     }>>;
+    learningLoop: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        sprintWindow: z.ZodDefault<z.ZodNumber>;
+        minObservations: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        sprintWindow: number;
+        minObservations: number;
+    }, {
+        enabled?: boolean | undefined;
+        sprintWindow?: number | undefined;
+        minObservations?: number | undefined;
+    }>>;
+    reviewerMemory: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        maxEntriesPerArtifact: z.ZodDefault<z.ZodNumber>;
+        tokenBudget: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        maxEntriesPerArtifact: number;
+        tokenBudget: number;
+    }, {
+        enabled?: boolean | undefined;
+        maxEntriesPerArtifact?: number | undefined;
+        tokenBudget?: number | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
@@ -118,6 +188,16 @@ export declare const EngineConfigSchema: z.ZodObject<{
         autoAdvance: boolean;
         maxConvergenceAttempts: number;
     };
+    learningLoop: {
+        enabled: boolean;
+        sprintWindow: number;
+        minObservations: number;
+    };
+    reviewerMemory: {
+        enabled: boolean;
+        maxEntriesPerArtifact: number;
+        tokenBudget: number;
+    };
 }, {
     project: string;
     stateStore?: {
@@ -134,6 +214,16 @@ export declare const EngineConfigSchema: z.ZodObject<{
     phaseRunner?: {
         autoAdvance?: boolean | undefined;
         maxConvergenceAttempts?: number | undefined;
+    } | undefined;
+    learningLoop?: {
+        enabled?: boolean | undefined;
+        sprintWindow?: number | undefined;
+        minObservations?: number | undefined;
+    } | undefined;
+    reviewerMemory?: {
+        enabled?: boolean | undefined;
+        maxEntriesPerArtifact?: number | undefined;
+        tokenBudget?: number | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

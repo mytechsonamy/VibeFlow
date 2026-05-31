@@ -1,6 +1,6 @@
 ---
 name: learning-loop-engine
-description: Consumes the full history of reports from every L2 skill, detects recurring patterns, traces production bugs back to missed test opportunities, detects quality drift across sprint baselines, and recommends the next maturity-stage improvements. Operates in three modes — test-history / production-feedback / drift-analysis — each with its own pattern-detection flow. Gate contract — every recommendation must be actionable, every pattern must carry ≥ 3 supporting observations, every production bug must trace to a specific test gap or be marked irreducible with justification. PIPELINE-6 step 1 / PIPELINE-7 step 1.
+description: Consumes the full history of reports from every L2 skill, detects recurring patterns, traces production bugs back to missed test opportunities, detects quality drift across sprint baselines, mines the cross-session consensus telemetry for slow-converging phases and recurring reviewer themes, and recommends the next maturity-stage improvements. Operates in four modes — test-history / production-feedback / drift-analysis / consensus-history — each with its own pattern-detection flow. Gate contract — every recommendation must be actionable, every pattern must carry ≥ 3 supporting observations, every production bug must trace to a specific test gap or be marked irreducible with justification. PIPELINE-6 step 1 / PIPELINE-7 step 1.
 allowed-tools: Read Write Grep Glob
 context: fork
 agent: Explore
@@ -37,7 +37,7 @@ gates — that's the bet L3 is making.
 
 ## Input Contract
 
-The skill runs in one of three distinct modes. Each mode has
+The skill runs in one of four distinct modes. Each mode has
 its own input contract.
 
 ### Mode 1: `test-history`
@@ -71,6 +71,44 @@ Compares multiple baselines across sprints to detect degrading trends.
 | Coverage series | optional | Matching coverage snapshots across the same sprints |
 | Mutation series | optional | Matching mutation scores across the same sprints |
 
+### Mode 4: `consensus-history` (Sprint 20-B / 20-C)
+Mines the durable cross-session consensus telemetry — the slow loop
+applied to the *review* process itself, not the test suite. Where the
+fast loop (consensus-orchestrator) asks "is this artifact ready now?",
+this mode asks "what does our review history say about how we get
+there — which phases keep needing extra rounds, which reviewer keeps
+raising the same theme, which applied fixes never actually moved the
+needle?"
+
+| Input | Required | Notes |
+|-------|----------|-------|
+| `.vibeflow/state/consensus/history.jsonl` | yes | Sprint 20-A append-only roll-up. Both `verdict` rows (per finalised round) and `arbiter-decision` rows. |
+| Sprint window | optional | `--sprint N` limits the window; default: last 3 sprints (`learningLoop.sprintWindow`). |
+| `convergence-stalled.md` / `max-iterations-reached.md` | optional | From the apply auto-chain (Sprint 19-E); each is one stall observation. |
+| `.vibeflow/state/patches/<session>/manifest.json` | optional | Cross-checks the `arbiter-decision` rows for the effectiveness trace (S20-C). |
+
+**Pattern detectors** (each gated by the universal ≥ 3-observation
+floor; `consensus-history` reads `learningLoop.minObservations`,
+default 3):
+
+- **slow-converging-phase** — a phase whose `verdict` rows repeatedly
+  reach `round > 1` before APPROVED. Three+ sessions in the same
+  phase needing multiple rounds ⇒ a systemic phase-entry-quality gap.
+- **reviewer-skew** — one reviewer contributing a disproportionate
+  share of the `counts.critical` across sessions (≥ 3 sessions).
+- **recurring-suggestion-theme** — the same `suggestionThemes` value
+  reappearing across ≥ 3 distinct `primaryArtifact`s / sprints ⇒ a
+  systemic PRD/ADR/test-strategy gap, not a one-off.
+- **convergence-stall** — ≥ 3 `convergence-stalled.md` /
+  `max-iterations-reached.md` events, or ≥ 3 sessions hitting
+  `maxIterations`.
+- **primary-artifact-churn** — one `primaryArtifact` consuming an
+  outlier number of rounds across sessions.
+
+Output: `.vibeflow/reports/consensus-learning-report.md` with the
+explainability contract (`{finding, why, impact, confidence}`) plus
+actionable recommendations.
+
 **Hard preconditions** — refuse rather than emit recommendations
 the team should ignore:
 
@@ -95,7 +133,7 @@ The `--mode` flag selects the mode. Default is
 inputs are missing blocks at the precondition stage, not
 silently.
 
-Multi-mode runs are NOT supported — the three modes have
+Multi-mode runs are NOT supported — the four modes have
 different output shapes, and a unified report would average
 their signals in a way that loses detail. Run the skill once
 per mode.
@@ -111,6 +149,10 @@ patterns per mode:
   irreducible
 - **drift-analysis patterns** — coverage-decay, mutation-decay,
   flake-growth, priority-inflation, gate-suppression-creep
+- **consensus-history patterns** — slow-converging-phase,
+  reviewer-skew, recurring-suggestion-theme, convergence-stall,
+  primary-artifact-churn, ineffective-theme (the S20-C
+  applied-but-no-movement signal)
 
 Every pattern entry in the catalog carries:
 - `id` — stable identifier cited in reports
@@ -226,8 +268,54 @@ For each signal series (coverage, mutation, flake count):
      is expected; the skill ignores drift below 1% per
      sprint)
 
-See `references/pattern-detection.md` §3 for the exact
-slope + noise-floor formulas.
+See the "Slope + noise-floor formulas" section of
+`references/pattern-detection.md` for the exact formulas.
+
+#### consensus-history output (Sprint 20-B / 20-C)
+
+Read `.vibeflow/state/consensus/history.jsonl` over the window and
+group the `verdict` rows by `phase`, by `reviewer`, by
+`suggestionThemes`, and by `primaryArtifact`. Each detector emits a
+`LearningFinding` only when it clears `learningLoop.minObservations`:
+
+1. **slow-converging-phase** — for each phase, count sessions whose
+   max `round` to reach APPROVED exceeded 1. Recommendation names the
+   phase's entry artifact ("PRD ambiguity is forcing 2+ review rounds
+   in REQUIREMENTS — tighten acceptance criteria before consensus").
+2. **reviewer-skew** — share of total `counts.critical` per reviewer.
+   A reviewer holding > 60% of criticals across ≥ 3 sessions is
+   surfaced for calibration (not silenced — the recommendation is to
+   investigate whether the skew is signal or noise).
+3. **recurring-suggestion-theme** — themes appearing across ≥ 3
+   distinct artifacts. The recommendation routes to the upstream
+   artifact owner (e.g. a recurring `missing-acceptance-criteria`
+   theme → fix the PRD template, not each PRD).
+4. **convergence-stall** — count stall events; recommend raising
+   `consensus.maxIterations`, escalating to a phase specialist, or
+   accepting HUMAN_APPROVAL_REQUIRED earlier.
+
+**S20-C — arbiter-decision effectiveness trace.** Join each
+`arbiter-decision` row (`{round, applied[], rejected[]}`) against the
+*next* round's `verdict` row for the same `sessionId`
+(`round + 1`). Compute the agreement delta:
+
+```
+delta = verdict[round+1].agreement − verdict[round].agreement
+```
+
+- A theme that was `applied` at round R and is followed by
+  `delta ≤ 0.02` across ≥ 3 occurrences is flagged
+  **ineffective-theme** — "applying suggestions of type X reliably
+  fails to move agreement; the real blocker is elsewhere". This is
+  the wasted-effort signal: it stops the loop from grinding on
+  cosmetic fixes while the substantive objection stands.
+- Themes with a consistently positive delta are surfaced as
+  **reliably-converging** in the report's appendix (informational —
+  "these fixes earn their round").
+
+The trace degrades cleanly: a session with no matching `round + 1`
+verdict row (single-round APPROVED) contributes no delta and is
+simply skipped.
 
 ### Step 6 — Compute the maturity stage
 Read `references/maturity-stages.md` and evaluate the
@@ -275,7 +363,12 @@ signal; don't weigh it into the gate".
 ### Step 8 — Write outputs
 
 1. **`.vibeflow/reports/learning-report.md`** — human-
-   readable summary with recommendations grouped by severity
+   readable summary with recommendations grouped by severity.
+   In `consensus-history` mode the report is written to
+   **`.vibeflow/reports/consensus-learning-report.md`** instead
+   (separate filename so the review-process findings don't
+   clobber the test-quality findings, and so `decision-recommender`
+   can consume it by name — Sprint 20-G).
 2. **`.vibeflow/artifacts/learning/<runId>/findings.json`**
    — every finding including below-threshold ones, for the
    cross-run dedup in Step 4
@@ -291,7 +384,7 @@ signal; don't weigh it into the gate".
 
 ## Header
 - Run id: <runId>
-- Mode: test-history | production-feedback | drift-analysis
+- Mode: test-history | production-feedback | drift-analysis | consensus-history
 - Window: last 3 sprints (since <date>)
 - Inputs loaded: N reports, M baselines
 - Report status: actionable | degraded (reason)

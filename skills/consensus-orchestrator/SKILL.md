@@ -142,6 +142,13 @@ CONS_DIR="$STATE_DIR/consensus"
 mkdir -p "$CONS_DIR"
 LOG="$CONS_DIR/$SESSION_ID.jsonl"
 
+# Sprint 20-A: persist the resolved primary-artifact path (from Step 2b)
+# as a sidecar the aggregator reads when it appends the cross-session
+# `history.jsonl` row. The aggregator runs as a SubagentStop hook and
+# has no other channel to learn what the panel actually reviewed.
+# Cleaned up alongside the round marker at the end of Step 5.
+printf '%s\n' "$PRIMARY" > "$CONS_DIR/$SESSION_ID.primary.txt"
+
 append_cli_verdict() {
   local reviewer="$1" raw="$2" note="${3:-}"
   local verdict critical structured
@@ -188,11 +195,48 @@ append_cli_verdict() {
     >> "$LOG"
 }
 
+# Sprint 20-E: render a bounded PRIOR REVIEW MEMORY block for ONE
+# reviewer, scoped to the current $PRIMARY. Reads the Sprint 20-D
+# store (`reviewer-memory/<reviewer>.jsonl`). Emits NOTHING on a clean
+# first run (no store, or no entries for this artifact) so round-1
+# prompts are byte-identical to pre-Sprint-20. Honours
+# `reviewerMemory.tokenBudget` (chars ≈ tokens × 4) and
+# `reviewerMemory.enabled=false` (kill switch). Closes the
+# "reviewers have amnesia" gap: a reviewer is reminded what it raised
+# last round / last sprint so it stops re-litigating resolved points
+# and escalates genuine recurrences.
+build_memory_block() {
+  local rv="$1"
+  [[ "$(vf_config_get '.reviewerMemory.enabled' 2>/dev/null || echo true)" == "false" ]] && return 0
+  local mem="$CONS_DIR/reviewer-memory/$rv.jsonl"
+  [[ -f "$mem" ]] || return 0
+  local budget; budget="$(vf_config_get '.reviewerMemory.tokenBudget' 2>/dev/null || echo 600)"
+  [[ "$budget" =~ ^[0-9]+$ ]] || budget=600
+  local body
+  body="$(jq -s -r --arg primary "$PRIMARY" '
+    map(select(.primaryArtifact == $primary)) | reverse
+    | .[] | "- [round \(.round) · \(.status)] \((.criticals // []) | join("; "))"' \
+    "$mem" 2>/dev/null || true)"
+  [[ -n "$body" ]] || return 0
+  body="$(printf '%s' "$body" | head -c "$(( budget * 4 ))")"
+  cat <<MEM
+PRIOR REVIEW MEMORY ($rv on $PRIMARY):
+You have reviewed this artifact before. Previously you raised:
+$body
+
+Verify whether these were addressed. Do NOT re-raise resolved items;
+escalate (raise as critical) any that recur unaddressed.
+---
+MEM
+}
+
 # Sprint 19-B: build the PRIMARY + EVIDENCE review prompt once and
 # feed it to both CLIs. See Step 2b for $PRIMARY / $EVIDENCE_FILES
 # resolution. The prompt structure names PRIMARY ARTIFACT UNDER
 # REVIEW explicitly so reviewers know the evidence reports are
-# context, not targets.
+# context, not targets. Sprint 20-E prepends each reviewer's own
+# PRIOR REVIEW MEMORY block (per-reviewer, so it can't be baked into
+# this shared builder — it is concatenated at each CLI call below).
 build_review_prompt() {
   cat <<PROMPT
 Review the PRIMARY ARTIFACT below for quality/security/maintainability.
@@ -214,7 +258,7 @@ PROMPT
 
 # codex — 90s per-CLI timeout so aggregator never sits on its 600s global wait.
 if command -v codex >/dev/null 2>&1; then
-  CODEX_OUT="$(build_review_prompt | timeout 90 codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
+  CODEX_OUT="$( { build_memory_block codex; build_review_prompt; } | timeout 90 codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
@@ -228,7 +272,7 @@ fi
 # gemini — same shape. Shares build_review_prompt so both CLIs see
 # the same PRIMARY + EVIDENCE framing.
 if command -v gemini >/dev/null 2>&1; then
-  GEMINI_OUT="$(build_review_prompt | timeout 90 gemini --model "$geminiModel" 2>&1)"
+  GEMINI_OUT="$( { build_memory_block gemini; build_review_prompt; } | timeout 90 gemini --model "$geminiModel" 2>&1)"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
@@ -243,6 +287,12 @@ fi
 After the CLIs are logged, spawn the claude-reviewer subagent (Step 2)
 **last** — its SubagentStop fires `consensus-aggregator.sh`, which
 sees all three jsonl entries and finalises the session as one.
+
+**Sprint 20-E (claude-reviewer memory):** prepend the same PRIOR REVIEW
+MEMORY block to the claude-reviewer subagent prompt, resolved with
+`build_memory_block claude-reviewer` (the reviewer name in the Sprint
+20-D store matches the subagent name). On a clean first run the helper
+emits nothing, so the subagent prompt is unchanged.
 
 ### Step 3c: Post-consensus state registration + cleanup (Sprint 15-A, 16-B, 17.2)
 
@@ -534,8 +584,11 @@ jq --arg r "$iterationStopReason" '.iterationStopReason = $r' \
   mv /tmp/v "$CONS_DIR/$SESSION_ID.verdict.json"
 
 # Clean up the round marker — future single-round invocations on
-# the same session should start from round 1 again.
-rm -f "$CONS_DIR/$SESSION_ID.current-round.txt"
+# the same session should start from round 1 again. The Sprint 20-A
+# primary sidecar is dropped here too (the history rows are already
+# persisted; the sidecar is only needed during the live round loop).
+rm -f "$CONS_DIR/$SESSION_ID.current-round.txt" \
+      "$CONS_DIR/$SESSION_ID.primary.txt"
 ```
 
 ### Step 5b: Single-round fallback

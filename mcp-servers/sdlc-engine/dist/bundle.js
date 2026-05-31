@@ -17789,13 +17789,25 @@ var PhaseRunnerConfigSchema = external_exports.object({
   autoAdvance: true,
   maxConvergenceAttempts: 3
 });
+var LearningLoopConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(true),
+  sprintWindow: external_exports.number().int().min(1).max(50).default(3),
+  minObservations: external_exports.number().int().min(1).max(20).default(3)
+}).default({ enabled: true, sprintWindow: 3, minObservations: 3 });
+var ReviewerMemoryConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(true),
+  maxEntriesPerArtifact: external_exports.number().int().min(1).max(50).default(5),
+  tokenBudget: external_exports.number().int().min(50).max(5e3).default(600)
+}).default({ enabled: true, maxEntriesPerArtifact: 5, tokenBudget: 600 });
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
     dir: external_exports.string().optional()
   }).default({}),
   consensus: ConsensusConfigSchema,
-  phaseRunner: PhaseRunnerConfigSchema
+  phaseRunner: PhaseRunnerConfigSchema,
+  learningLoop: LearningLoopConfigSchema,
+  reviewerMemory: ReviewerMemoryConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17805,7 +17817,9 @@ function resolveConfig(cwd = process.cwd()) {
     project,
     stateStore: dir ? { dir } : {},
     consensus: fileConfig.consensus ?? {},
-    phaseRunner: fileConfig.phaseRunner ?? {}
+    phaseRunner: fileConfig.phaseRunner ?? {},
+    learningLoop: fileConfig.learningLoop ?? {},
+    reviewerMemory: fileConfig.reviewerMemory ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17831,11 +17845,27 @@ function loadFileConfig(cwd) {
         phaseRunner = parsed.data;
       }
     }
+    let learningLoop;
+    if (typeof raw.learningLoop === "object" && raw.learningLoop !== null) {
+      const parsed = LearningLoopConfigSchema.safeParse(raw.learningLoop);
+      if (parsed.success) {
+        learningLoop = parsed.data;
+      }
+    }
+    let reviewerMemory;
+    if (typeof raw.reviewerMemory === "object" && raw.reviewerMemory !== null) {
+      const parsed = ReviewerMemoryConfigSchema.safeParse(raw.reviewerMemory);
+      if (parsed.success) {
+        reviewerMemory = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
       ...dir ? { stateStore: { dir } } : {},
       ...consensus ? { consensus } : {},
-      ...phaseRunner ? { phaseRunner } : {}
+      ...phaseRunner ? { phaseRunner } : {},
+      ...learningLoop ? { learningLoop } : {},
+      ...reviewerMemory ? { reviewerMemory } : {}
     };
   } catch {
     return {};

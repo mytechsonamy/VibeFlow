@@ -259,3 +259,24 @@ consensus record.
 | `mcp-servers/sdlc-engine/src/phases.ts` | Phase-scoped exit criteria |
 | `mcp-servers/sdlc-engine/src/validation.ts` | Scope-aware validator |
 | `agents/claude-reviewer.md` | Reviewer schema |
+
+## Layer 3 in detail — the slow loop (Sprint 20)
+
+Two side-effects of the flow above feed the L3 Truth-Evolution layer:
+
+1. **Consensus history roll-up.** When `consensus-aggregator.sh`
+   finalises a round's `verdict.json`, it also appends one compact
+   row to the cross-session `.vibeflow/state/consensus/history.jsonl`
+   (`apply-arbiter-patch` appends an `arbiter-decision` row per run).
+   `learning-loop-engine --mode consensus-history` mines this for
+   slow-converging phases, recurring reviewer themes, convergence
+   stalls, and the arbiter-decision effectiveness trace —
+   see [LEARNING-LOOP.md](LEARNING-LOOP.md).
+2. **Reviewer memory.** The same finalize step appends a bounded entry
+   to `.vibeflow/state/consensus/reviewer-memory/<reviewer>.jsonl`, and
+   `consensus-orchestrator` prepends a `PRIOR REVIEW MEMORY` block to
+   each reviewer's next prompt for the same artifact —
+   see [REVIEWER-MEMORY.md](REVIEWER-MEMORY.md).
+
+Both degrade cleanly: absent history/memory ⇒ no rows, no block, and
+the round behaves exactly as it did pre-Sprint-20.

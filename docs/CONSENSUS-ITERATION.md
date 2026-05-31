@@ -250,3 +250,17 @@ entries carry `type: "arbiter"` or `type: "specialist"` and
 overlapping line ranges, the second one fails `git apply --check`
 and the apply skill aborts with a "run specialist first, then
 arbiter on a fresh session" hint.
+
+## The agreement curve feeds the slow loop (Sprint 20)
+
+Every round's `verdict.json` carries a `rounds[]` array with the
+per-round `agreement` value — the convergence curve. Sprint 20
+persists each round as a row in
+`.vibeflow/state/consensus/history.jsonl`, and pairs it with the
+`arbiter-decision` row that `apply-arbiter-patch` writes. The
+**effectiveness trace** in `learning-loop-engine --mode
+consensus-history` joins applied themes at round R against the
+agreement delta at round R+1: a theme that is applied but never moves
+agreement is flagged `ineffective-theme`, so the loop stops grinding
+on cosmetic fixes while the substantive objection stands. See
+[LEARNING-LOOP.md](LEARNING-LOOP.md).

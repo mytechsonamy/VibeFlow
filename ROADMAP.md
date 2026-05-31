@@ -108,6 +108,8 @@ the short index. Details in each sprint's doc + the matching
 | 16 | v2.4.0 (2026-04-20) | Deterministic auto-consensus chain via `consensus-gate.sh` PreToolUse + marker pattern | [SPRINT-16.md](SPRINT-16.md) |
 | 17 | v2.5.0 (2026-04-20) + patches v2.5.1-.4 (2026-04-21) | Iterative consensus rounds + phase specialists + HUMAN_APPROVAL_REQUIRED; `/vibeflow:advance` shipped; `.mcp.json` `${CLAUDE_PLUGIN_ROOT}` fix | [SPRINT-17.md](SPRINT-17.md) |
 | 18 | v2.6.0 (2026-04-21) | Full auto-satisfy rollout across every phase; `quality-gates` + `deploy-verifier` skills | [SPRINT-18.md](SPRINT-18.md) |
+| 19 | v2.7.0 (2026-04-23) | Primary-artifact refocus (marker schema v2); aggregator reject-vote rule; end-to-end `phase-runner` | [SPRINT-19.md](SPRINT-19.md) |
+| 20 | v2.8.0 (2026-05-31) | Close the L3 learning loop: consensus history roll-up + `consensus-history` mining mode + cross-session reviewer memory | [SPRINT-20.md](SPRINT-20.md) |
 
 ---
 
