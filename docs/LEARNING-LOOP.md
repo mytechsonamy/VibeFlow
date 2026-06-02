@@ -86,6 +86,17 @@ auto-detected as a `gate-adjustment` decision type — framing "raise
 specialist" as an explicit options trade-off, with "do nothing" always as
 option zero.
 
+## Acting on the report (Sprint 22)
+
+`decision-recommender` *frames* the findings; **`learning-apply`** *acts*
+on them — diff-first and operator-confirmed. It classifies each finding
+into config-tune (a `vibeflow.config.json` patch), template-route (a
+phase-specialist dispatch recommendation), or escalate, and never writes
+config or source directly. This closes the action gap: a
+`slow-converging-phase` finding becomes a proposed
+`consensus.maxIterations` bump you confirm with `--yes`. See
+[LEARNING-APPLY.md](LEARNING-APPLY.md) and [ACTION-GAP.md](ACTION-GAP.md).
+
 ## Configuration
 
 ```jsonc

@@ -119,6 +119,10 @@
       "phases": "ALL",
       "description": "Sprint 17-E dispatcher. Reads currentPhase and forks the matching phase-specialist agent (prd-rewriter/design-spec-refiner/adr-author/test-strategy-refiner/coverage-gap-filler/runbook-editor) to produce one deep-rewrite diff-first patch. Offered alongside consensus-arbiter from the orchestrator's NEEDS_REVISION / HUMAN_APPROVAL_REQUIRED follow-up."
     },
+    "learning-apply": {
+      "phases": "ALL",
+      "description": "Sprint 22 'close the action gap'. Reads .vibeflow/reports/consensus-learning-report.md and turns recommendations into action via three lanes: config-tune (diff-first patch to vibeflow.config.json under .vibeflow/state/patches/learning-<ts>/, applied only with --yes after EngineConfigSchema re-validation + bounds clamp), template-route (recommends the matching phase specialist via consensus-specialist — does not auto-fork), escalate (hands to decision-recommender). Propose-only / diff-first — NEVER writes config or source directly. Bounded by learningApply.{enabled, maxRelativeStep, minObservations}."
+    },
     "phase-runner": {
       "phases": "ALL",
       "description": "Sprint 19-F end-to-end phase orchestrator. Runs the current phase's analyzer(s) → consensus-orchestrator on primaryArtifact → specialist/arbiter → apply-arbiter-patch (auto-chain) → sdlc_advance_phase. Bounded by phaseRunner.{autoAdvance, maxConvergenceAttempts}. Uses the S19-A marker schema v2 so reviewers see the primary artifact with analyzer reports as context."

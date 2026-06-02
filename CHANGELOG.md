@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.10.0] — 2026-06-02
+
+Sprint 22 — close the action gap. The L3 slow loop observed (Sprint 20)
+and framed (Sprint 20-G) but never acted; v2.10.0 adds the acting stage.
+
+- **`learning-apply` skill (S22-A/B/C).** New
+  `/vibeflow:learning-apply [--dry-run] [--yes]` reads
+  `consensus-learning-report.md` and classifies each finding into three
+  lanes: **config-tune** (diff-first patch to `vibeflow.config.json`
+  under `.vibeflow/state/patches/learning-<ts>/`), **template-route**
+  (recurring-theme → a `/vibeflow:consensus-specialist` dispatch
+  recommendation via the phase→specialist map; does not auto-fork), and
+  **escalate** (→ `decision-recommender`). **Propose-only** — never
+  writes config or source directly; config patches apply only with
+  `--yes` after an `EngineConfigSchema` re-validation gate + a
+  `maxRelativeStep` bounds clamp + a `minObservations` evidence floor.
+- **Config (S22-D).** New `LearningApplyConfigSchema`
+  (`{enabled, maxRelativeStep: 0.5, minObservations: 3}`), composed into
+  `EngineConfigSchema` with the standard partial-merge; `learning-apply`
+  registered in `skills/phase-policy.json`.
+
+Docs: `docs/ACTION-GAP.md`, `docs/LEARNING-APPLY.md`,
+`skills/learning-apply/references/lanes.md`, plus `LEARNING-LOOP.md` /
+`CONSENSUS-FLOW.md` refreshes. Tests: sdlc-engine 173→176, new
+`sprint-22.sh` (56). Total baseline 2455 → 2514.
+
+- `.claude-plugin/plugin.json`: 2.9.0 → 2.10.0
+- `@vibeflow/sdlc-engine`: 1.7.0 → 1.8.0
+
+---
+
 ## [2.9.0] — 2026-05-31
 
 Sprint 21 — signal-quality refinement. Sharpens three coarse

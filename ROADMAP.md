@@ -111,6 +111,7 @@ the short index. Details in each sprint's doc + the matching
 | 19 | v2.7.0 (2026-04-23) | Primary-artifact refocus (marker schema v2); aggregator reject-vote rule; end-to-end `phase-runner` | [SPRINT-19.md](SPRINT-19.md) |
 | 20 | v2.8.0 (2026-05-31) | Close the L3 learning loop: consensus history roll-up + `consensus-history` mining mode + cross-session reviewer memory | [SPRINT-20.md](SPRINT-20.md) |
 | 21 | v2.9.0 (2026-05-31) | Signal-quality refinement: semantic primary-artifact excerption + theme-aware reviewer-memory compaction + phase-runner progress ledger | [SPRINT-21.md](SPRINT-21.md) |
+| 22 | v2.10.0 (2026-06-02) | Close the action gap: `learning-apply` skill turns learning-loop recommendations into diff-first, operator-confirmed config patches + phase-specialist routing | [SPRINT-22.md](SPRINT-22.md) |
 
 ---
 

@@ -17816,6 +17816,11 @@ var ReviewerMemoryConfigSchema = external_exports.object({
   tokenBudget: 600,
   compaction: "theme-aware"
 });
+var LearningApplyConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(true),
+  maxRelativeStep: external_exports.number().min(0).max(1).default(0.5),
+  minObservations: external_exports.number().int().min(1).max(20).default(3)
+}).default({ enabled: true, maxRelativeStep: 0.5, minObservations: 3 });
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
@@ -17824,7 +17829,8 @@ var EngineConfigSchema = external_exports.object({
   consensus: ConsensusConfigSchema,
   phaseRunner: PhaseRunnerConfigSchema,
   learningLoop: LearningLoopConfigSchema,
-  reviewerMemory: ReviewerMemoryConfigSchema
+  reviewerMemory: ReviewerMemoryConfigSchema,
+  learningApply: LearningApplyConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17836,7 +17842,8 @@ function resolveConfig(cwd = process.cwd()) {
     consensus: fileConfig.consensus ?? {},
     phaseRunner: fileConfig.phaseRunner ?? {},
     learningLoop: fileConfig.learningLoop ?? {},
-    reviewerMemory: fileConfig.reviewerMemory ?? {}
+    reviewerMemory: fileConfig.reviewerMemory ?? {},
+    learningApply: fileConfig.learningApply ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17876,13 +17883,21 @@ function loadFileConfig(cwd) {
         reviewerMemory = parsed.data;
       }
     }
+    let learningApply;
+    if (typeof raw.learningApply === "object" && raw.learningApply !== null) {
+      const parsed = LearningApplyConfigSchema.safeParse(raw.learningApply);
+      if (parsed.success) {
+        learningApply = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
       ...dir ? { stateStore: { dir } } : {},
       ...consensus ? { consensus } : {},
       ...phaseRunner ? { phaseRunner } : {},
       ...learningLoop ? { learningLoop } : {},
-      ...reviewerMemory ? { reviewerMemory } : {}
+      ...reviewerMemory ? { reviewerMemory } : {},
+      ...learningApply ? { learningApply } : {}
     };
   } catch {
     return {};

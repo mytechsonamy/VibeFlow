@@ -9,6 +9,7 @@ import {
   PhaseRunnerConfigSchema,
   LearningLoopConfigSchema,
   ReviewerMemoryConfigSchema,
+  LearningApplyConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -394,6 +395,37 @@ describe("ConsensusConfigSchema excerption (Sprint 21-E)", () => {
     ).toBe(false);
     expect(
       ConsensusConfigSchema.safeParse({ excerptStrategy: "headtail" }).success,
+    ).toBe(true);
+  });
+});
+
+describe("LearningApplyConfigSchema (Sprint 22-D)", () => {
+  it("applies defaults when omitted", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.learningApply.enabled).toBe(true);
+    expect(cfg.learningApply.maxRelativeStep).toBe(0.5);
+    expect(cfg.learningApply.minObservations).toBe(3);
+  });
+
+  it("accepts a partial object and fills the rest", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      learningApply: { maxRelativeStep: 0.25 },
+    });
+    expect(cfg.learningApply.maxRelativeStep).toBe(0.25);
+    expect(cfg.learningApply.minObservations).toBe(3);
+    expect(cfg.learningApply.enabled).toBe(true);
+  });
+
+  it("rejects out-of-range maxRelativeStep and minObservations", () => {
+    expect(
+      LearningApplyConfigSchema.safeParse({ maxRelativeStep: 1.5 }).success,
+    ).toBe(false);
+    expect(
+      LearningApplyConfigSchema.safeParse({ minObservations: 0 }).success,
+    ).toBe(false);
+    expect(
+      LearningApplyConfigSchema.safeParse({ maxRelativeStep: 0.5 }).success,
     ).toBe(true);
   });
 });

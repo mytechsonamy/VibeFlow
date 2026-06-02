@@ -298,3 +298,11 @@ mechanics:
 - **Progress ledger** — `phase-runner` writes
   `.vibeflow/state/phase-runner-progress.json`, rendered by
   `/vibeflow:status`. See [PROGRESS-LEDGER.md](PROGRESS-LEDGER.md).
+
+## Closing the action gap (Sprint 22)
+
+The slow loop now *acts*, not just observes: `learning-apply` turns
+`consensus-learning-report.md` recommendations into diff-first,
+operator-confirmed `vibeflow.config.json` patches (config-tune) and
+phase-specialist dispatch recommendations (template-route) — never
+writing config or source directly. See [ACTION-GAP.md](ACTION-GAP.md).

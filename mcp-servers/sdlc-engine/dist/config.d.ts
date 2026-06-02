@@ -113,6 +113,29 @@ export declare const ReviewerMemoryConfigSchema: z.ZodDefault<z.ZodObject<{
     compaction?: "recency" | "theme-aware" | undefined;
 }>>;
 export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
+/**
+ * Sprint 22-D: bounds for the `learning-apply` skill, which turns
+ * learning-loop recommendations into diff-first, operator-confirmed
+ * `vibeflow.config.json` patches. `enabled` is the kill switch;
+ * `maxRelativeStep` caps how far a single numeric tune may move from the
+ * current value (0.5 = ±50%, then clamped to each field's schema range);
+ * `minObservations` is the evidence floor a finding must clear before it
+ * is eligible to propose a change.
+ */
+export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    maxRelativeStep: z.ZodDefault<z.ZodNumber>;
+    minObservations: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    minObservations: number;
+    maxRelativeStep: number;
+}, {
+    enabled?: boolean | undefined;
+    minObservations?: number | undefined;
+    maxRelativeStep?: number | undefined;
+}>>;
+export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -193,6 +216,19 @@ export declare const EngineConfigSchema: z.ZodObject<{
         tokenBudget?: number | undefined;
         compaction?: "recency" | "theme-aware" | undefined;
     }>>;
+    learningApply: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        maxRelativeStep: z.ZodDefault<z.ZodNumber>;
+        minObservations: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        minObservations: number;
+        maxRelativeStep: number;
+    }, {
+        enabled?: boolean | undefined;
+        minObservations?: number | undefined;
+        maxRelativeStep?: number | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
@@ -223,6 +259,11 @@ export declare const EngineConfigSchema: z.ZodObject<{
         tokenBudget: number;
         compaction: "recency" | "theme-aware";
     };
+    learningApply: {
+        enabled: boolean;
+        minObservations: number;
+        maxRelativeStep: number;
+    };
 }, {
     project: string;
     stateStore?: {
@@ -252,6 +293,11 @@ export declare const EngineConfigSchema: z.ZodObject<{
         maxEntriesPerArtifact?: number | undefined;
         tokenBudget?: number | undefined;
         compaction?: "recency" | "theme-aware" | undefined;
+    } | undefined;
+    learningApply?: {
+        enabled?: boolean | undefined;
+        minObservations?: number | undefined;
+        maxRelativeStep?: number | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

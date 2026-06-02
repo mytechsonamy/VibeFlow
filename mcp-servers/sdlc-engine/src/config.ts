@@ -109,6 +109,25 @@ export const ReviewerMemoryConfigSchema = z
 
 export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
 
+/**
+ * Sprint 22-D: bounds for the `learning-apply` skill, which turns
+ * learning-loop recommendations into diff-first, operator-confirmed
+ * `vibeflow.config.json` patches. `enabled` is the kill switch;
+ * `maxRelativeStep` caps how far a single numeric tune may move from the
+ * current value (0.5 = ±50%, then clamped to each field's schema range);
+ * `minObservations` is the evidence floor a finding must clear before it
+ * is eligible to propose a change.
+ */
+export const LearningApplyConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    maxRelativeStep: z.number().min(0).max(1).default(0.5),
+    minObservations: z.number().int().min(1).max(20).default(3),
+  })
+  .default({ enabled: true, maxRelativeStep: 0.5, minObservations: 3 });
+
+export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;
+
 export const EngineConfigSchema = z.object({
   project: z.string().min(1),
   stateStore: z
@@ -120,6 +139,7 @@ export const EngineConfigSchema = z.object({
   phaseRunner: PhaseRunnerConfigSchema,
   learningLoop: LearningLoopConfigSchema,
   reviewerMemory: ReviewerMemoryConfigSchema,
+  learningApply: LearningApplyConfigSchema,
 });
 
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
@@ -145,6 +165,7 @@ export function resolveConfig(cwd: string = process.cwd()): EngineConfig {
     phaseRunner: fileConfig.phaseRunner ?? {},
     learningLoop: fileConfig.learningLoop ?? {},
     reviewerMemory: fileConfig.reviewerMemory ?? {},
+    learningApply: fileConfig.learningApply ?? {},
   });
 }
 
@@ -197,6 +218,14 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
         reviewerMemory = parsed.data;
       }
     }
+    // Sprint 22-D: learning-apply bounds, same silent-fallback pattern.
+    let learningApply: LearningApplyConfig | undefined;
+    if (typeof raw.learningApply === "object" && raw.learningApply !== null) {
+      const parsed = LearningApplyConfigSchema.safeParse(raw.learningApply);
+      if (parsed.success) {
+        learningApply = parsed.data;
+      }
+    }
     return {
       ...(typeof project === "string" ? { project } : {}),
       ...(dir ? { stateStore: { dir } } : {}),
@@ -204,6 +233,7 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
       ...(phaseRunner ? { phaseRunner } : {}),
       ...(learningLoop ? { learningLoop } : {}),
       ...(reviewerMemory ? { reviewerMemory } : {}),
+      ...(learningApply ? { learningApply } : {}),
     };
   } catch {
     return {};
