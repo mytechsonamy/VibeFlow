@@ -17816,11 +17816,33 @@ var ReviewerMemoryConfigSchema = external_exports.object({
   tokenBudget: 600,
   compaction: "theme-aware"
 });
+var AutoApplyConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(false),
+  keys: external_exports.array(external_exports.string()).default([]),
+  revertOnRegression: external_exports.boolean().default(true),
+  regressionDelta: external_exports.number().min(0).max(1).default(0.05)
+}).default({
+  enabled: false,
+  keys: [],
+  revertOnRegression: true,
+  regressionDelta: 0.05
+});
 var LearningApplyConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true),
   maxRelativeStep: external_exports.number().min(0).max(1).default(0.5),
-  minObservations: external_exports.number().int().min(1).max(20).default(3)
-}).default({ enabled: true, maxRelativeStep: 0.5, minObservations: 3 });
+  minObservations: external_exports.number().int().min(1).max(20).default(3),
+  autoApply: AutoApplyConfigSchema
+}).default({
+  enabled: true,
+  maxRelativeStep: 0.5,
+  minObservations: 3,
+  autoApply: {
+    enabled: false,
+    keys: [],
+    revertOnRegression: true,
+    regressionDelta: 0.05
+  }
+});
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({

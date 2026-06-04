@@ -1,6 +1,6 @@
 ---
 name: learning-apply
-description: Closes the L3 action gap — turns learning-loop-engine recommendations into concrete, diff-first, operator-confirmed changes. Reads .vibeflow/reports/consensus-learning-report.md and classifies each finding into three lanes — config-tune (diff-first patch to vibeflow.config.json), template-route (recommend the matching phase specialist), escalate (hand to decision-recommender). Propose-only — NEVER writes config or source directly; config patches apply only with --yes after EngineConfigSchema re-validation + bounds clamp. Invoke as /vibeflow:learning-apply [--dry-run] [--yes].
+description: Closes the L3 action gap — turns learning-loop-engine recommendations into concrete, diff-first, operator-confirmed changes. Reads .vibeflow/reports/consensus-learning-report.md and classifies each finding into three lanes — config-tune (diff-first patch to vibeflow.config.json), template-route (recommend the matching phase specialist), escalate (hand to decision-recommender). Propose-only by default — config patches apply only with --yes after EngineConfigSchema re-validation + bounds clamp. Sprint 23 adds opt-in bounded auto-apply (learningApply.autoApply, default OFF): allowlisted config keys auto-apply with a pre-change snapshot + an auto-revert watch that rolls back if the next consensus round regresses. Invoke as /vibeflow:learning-apply [--dry-run] [--yes].
 allowed-tools: Read Write Grep Glob Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(node *) Bash(git apply *) Bash(cp *) Bash(mv *)
 context: fork
 ---
@@ -33,7 +33,7 @@ the safety gates below. `--dry-run` is an explicit alias for preview.
 | `.vibeflow/reports/consensus-learning-report.md` | yes | From `learning-loop-engine --mode consensus-history` (Sprint 20-B/C). Each finding carries `{patternId, recommendation, observations, affectedArtifacts}`. |
 | `.vibeflow/reports/learning-report.md` | optional | The other learning modes; same finding shape. |
 | `vibeflow.config.json` | yes | The tuning target + the current values bounds are computed against. Missing ⇒ emit "run /vibeflow:init" and stop. |
-| `learningApply.*` config | optional | `{enabled, maxRelativeStep (0.5), minObservations (3)}`. `enabled:false` ⇒ skill is a no-op preview. |
+| `learningApply.*` config | optional | `{enabled, maxRelativeStep (0.5), minObservations (3), autoApply}`. `enabled:false` ⇒ no-op preview. `autoApply` (Sprint 23, default `{enabled:false, keys:[], revertOnRegression:true, regressionDelta:0.05}`) opts allowlisted keys into bounded auto-apply (Step 7). |
 
 ## Step 1 — Read the report + config
 
@@ -156,23 +156,85 @@ node -e 'const {EngineConfigSchema}=require("./mcp-servers/sdlc-engine/dist/conf
 A patch that the operator declines, or that fails re-validation, leaves
 `vibeflow.config.json` untouched.
 
+## Step 7 — Bounded auto-apply (opt-in, Sprint 23)
+
+**Off by default.** When `learningApply.autoApply.enabled` is true, a
+config-tune patch may apply **without operator confirmation** — but
+*only* if its key is in the `autoApply.keys` allowlist. This runs on a
+normal `/vibeflow:learning-apply` invocation (no `--yes` needed for
+allowlisted keys); a key **not** in the allowlist always falls back to
+the Step 6 operator-confirmed path.
+
+```bash
+AUTO_ON="$(jq -r '.learningApply.autoApply.enabled // false' vibeflow.config.json)"
+mapfile -t AUTO_KEYS < <(jq -r '.learningApply.autoApply.keys[]? // empty' vibeflow.config.json)
+REGRESS="$(jq -r '.learningApply.autoApply.regressionDelta // 0.05' vibeflow.config.json)"
+```
+
+For each config-tune patch whose `key ∈ AUTO_KEYS` that has **already
+cleared every Step 1-6 gate** (`minObservations`, `maxRelativeStep`
+clamp, **`EngineConfigSchema` re-validation** — the auto path skips
+*none* of them):
+
+1. **Snapshot** the current config + record the baseline agreement (the
+   pre-change agreement for this phase + primary from
+   `history.jsonl`, used by the auto-revert watch):
+
+```bash
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; SNAP=".vibeflow/state/auto-apply/$TS"
+mkdir -p "$SNAP"; cp vibeflow.config.json "$SNAP/vibeflow.config.json.bak"
+BASE_AGREE="$(jq -s 'map(select(.type=="verdict" and .primaryArtifact==$p and .phase==$ph))
+  | (sort_by(.recordedAt) | last.agreement) // 0' \
+  --arg p "$PRIMARY" --arg ph "$PHASE" .vibeflow/state/consensus/history.jsonl 2>/dev/null || echo 0)"
+```
+
+2. `git apply` the patch to `vibeflow.config.json` (no prompt).
+3. **Arm the revert watch** so the aggregator evaluates the next round:
+
+```bash
+jq -n -c --arg key "$KEY" --argjson from "$FROM" --argjson to "$TO" \
+  --arg phase "$PHASE" --arg primary "$PRIMARY" \
+  --argjson baseline "$BASE_AGREE" --argjson delta "$REGRESS" \
+  --arg snap "$SNAP/vibeflow.config.json.bak" --arg ts "$TS" \
+  '{key:$key, from:$from, to:$to, phase:$phase, primaryArtifact:$primary,
+    baselineAgreement:$baseline, regressionDelta:$delta,
+    snapshot:$snap, appliedAt:$ts}' \
+  > .vibeflow/state/auto-apply/watch.json
+```
+
+4. Audit in `learning-apply-decisions.md` as `Applied: auto` + the
+   revert command (`cp "$SNAP/vibeflow.config.json.bak" vibeflow.config.json`)
+   + the snapshot path.
+
+A key with an active **cooldown marker** (`.vibeflow/state/auto-apply/cooldown-<key>`,
+written by the aggregator after an auto-revert — Sprint 23-C) is
+**skipped** for the rest of the sprint and stays propose-only, so a
+reverted tune never immediately re-applies and flaps.
+
 ## Gate Contract
 
-1. **Propose-only.** `learning-apply` never writes `vibeflow.config.json`
-   or any source file directly — only patches + the decisions report.
-   Config changes land solely through `--yes` + `git apply`.
+1. **Propose-only by default.** With `autoApply.enabled` false (the
+   default), `learning-apply` never writes `vibeflow.config.json` or any
+   source directly — only patches + the decisions report; config changes
+   land solely through `--yes` + `git apply`.
 2. **Bounded.** Every numeric tune moves ≤ `maxRelativeStep` and is
    clamped to the field's schema range; findings below
    `minObservations` are skipped.
 3. **Schema-validated.** A patched config that fails `EngineConfigSchema`
-   is rejected, never applied.
-4. **No auto-fork.** Template-route findings are *recommended* to a phase
+   is rejected, never applied — including the auto-apply path.
+4. **Allowlisted auto-apply only.** Auto-apply (Step 7) touches *only*
+   keys in `autoApply.keys`, snapshots before applying, and arms an
+   auto-revert watch; a reverted key is cooled-down so it can't flap.
+   Source/template changes never auto-apply.
+5. **No auto-fork.** Template-route findings are *recommended* to a phase
    specialist; the operator initiates the rewrite.
 
 ## Non-Goals
 
-- **No bounded auto-apply** (config changes without operator confirm) —
-  deliberately out of scope; propose-only keeps the safety posture.
+- **No unbounded auto-apply.** Auto-apply (Sprint 23) is opt-in
+  (`autoApply.enabled`, default off), allowlisted, snapshotted, and
+  auto-reverted on regression. It never touches non-allowlisted keys,
+  source, or templates. See `docs/AUTO-APPLY.md`.
 - **No template rewriting** — that's the phase specialists' job;
   learning-apply only routes to them.
 

@@ -104,14 +104,47 @@ export const ReviewerMemoryConfigSchema = z
  * current value (0.5 = ±50%, then clamped to each field's schema range);
  * `minObservations` is the evidence floor a finding must clear before it
  * is eligible to propose a change.
+ *
+ * Sprint 23-A: the nested `autoApply` block opts a project into bounded
+ * autonomous tuning. It is **OFF by default** — the framework stays
+ * propose-only unless a project turns it on. `keys` is an allowlist:
+ * only config keys listed here may auto-apply (and only ones in the
+ * config-tune key map); everything else stays operator-confirmed.
+ * `revertOnRegression` arms the aggregator's auto-revert watch, which
+ * restores the pre-change snapshot if the next consensus round's
+ * agreement drops by more than `regressionDelta`.
  */
+export const AutoApplyConfigSchema = z
+    .object({
+    enabled: z.boolean().default(false),
+    keys: z.array(z.string()).default([]),
+    revertOnRegression: z.boolean().default(true),
+    regressionDelta: z.number().min(0).max(1).default(0.05),
+})
+    .default({
+    enabled: false,
+    keys: [],
+    revertOnRegression: true,
+    regressionDelta: 0.05,
+});
 export const LearningApplyConfigSchema = z
     .object({
     enabled: z.boolean().default(true),
     maxRelativeStep: z.number().min(0).max(1).default(0.5),
     minObservations: z.number().int().min(1).max(20).default(3),
+    autoApply: AutoApplyConfigSchema,
 })
-    .default({ enabled: true, maxRelativeStep: 0.5, minObservations: 3 });
+    .default({
+    enabled: true,
+    maxRelativeStep: 0.5,
+    minObservations: 3,
+    autoApply: {
+        enabled: false,
+        keys: [],
+        revertOnRegression: true,
+        regressionDelta: 0.05,
+    },
+});
 export const EngineConfigSchema = z.object({
     project: z.string().min(1),
     stateStore: z

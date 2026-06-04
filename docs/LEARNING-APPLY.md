@@ -24,6 +24,15 @@ operator-confirmed, never writes config or source directly.**
 The config-key map and per-field clamp ranges are in
 `skills/learning-apply/references/lanes.md`.
 
+## Bounded auto-apply (Sprint 23, opt-in)
+
+With `learningApply.autoApply.enabled` (default **off**), config-tune
+findings whose key is in `autoApply.keys` auto-apply on a normal
+invocation — no `--yes` needed — after snapshotting the config and arming
+an auto-revert watch. Keys off the allowlist stay operator-confirmed. A
+tune that makes the next consensus round regress is rolled back
+automatically. Full design + config in [AUTO-APPLY.md](AUTO-APPLY.md).
+
 ## Safety gates
 
 1. **Propose-only** — the only writes are patches +

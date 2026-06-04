@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.0] — 2026-06-04
+
+Sprint 23 — bounded auto-apply with auto-revert. Sprint 22's
+`learning-apply` was propose-only; v2.11.0 lets the slow loop auto-apply
+config tunes the operator trusts, within strict guardrails.
+
+- **autoApply config (S23-A).** New `AutoApplyConfigSchema` nested in
+  `LearningApplyConfigSchema` — `{enabled:false, keys:[],
+  revertOnRegression:true, regressionDelta:0.05}`. **Off by default** —
+  existing installs are unchanged.
+- **Auto-apply path (S23-B).** `learning-apply` Step 7: a config-tune
+  finding whose key is in `autoApply.keys` and clears every Sprint 22
+  gate snapshots `vibeflow.config.json`, `git apply`s without a prompt
+  (`Applied: auto`), and arms `.vibeflow/state/auto-apply/watch.json`.
+  Non-allowlisted keys stay operator-confirmed; a cooled-down key is
+  skipped.
+- **Auto-revert (S23-C).** `consensus-aggregator.sh` evaluates the watch
+  after finalising a round: if the same `{phase, primaryArtifact}`
+  round's agreement dropped by more than `regressionDelta` below the
+  baseline, it restores the snapshot, appends an `auto-revert` row to
+  `history.jsonl`, logs to `.vibeflow/reports/auto-apply-reverts.md`, and
+  arms a cooldown. Agreement held ⇒ "AUTO-APPLY HELD". No watch ⇒ no-op.
+
+Docs: `docs/AUTO-APPLY.md` + `LEARNING-APPLY.md` / `ACTION-GAP.md`
+refreshes. Tests: sdlc-engine 176→179, hooks 139→149, new `sprint-23.sh`
+(43). Total baseline 2514 → 2570.
+
+- `.claude-plugin/plugin.json`: 2.10.0 → 2.11.0
+- `@vibeflow/sdlc-engine`: 1.8.0 → 1.9.0
+
+---
+
 ## [2.10.0] — 2026-06-02
 
 Sprint 22 — close the action gap. The L3 slow loop observed (Sprint 20)

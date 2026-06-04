@@ -1296,6 +1296,74 @@ RECSUM="$(jq -c 'select(.type=="summary")' "$RM_DIR/gemini.jsonl" 2>/dev/null | 
 assert_eq "[S21-B] recency mode writes no summary row" "0" "$RECSUM"
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
+# ---------------------------------------------------------------------------
+echo "== auto-apply revert watch [S23-C] =="
+
+# Regression case: baseline 1.0, this round agreement 0 → restore snapshot.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus: {quorum: 1}, consensus: {maxIterations: 7, quorum: 1}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" \
+  && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"
+AA_DIR="$DIR/.vibeflow/state/auto-apply"
+mkdir -p "$CONS_DIR" "$AA_DIR/snap"
+echo "docs/PRD.md" > "$CONS_DIR/rv1.primary.txt"
+echo "1" > "$CONS_DIR/rv1.current-round.txt"
+# Snapshot holds the pre-change value (maxIterations 5); live config has 7.
+jq '.consensus.maxIterations = 5' "$DIR/vibeflow.config.json" > "$AA_DIR/snap/vibeflow.config.json.bak"
+jq -n -c --arg snap "$AA_DIR/snap/vibeflow.config.json.bak" \
+  '{key:"consensus.maxIterations", from:5, to:7, phase:"DEVELOPMENT",
+    primaryArtifact:"docs/PRD.md", baselineAgreement:1.0,
+    regressionDelta:0.05, snapshot:$snap, appliedAt:"t0"}' > "$AA_DIR/watch.json"
+INPUT='{"session_id":"rv1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: NEEDS_REVISION\ncritical issues: 0"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+RESTORED="$(jq -r '.consensus.maxIterations' "$DIR/vibeflow.config.json" 2>/dev/null)"
+assert_eq "[S23-C] regression restores the snapshot (maxIterations 7→5)" "5" "$RESTORED"
+[[ ! -f "$AA_DIR/watch.json" ]] && pass "[S23-C] watch dropped after revert" || fail "[S23-C] watch dropped after revert"
+[[ -f "$AA_DIR/cooldown-consensus.maxIterations" ]] && pass "[S23-C] cooldown armed for reverted key" || fail "[S23-C] cooldown armed for reverted key"
+assert_contains "[S23-C] revert logged to auto-apply-reverts.md" "AUTO-REVERT" "$(cat "$DIR/.vibeflow/reports/auto-apply-reverts.md" 2>/dev/null || echo missing)"
+REVROW="$(jq -c 'select(.type=="auto-revert")' "$CONS_DIR/history.jsonl" 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "[S23-C] auto-revert row appended to history.jsonl" "1" "$REVROW"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# Hold case: baseline 0.0, this round APPROVED (agreement 1.0) → no revert.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '.consensus = {maxIterations: 7, quorum: 1}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" \
+  && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"
+AA_DIR="$DIR/.vibeflow/state/auto-apply"
+mkdir -p "$CONS_DIR" "$AA_DIR/snap"
+echo "docs/PRD.md" > "$CONS_DIR/hd1.primary.txt"
+echo "1" > "$CONS_DIR/hd1.current-round.txt"
+jq '.consensus.maxIterations = 5' "$DIR/vibeflow.config.json" > "$AA_DIR/snap/vibeflow.config.json.bak"
+jq -n -c --arg snap "$AA_DIR/snap/vibeflow.config.json.bak" \
+  '{key:"consensus.maxIterations", from:5, to:7, phase:"DEVELOPMENT",
+    primaryArtifact:"docs/PRD.md", baselineAgreement:0.0,
+    regressionDelta:0.05, snapshot:$snap, appliedAt:"t0"}' > "$AA_DIR/watch.json"
+INPUT='{"session_id":"hd1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+HELD="$(jq -r '.consensus.maxIterations' "$DIR/vibeflow.config.json" 2>/dev/null)"
+assert_eq "[S23-C] no regression keeps the applied value (maxIterations=7)" "7" "$HELD"
+[[ ! -f "$AA_DIR/watch.json" ]] && pass "[S23-C] watch dropped after hold" || fail "[S23-C] watch dropped after hold"
+assert_contains "[S23-C] hold logged to auto-apply-reverts.md" "HELD" "$(cat "$DIR/.vibeflow/reports/auto-apply-reverts.md" 2>/dev/null || echo missing)"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# No-watch case: aggregator finalizes normally, config untouched.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '.consensus = {maxIterations: 7, quorum: 1}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" \
+  && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"; mkdir -p "$CONS_DIR"
+echo "docs/PRD.md" > "$CONS_DIR/nw1.primary.txt"
+echo "1" > "$CONS_DIR/nw1.current-round.txt"
+INPUT='{"session_id":"nw1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: NEEDS_REVISION\ncritical issues: 0"}]}}'
+printf '%s' "$INPUT" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+UNTOUCHED="$(jq -r '.consensus.maxIterations' "$DIR/vibeflow.config.json" 2>/dev/null)"
+assert_eq "[S23-C] no watch → config untouched (maxIterations=7)" "7" "$UNTOUCHED"
+[[ ! -f "$DIR/.vibeflow/reports/auto-apply-reverts.md" ]] && pass "[S23-C] no watch → no reverts log" || fail "[S23-C] no watch → no reverts log"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

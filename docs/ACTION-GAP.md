@@ -65,11 +65,21 @@ changes through three lanes:
   → schema re-validation passes → git apply → maxIterations now 7
 ```
 
-## Why propose-only
+## Optional autonomy (Sprint 23)
+
+By default the act stage is propose-only. A project that trusts the loop
+can opt specific config keys into **bounded auto-apply**
+(`learningApply.autoApply`): allowlisted tunes apply without a prompt,
+snapshot the config first, and **auto-revert** if the next consensus
+round regresses. Everything off the allowlist — and all source/template
+changes — stays operator-confirmed. See [AUTO-APPLY.md](AUTO-APPLY.md).
+
+## Why propose-only by default
 
 The loop tunes the very machinery that governs quality gates. A
 bounded-but-autonomous tuner that drifts `approvalThreshold` down over
 sprints is exactly the "gate-suppression-creep" the learning loop is
 meant to *catch*. Keeping a human in the loop on every config change
-keeps the slow loop honest. Bounded auto-apply is deliberately deferred
-(see `docs/SPRINT-22.md` Out of Scope).
+keeps the slow loop honest. Sprint 23 relaxes this *only* for
+operator-allowlisted keys, and only with an auto-revert safety net — see
+[AUTO-APPLY.md](AUTO-APPLY.md).

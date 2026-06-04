@@ -112,6 +112,7 @@ the short index. Details in each sprint's doc + the matching
 | 20 | v2.8.0 (2026-05-31) | Close the L3 learning loop: consensus history roll-up + `consensus-history` mining mode + cross-session reviewer memory | [SPRINT-20.md](SPRINT-20.md) |
 | 21 | v2.9.0 (2026-05-31) | Signal-quality refinement: semantic primary-artifact excerption + theme-aware reviewer-memory compaction + phase-runner progress ledger | [SPRINT-21.md](SPRINT-21.md) |
 | 22 | v2.10.0 (2026-06-02) | Close the action gap: `learning-apply` skill turns learning-loop recommendations into diff-first, operator-confirmed config patches + phase-specialist routing | [SPRINT-22.md](SPRINT-22.md) |
+| 23 | v2.11.0 (2026-06-04) | Bounded auto-apply with auto-revert: opt-in allowlisted config auto-tuning (default off) + snapshot + aggregator auto-revert on next-round regression + cooldown | [SPRINT-23.md](SPRINT-23.md) |
 
 ---
 

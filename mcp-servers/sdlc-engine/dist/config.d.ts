@@ -121,19 +121,73 @@ export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
  * current value (0.5 = ±50%, then clamped to each field's schema range);
  * `minObservations` is the evidence floor a finding must clear before it
  * is eligible to propose a change.
+ *
+ * Sprint 23-A: the nested `autoApply` block opts a project into bounded
+ * autonomous tuning. It is **OFF by default** — the framework stays
+ * propose-only unless a project turns it on. `keys` is an allowlist:
+ * only config keys listed here may auto-apply (and only ones in the
+ * config-tune key map); everything else stays operator-confirmed.
+ * `revertOnRegression` arms the aggregator's auto-revert watch, which
+ * restores the pre-change snapshot if the next consensus round's
+ * agreement drops by more than `regressionDelta`.
  */
+export declare const AutoApplyConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    keys: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    revertOnRegression: z.ZodDefault<z.ZodBoolean>;
+    regressionDelta: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    keys: string[];
+    revertOnRegression: boolean;
+    regressionDelta: number;
+}, {
+    enabled?: boolean | undefined;
+    keys?: string[] | undefined;
+    revertOnRegression?: boolean | undefined;
+    regressionDelta?: number | undefined;
+}>>;
+export type AutoApplyConfig = z.infer<typeof AutoApplyConfigSchema>;
 export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
     enabled: z.ZodDefault<z.ZodBoolean>;
     maxRelativeStep: z.ZodDefault<z.ZodNumber>;
     minObservations: z.ZodDefault<z.ZodNumber>;
+    autoApply: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        keys: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        revertOnRegression: z.ZodDefault<z.ZodBoolean>;
+        regressionDelta: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        keys: string[];
+        revertOnRegression: boolean;
+        regressionDelta: number;
+    }, {
+        enabled?: boolean | undefined;
+        keys?: string[] | undefined;
+        revertOnRegression?: boolean | undefined;
+        regressionDelta?: number | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
     minObservations: number;
     maxRelativeStep: number;
+    autoApply: {
+        enabled: boolean;
+        keys: string[];
+        revertOnRegression: boolean;
+        regressionDelta: number;
+    };
 }, {
     enabled?: boolean | undefined;
     minObservations?: number | undefined;
     maxRelativeStep?: number | undefined;
+    autoApply?: {
+        enabled?: boolean | undefined;
+        keys?: string[] | undefined;
+        revertOnRegression?: boolean | undefined;
+        regressionDelta?: number | undefined;
+    } | undefined;
 }>>;
 export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
@@ -220,14 +274,42 @@ export declare const EngineConfigSchema: z.ZodObject<{
         enabled: z.ZodDefault<z.ZodBoolean>;
         maxRelativeStep: z.ZodDefault<z.ZodNumber>;
         minObservations: z.ZodDefault<z.ZodNumber>;
+        autoApply: z.ZodDefault<z.ZodObject<{
+            enabled: z.ZodDefault<z.ZodBoolean>;
+            keys: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            revertOnRegression: z.ZodDefault<z.ZodBoolean>;
+            regressionDelta: z.ZodDefault<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            enabled: boolean;
+            keys: string[];
+            revertOnRegression: boolean;
+            regressionDelta: number;
+        }, {
+            enabled?: boolean | undefined;
+            keys?: string[] | undefined;
+            revertOnRegression?: boolean | undefined;
+            regressionDelta?: number | undefined;
+        }>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         minObservations: number;
         maxRelativeStep: number;
+        autoApply: {
+            enabled: boolean;
+            keys: string[];
+            revertOnRegression: boolean;
+            regressionDelta: number;
+        };
     }, {
         enabled?: boolean | undefined;
         minObservations?: number | undefined;
         maxRelativeStep?: number | undefined;
+        autoApply?: {
+            enabled?: boolean | undefined;
+            keys?: string[] | undefined;
+            revertOnRegression?: boolean | undefined;
+            regressionDelta?: number | undefined;
+        } | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
@@ -263,6 +345,12 @@ export declare const EngineConfigSchema: z.ZodObject<{
         enabled: boolean;
         minObservations: number;
         maxRelativeStep: number;
+        autoApply: {
+            enabled: boolean;
+            keys: string[];
+            revertOnRegression: boolean;
+            regressionDelta: number;
+        };
     };
 }, {
     project: string;
@@ -298,6 +386,12 @@ export declare const EngineConfigSchema: z.ZodObject<{
         enabled?: boolean | undefined;
         minObservations?: number | undefined;
         maxRelativeStep?: number | undefined;
+        autoApply?: {
+            enabled?: boolean | undefined;
+            keys?: string[] | undefined;
+            revertOnRegression?: boolean | undefined;
+            regressionDelta?: number | undefined;
+        } | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

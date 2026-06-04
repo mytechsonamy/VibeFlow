@@ -10,6 +10,7 @@ import {
   LearningLoopConfigSchema,
   ReviewerMemoryConfigSchema,
   LearningApplyConfigSchema,
+  AutoApplyConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -426,6 +427,42 @@ describe("LearningApplyConfigSchema (Sprint 22-D)", () => {
     ).toBe(false);
     expect(
       LearningApplyConfigSchema.safeParse({ maxRelativeStep: 0.5 }).success,
+    ).toBe(true);
+  });
+});
+
+describe("AutoApplyConfigSchema (Sprint 23-A)", () => {
+  it("defaults OFF with an empty allowlist", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.learningApply.autoApply.enabled).toBe(false);
+    expect(cfg.learningApply.autoApply.keys).toEqual([]);
+    expect(cfg.learningApply.autoApply.revertOnRegression).toBe(true);
+    expect(cfg.learningApply.autoApply.regressionDelta).toBe(0.05);
+  });
+
+  it("accepts a partial autoApply and fills the rest", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      learningApply: {
+        autoApply: { enabled: true, keys: ["consensus.maxIterations"] },
+      },
+    });
+    expect(cfg.learningApply.autoApply.enabled).toBe(true);
+    expect(cfg.learningApply.autoApply.keys).toEqual([
+      "consensus.maxIterations",
+    ]);
+    expect(cfg.learningApply.autoApply.revertOnRegression).toBe(true);
+    expect(cfg.learningApply.autoApply.regressionDelta).toBe(0.05);
+    // sibling learningApply defaults still hold
+    expect(cfg.learningApply.maxRelativeStep).toBe(0.5);
+  });
+
+  it("rejects an out-of-range regressionDelta", () => {
+    expect(
+      AutoApplyConfigSchema.safeParse({ regressionDelta: 1.5 }).success,
+    ).toBe(false);
+    expect(
+      AutoApplyConfigSchema.safeParse({ regressionDelta: 0.05 }).success,
     ).toBe(true);
   });
 });

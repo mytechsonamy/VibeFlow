@@ -481,6 +481,60 @@ if [[ "$RM_ENABLED" != "false" ]]; then
   done <<< "$RM_REVIEWERS"
 fi
 
+# Sprint 23-C: auto-revert watch. When learning-apply auto-applies a
+# config tune (Sprint 23-B) it arms `.vibeflow/state/auto-apply/watch.json`
+# with the pre-change baseline agreement. Here — right after this round's
+# agreement is finalised — we check whether the tune helped: if the same
+# {phase, primaryArtifact} round's agreement dropped by more than
+# `regressionDelta` below the baseline, restore the snapshot (the tune
+# made things worse) and cool the key down so it can't immediately
+# re-apply and flap. If agreement held or improved, the tune earned its
+# place — drop the watch and log "held". Fully guarded: a missing watch
+# (the default for every project that hasn't opted into autoApply) makes
+# this a no-op.
+AA_DIR="$STATE_DIR/auto-apply"
+WATCH="$AA_DIR/watch.json"
+if [[ -f "$WATCH" ]]; then
+  W_PHASE="$(jq -r '.phase // ""' "$WATCH" 2>/dev/null || echo "")"
+  W_PRIMARY="$(jq -r '.primaryArtifact // ""' "$WATCH" 2>/dev/null || echo "")"
+  # Only evaluate against the round for the artifact the tune targeted.
+  if [[ "$W_PHASE" == "$HIST_PHASE" && "$W_PRIMARY" == "$HIST_PRIMARY" ]]; then
+    THIS_AGREE="$(jq -r '.agreement // 0' "$VERDICT_FILE" 2>/dev/null || echo 0)"
+    BASE_AGREE="$(jq -r '.baselineAgreement // 0' "$WATCH" 2>/dev/null || echo 0)"
+    W_DELTA="$(jq -r '.regressionDelta // 0.05' "$WATCH" 2>/dev/null || echo 0.05)"
+    W_KEY="$(jq -r '.key // "unknown"' "$WATCH" 2>/dev/null || echo "unknown")"
+    W_SNAP="$(jq -r '.snapshot // ""' "$WATCH" 2>/dev/null || echo "")"
+    # Resolve a relative snapshot path against the project cwd.
+    [[ -z "$W_SNAP" || "$W_SNAP" = /* ]] || W_SNAP="$(vf_cwd)/$W_SNAP"
+    # regressed when (base - this) > delta. awk handles float compare.
+    REGRESSED="$(awk -v b="$BASE_AGREE" -v t="$THIS_AGREE" -v d="$W_DELTA" \
+      'BEGIN { print ((b - t) > d) ? "yes" : "no" }')"
+    REVERT_LOG="$(vf_cwd)/.vibeflow/reports/auto-apply-reverts.md"
+    mkdir -p "$(dirname "$REVERT_LOG")"
+    if [[ "$REGRESSED" == "yes" && -n "$W_SNAP" && -f "$W_SNAP" ]]; then
+      cp "$W_SNAP" "$(vf_cwd)/vibeflow.config.json" 2>/dev/null || true
+      # Cool the key down so learning-apply won't re-tune it this sprint.
+      : > "$AA_DIR/cooldown-$W_KEY" 2>/dev/null || true
+      {
+        printf '## AUTO-REVERT — %s (round %s)\n' "$W_KEY" "$CURRENT_ROUND"
+        printf -- '- baseline agreement: %s → this round: %s (drop > %s)\n' "$BASE_AGREE" "$THIS_AGREE" "$W_DELTA"
+        printf -- '- restored snapshot: %s\n' "$W_SNAP"
+        printf -- '- cooldown armed: %s\n\n' "$W_KEY"
+      } >> "$REVERT_LOG"
+      jq -n -c --arg key "$W_KEY" --argjson round "$CURRENT_ROUND" \
+        --arg ts "$TS" --argjson base "$BASE_AGREE" --argjson this "$THIS_AGREE" \
+        '{type:"auto-revert", key:$key, round:$round, baselineAgreement:$base, agreement:$this, recordedAt:$ts}' \
+        >> "$HISTORY_FILE" 2>/dev/null || true
+    else
+      {
+        printf '## AUTO-APPLY HELD — %s (round %s)\n' "$W_KEY" "$CURRENT_ROUND"
+        printf -- '- baseline agreement: %s → this round: %s (no regression)\n\n' "$BASE_AGREE" "$THIS_AGREE"
+      } >> "$REVERT_LOG"
+    fi
+    rm -f "$WATCH" 2>/dev/null || true
+  fi
+fi
+
 # Archive current round's log so the next round starts on an empty jsonl.
 # Legacy name kept for single-round callers; new name includes round
 # number for multi-round sessions so the audit trail is navigable.
