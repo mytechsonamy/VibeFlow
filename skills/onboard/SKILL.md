@@ -1,19 +1,19 @@
 ---
-name: init
-description: Initialize a new VibeFlow project. Sets up vibeflow.config.json with domain and tech stack, creates the .vibeflow/ state directory, and records an optional brownfield fingerprint. Runs exactly once at the start of REQUIREMENTS.
+name: onboard
+description: Onboard a new VibeFlow project (renamed from init in v2.19.0 to avoid colliding with Claude Code's built-in /init). Sets up vibeflow.config.json with domain and tech stack, creates the .vibeflow/ state directory, and records an optional brownfield fingerprint. Runs exactly once at the start of REQUIREMENTS.
 disable-model-invocation: true
 allowed-tools: Read Write Bash(mkdir *) Bash(git *)
 ---
 
-# VibeFlow Project Initialization
+# VibeFlow Project Onboarding
 
 ## Phase Contract
 
 This skill runs in **REQUIREMENTS** only. Before any other step, read
 `vibeflow.config.json`'s `currentPhase`. If it is not REQUIREMENTS, emit:
 
-> init is for REQUIREMENTS phase only; current is `<phase>`. If you need
-> to re-run init, advance back or start a fresh project.
+> onboard is for REQUIREMENTS phase only; current is `<phase>`. If you
+> need to re-run onboarding, advance back or start a fresh project.
 
 …and stop. The PreToolUse `phase-write-guard` (Sprint 13) will also
 reject any source-code writes this skill attempts, so the only safe
@@ -76,13 +76,19 @@ If source files are absent, skip this step entirely.
 
 ### Step 5: Confirm + Hand Off
 
-Show the user a short summary of the configuration, then close with:
+Show the user a short summary of the configuration. The
+`prd-quality-analyzer` command produces
+`.vibeflow/reports/prd-quality-report.md` and determines whether the
+REQUIREMENTS exit criteria (`prd.approved` + `testability.score>=60`)
+can be satisfied.
 
-> Now run `/vibeflow:prd-quality-analyzer docs/<your-prd>.md` to score
-> the requirements document. That command produces
-> `.vibeflow/reports/prd-quality-report.md` and determines whether the
-> REQUIREMENTS exit criteria (`prd.approved` + `testability.score>=60`)
-> can be satisfied.
+Then close with the breadcrumb as the **literal last line** of your
+output (the `▶ Next:` prefix is the project-wide next-step convention —
+keep it verbatim so operators always know the one command to run next):
+
+```
+▶ Next: /vibeflow:prd-quality-analyzer docs/<your-prd>.md
+```
 
 Do **not** offer to scaffold tests, generate code, or advance the phase
 from this skill. Each of those actions belongs in a later phase and has

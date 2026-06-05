@@ -23,11 +23,52 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
-INPUT="$(cat)"
+# Sprint 31-C: headless finalize mode. `consensus-run.sh` appends the
+# external-CLI reviewer lines itself, then calls us as
+# `consensus-aggregator.sh --finalize <session> <round>` to compute
+# verdict.json WITHOUT the SubagentStop stdin ingest or the 600s quorum
+# wait (the panel is exactly the CLIs that just ran). The normal
+# SubagentStop path (invoked with NO args) stays byte-identical to before.
+FINALIZE_MODE=false
+FIN_SESSION=""
+FIN_ROUND=1
+if [[ "${1:-}" == "--finalize" ]]; then
+  FINALIZE_MODE=true
+  FIN_SESSION="${2:-}"
+  FIN_ROUND="${3:-1}"
+fi
+
 if ! vf_have_jq; then
   echo '{"continue": true}'
   exit 0
 fi
+
+INPUT=""
+if [[ "$FINALIZE_MODE" != "true" ]]; then
+  INPUT="$(cat)"
+fi
+
+STATE_DIR="$(vf_state_dir)"
+CONS_DIR="$STATE_DIR/consensus"
+mkdir -p "$CONS_DIR"
+
+if [[ "$FINALIZE_MODE" == "true" ]]; then
+  # Headless finalize: the reviewer lines are already on disk (the caller,
+  # consensus-run.sh, appended them). Set the shared vars from the args and
+  # skip the entire stdin-ingest-of-one-reviewer block below.
+  SESSION_ID="$FIN_SESSION"
+  CURRENT_ROUND="$FIN_ROUND"
+  [[ "$CURRENT_ROUND" =~ ^[0-9]+$ ]] && (( CURRENT_ROUND >= 1 )) || CURRENT_ROUND=1
+  TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  REVIEW_LOG="$CONS_DIR/$SESSION_ID.jsonl"
+  # The archive step at the bottom references ROUND_MARKER (set only in the
+  # ingest branch). Define it here too so `set -u` is happy in finalize mode.
+  ROUND_MARKER="$CONS_DIR/$SESSION_ID.current-round.txt"
+  if [[ -z "$SESSION_ID" || ! -s "$REVIEW_LOG" ]]; then
+    echo '{"continue": true}'
+    exit 0
+  fi
+else
 
 # Malformed/empty stdin → fail-safe allow and exit. Never abort the
 # calling tool call just because the SubagentStop payload couldn't be
@@ -36,10 +77,6 @@ if [[ -z "$INPUT" ]] || ! printf %s "$INPUT" | jq empty >/dev/null 2>&1; then
   echo '{"continue": true}'
   exit 0
 fi
-
-STATE_DIR="$(vf_state_dir)"
-CONS_DIR="$STATE_DIR/consensus"
-mkdir -p "$CONS_DIR"
 
 SESSION_ID="$(printf %s "$INPUT" | jq -r '.session_id // "default"')"
 SUBAGENT="$(printf %s "$INPUT" | jq -r '.subagent_type // .tool_name // ""')"
@@ -147,6 +184,8 @@ jq -n -c \
   '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, criticalItems:$criticalItems, round:$round}' \
   >> "$REVIEW_LOG"
 
+fi  # end SubagentStop stdin-ingest (skipped in --finalize mode)
+
 # Expected reviewer count is driven by which CLIs are on PATH + any
 # explicit override in vibeflow.config.json's `consensus.quorum`.
 # Default roster: claude-reviewer (always), codex (if CLI), gemini
@@ -177,7 +216,9 @@ COUNT="$(jq -s --argjson round "$CURRENT_ROUND" 'map(select((.round // 1) == $ro
 # arrive.
 TIMEOUT_SECONDS=600
 TIMED_OUT=false
-if (( COUNT < EXPECTED )); then
+# Sprint 31-C: --finalize skips the quorum wait — the headless caller knows
+# the panel is complete (exactly the CLIs it ran), so compute immediately.
+if [[ "$FINALIZE_MODE" != "true" ]] && (( COUNT < EXPECTED )); then
   FIRST_TS="$(head -n 1 "$REVIEW_LOG" | jq -r '.recordedAt // empty' 2>/dev/null || echo "")"
   if [[ -n "$FIRST_TS" ]] && command -v python3 >/dev/null 2>&1; then
     NOW_EPOCH="$(date -u +%s)"

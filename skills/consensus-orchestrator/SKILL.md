@@ -9,6 +9,23 @@ allowed-tools: Read Write Bash(codex *) Bash(gemini *) Bash(jq *) Bash(timeout *
 
 Manages the multi-AI review cycle that replaces MyVibe's CLI subprocess approach. Fixes Bug #1 (case mismatch), Bug #2 (model names), and Bug #8 (no CLI fallback).
 
+> **Interactive vs headless (Sprint 31-C).** This skill is the full
+> **interactive** path: it forks the `claude-reviewer` subagent as a third
+> reviewer and that subagent's SubagentStop fires
+> `consensus-aggregator.sh`, plus it runs iterative negotiation rounds
+> (Step 5) and records consensus / chains the arbiter. It is
+> `disable-model-invocation: true`, so the model cannot fork it — the
+> operator runs it via the slash command.
+>
+> `hooks/scripts/consensus-run.sh` is the **headless equivalent** that
+> `/vibeflow:phase-runner` calls as plain Bash: it runs the same codex /
+> gemini reviewer CLIs and finalises the same `verdict.json` (via
+> `consensus-aggregator.sh --finalize`), but without claude-reviewer
+> (model-only) and without the iteration loop — a real codex+gemini panel.
+> Use it when you want a one-command verdict; use this skill when you want
+> the full 3-AI iterative review. Both feed the same history.jsonl /
+> reviewer-memory / auto-revert machinery.
+
 ## Input
 - $ARGUMENTS: Path to artifact(s) to review, or "review last commit"
 - vibeflow.config.json: model names, domain

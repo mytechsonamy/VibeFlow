@@ -32,7 +32,7 @@ the safety gates below. `--dry-run` is an explicit alias for preview.
 |-------|----------|-------|
 | `.vibeflow/reports/consensus-learning-report.md` | yes | From `learning-loop-engine --mode consensus-history` (Sprint 20-B/C). Each finding carries `{patternId, recommendation, observations, affectedArtifacts}`. |
 | `.vibeflow/reports/learning-report.md` | optional | The other learning modes; same finding shape. |
-| `vibeflow.config.json` | yes | The tuning target + the current values bounds are computed against. Missing ⇒ emit "run /vibeflow:init" and stop. |
+| `vibeflow.config.json` | yes | The tuning target + the current values bounds are computed against. Missing ⇒ emit "run /vibeflow:onboard" and stop. |
 | `learningApply.*` config | optional | `{enabled, maxRelativeStep (0.5), minObservations (3), autoApply}`. `enabled:false` ⇒ no-op preview. `autoApply` (Sprint 23, default `{enabled:false, keys:[], revertOnRegression:true, regressionDelta:0.05}`) opts allowlisted keys into bounded auto-apply (Step 7). |
 
 ## Step 1 — Read the report + config
@@ -40,7 +40,7 @@ the safety gates below. `--dry-run` is an explicit alias for preview.
 ```bash
 REPORT=".vibeflow/reports/consensus-learning-report.md"
 [ -f "$REPORT" ] || { echo "learning-apply: no consensus-learning-report.md — run /vibeflow:learning-loop-engine --mode consensus-history first"; exit 0; }
-[ -f vibeflow.config.json ] || { echo "learning-apply needs vibeflow.config.json — run /vibeflow:init"; exit 1; }
+[ -f vibeflow.config.json ] || { echo "learning-apply needs vibeflow.config.json — run /vibeflow:onboard"; exit 1; }
 ENABLED="$(jq -r '.learningApply.enabled // true' vibeflow.config.json)"
 MAX_STEP="$(jq -r '.learningApply.maxRelativeStep // 0.5' vibeflow.config.json)"
 MIN_OBS="$(jq -r '.learningApply.minObservations // 3' vibeflow.config.json)"

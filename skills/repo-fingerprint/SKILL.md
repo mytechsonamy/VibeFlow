@@ -43,7 +43,7 @@ that justified the detection, so downstream skills can audit the inference.
 ```
 
 ## When to Run
-- During `/vibeflow:init` on brownfield projects (skipped on greenfield).
+- During `/vibeflow:onboard` on brownfield projects (skipped on greenfield).
 - When the test-strategy-planner needs framework context it can't derive.
 - Re-run on demand if the stack changes (new framework, new language).
 

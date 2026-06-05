@@ -60,7 +60,7 @@ the file is missing, emit:
 
 ```
 Not a VibeFlow project — vibeflow.config.json not found.
-Run /vibeflow:init first.
+Run /vibeflow:onboard first.
 ```
 
 and stop.

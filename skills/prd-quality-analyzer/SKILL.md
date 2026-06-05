@@ -215,18 +215,22 @@ NEEDS_REVISION / REJECTED (Sprint 16-B). That is how we close the
 "forked subagent cannot invoke a slash command" gap. Marker-writing
 is not optional; without it the chain is purely advisory.
 
-After the marker is written, **also** emit the invocation prose so
-the main-agent caller (if any) picks it up directly. This is
-best-effort — the marker is the mandatory layer:
+After the marker is written, **also** emit the next-step breadcrumb so
+the operator always knows the one command to run next. Use the
+project-wide `▶ Next:` prefix and keep it as the **literal last lines**
+of your output. Recommend `phase-runner` first (it walks
+analyzers → consensus → advance in one command), with the manual
+orchestrator as the alternative:
 
 ```
-/vibeflow:consensus-orchestrator .vibeflow/reports/prd-quality-report.md
+▶ Next: /vibeflow:phase-runner
+   (or, to run consensus by hand: /vibeflow:consensus-orchestrator <PRD path>)
 ```
 
-This triggers the Claude + codex + gemini multi-AI review, which
+Either path triggers the Claude + codex + gemini multi-AI review, which
 writes a verdict file and — if the verdict is NEEDS_REVISION —
-auto-chains `/vibeflow:consensus-arbiter` to produce diff-first
-patches the operator can review and apply.
+chains the arbiter/specialist to produce diff-first patches the operator
+can review and apply.
 
 **Skip condition (only one)**: if `VF_SKIP_AUTO_CONSENSUS=1` is set in
 the environment, do NOT write the marker. Log "auto-consensus

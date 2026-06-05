@@ -14,7 +14,7 @@ source "$SCRIPT_DIR/_lib.sh"
 
 CONFIG="$(vf_config_path)"
 if [[ ! -f "$CONFIG" ]]; then
-  echo "VibeFlow: No vibeflow.config.json found. Use /vibeflow:init to initialize."
+  echo "VibeFlow: No vibeflow.config.json found. Use /vibeflow:onboard to initialize."
   exit 0
 fi
 

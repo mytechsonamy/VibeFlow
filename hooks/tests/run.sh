@@ -165,7 +165,7 @@ rm -rf "$DIR"
 DIR="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-XXXXXX")"
 export VIBEFLOW_CWD="$DIR"
 OUT="$(bash "$SCRIPTS/load-sdlc-context.sh")"
-assert_contains "missing config produces init hint" "vibeflow:init" "$OUT"
+assert_contains "missing config produces onboard hint" "vibeflow:onboard" "$OUT"
 rm -rf "$DIR"
 
 # Output budget (S4-08 memory footprint guard): the SessionStart hook

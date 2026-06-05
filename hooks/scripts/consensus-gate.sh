@@ -84,6 +84,11 @@ if [[ -n "$CMD" ]]; then
     *vibeflow:consensus-orchestrator*) echo '{"continue":true}'; exit 0 ;;
     *vibeflow:consensus-arbiter*)      echo '{"continue":true}'; exit 0 ;;
     *vibeflow:apply-arbiter-patch*)    echo '{"continue":true}'; exit 0 ;;
+    # Sprint 31-C: the headless consensus runner IS the drain action — it
+    # runs the reviewer CLIs, writes verdict.json, and removes the marker.
+    # phase-runner calls it as plain Bash, so it must pass the gate (the
+    # very marker it's about to drain would otherwise block it).
+    *consensus-run.sh*)                echo '{"continue":true}'; exit 0 ;;
     *rm*.vibeflow/state/consensus-needed.json*) echo '{"continue":true}'; exit 0 ;;
     *rm*consensus-needed.json*)                 echo '{"continue":true}'; exit 0 ;;
   esac

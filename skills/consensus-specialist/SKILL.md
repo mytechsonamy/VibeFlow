@@ -115,7 +115,7 @@ CURRENT_PHASE="$(vf_config_get '.currentPhase' 2>/dev/null || echo '')"
 
 Map the phase to the specialist agent name per the table above. If
 the phase is unknown or missing, stop and prompt the operator to
-run `/vibeflow:init` first.
+run `/vibeflow:onboard` first.
 
 ### Step 3: Prepare patch directory
 

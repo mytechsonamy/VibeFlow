@@ -3,9 +3,9 @@
   "version": 1,
   "description": "Advisory mapping from skill name to the SDLC phases in which it is intended to run. Consumed by skill self-checks and documentation. Hook-level path enforcement lives separately in hooks/scripts/phase-policy.json.",
   "skills": {
-    "init": {
+    "onboard": {
       "phases": ["REQUIREMENTS"],
-      "description": "Project bootstrap — runs exactly once at the start of REQUIREMENTS."
+      "description": "Project bootstrap (renamed from init in v2.19.0) — runs exactly once at the start of REQUIREMENTS."
     },
     "prd-quality-analyzer": {
       "phases": ["REQUIREMENTS"],
