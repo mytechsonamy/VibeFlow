@@ -17847,6 +17847,9 @@ var LearningApplyConfigSchema = external_exports.object({
     regressionDelta: 0.05
   }
 });
+var LoopAuditConfigSchema = external_exports.object({
+  window: external_exports.number().int().min(1).max(1e3).default(20)
+}).default({ window: 20 });
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
@@ -17856,7 +17859,8 @@ var EngineConfigSchema = external_exports.object({
   phaseRunner: PhaseRunnerConfigSchema,
   learningLoop: LearningLoopConfigSchema,
   reviewerMemory: ReviewerMemoryConfigSchema,
-  learningApply: LearningApplyConfigSchema
+  learningApply: LearningApplyConfigSchema,
+  loopAudit: LoopAuditConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17869,7 +17873,8 @@ function resolveConfig(cwd = process.cwd()) {
     phaseRunner: fileConfig.phaseRunner ?? {},
     learningLoop: fileConfig.learningLoop ?? {},
     reviewerMemory: fileConfig.reviewerMemory ?? {},
-    learningApply: fileConfig.learningApply ?? {}
+    learningApply: fileConfig.learningApply ?? {},
+    loopAudit: fileConfig.loopAudit ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17916,6 +17921,13 @@ function loadFileConfig(cwd) {
         learningApply = parsed.data;
       }
     }
+    let loopAudit;
+    if (typeof raw.loopAudit === "object" && raw.loopAudit !== null) {
+      const parsed = LoopAuditConfigSchema.safeParse(raw.loopAudit);
+      if (parsed.success) {
+        loopAudit = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
       ...dir ? { stateStore: { dir } } : {},
@@ -17923,7 +17935,8 @@ function loadFileConfig(cwd) {
       ...phaseRunner ? { phaseRunner } : {},
       ...learningLoop ? { learningLoop } : {},
       ...reviewerMemory ? { reviewerMemory } : {},
-      ...learningApply ? { learningApply } : {}
+      ...learningApply ? { learningApply } : {},
+      ...loopAudit ? { loopAudit } : {}
     };
   } catch {
     return {};

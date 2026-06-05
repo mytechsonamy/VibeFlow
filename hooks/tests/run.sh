@@ -1408,6 +1408,47 @@ TXREVROWS="$(jq -c 'select(.type=="auto-revert")' "$CONS_DIR/history.jsonl" 2>/d
 assert_eq "[S24-D] one auto-revert row per key in the set" "2" "$TXREVROWS"
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
+# ---------------------------------------------------------------------------
+echo "== loop-audit.sh reader [S25-A] =="
+
+LAUDIT="$SCRIPTS/loop-audit.sh"
+# Empty project → all-zero, well-formed JSON.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+OUT="$(bash "$LAUDIT" 2>/dev/null)"
+if printf '%s' "$OUT" | jq -e . >/dev/null 2>&1; then pass "[S25-A] empty project → valid JSON"; else fail "[S25-A] empty project → valid JSON"; fi
+assert_eq "[S25-A] empty project applied=0" "0" "$(printf '%s' "$OUT" | jq -r '.autoApply.applied')"
+assert_eq "[S25-A] empty project perKey empty" "0" "$(printf '%s' "$OUT" | jq -r '.perKey | length')"
+assert_eq "[S25-A] empty project reportExists=false" "false" "$(printf '%s' "$OUT" | jq -r '.learning.reportExists')"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# Seeded telemetry → per-key counts, revert rate, cooldown, armed watch, findings.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+CONS_DIR="$DIR/.vibeflow/state/consensus"; AA_DIR="$DIR/.vibeflow/state/auto-apply"; REP_DIR="$DIR/.vibeflow/reports"
+mkdir -p "$CONS_DIR" "$AA_DIR" "$REP_DIR"
+{
+  echo '{"type":"auto-apply","key":"consensus.maxIterations"}'
+  echo '{"type":"auto-revert","key":"consensus.maxIterations"}'
+  echo '{"type":"auto-apply","key":"consensus.maxIterations"}'
+  echo '{"type":"auto-revert","key":"consensus.maxIterations"}'
+  echo '{"type":"auto-apply","key":"reviewerMemory.tokenBudget"}'
+  echo '{"type":"auto-apply-held","key":"reviewerMemory.tokenBudget"}'
+} > "$CONS_DIR/history.jsonl"
+: > "$AA_DIR/cooldown-consensus.maxIterations"
+echo '{"keys":["consensus.approvalThreshold"],"phase":"DEVELOPMENT","primaryArtifact":"docs/PRD.md"}' > "$AA_DIR/watch.json"
+printf '# R\n### F1\n### F2\n' > "$REP_DIR/consensus-learning-report.md"
+OUT="$(bash "$LAUDIT" 2>/dev/null)"
+assert_eq "[S25-A] applied total=3" "3" "$(printf '%s' "$OUT" | jq -r '.autoApply.applied')"
+assert_eq "[S25-A] reverted total=2" "2" "$(printf '%s' "$OUT" | jq -r '.autoApply.reverted')"
+assert_eq "[S25-A] held total=1" "1" "$(printf '%s' "$OUT" | jq -r '.autoApply.held')"
+assert_eq "[S25-A] maxIterations revertRate=1" "1" "$(printf '%s' "$OUT" | jq -r '.perKey[] | select(.key=="consensus.maxIterations") | .revertRate')"
+assert_eq "[S25-A] maxIterations cooledDown=true" "true" "$(printf '%s' "$OUT" | jq -r '.perKey[] | select(.key=="consensus.maxIterations") | .cooledDown')"
+assert_eq "[S25-A] armed watch key surfaced" "consensus.approvalThreshold" "$(printf '%s' "$OUT" | jq -r '.autoApply.armedWatch.keys[0]')"
+assert_eq "[S25-A] cooled-down key listed" "consensus.maxIterations" "$(printf '%s' "$OUT" | jq -r '.autoApply.cooldowns[0]')"
+assert_eq "[S25-A] learning findingCount=2" "2" "$(printf '%s' "$OUT" | jq -r '.learning.findingCount')"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

@@ -114,6 +114,7 @@ the short index. Details in each sprint's doc + the matching
 | 22 | v2.10.0 (2026-06-02) | Close the action gap: `learning-apply` skill turns learning-loop recommendations into diff-first, operator-confirmed config patches + phase-specialist routing | [SPRINT-22.md](SPRINT-22.md) |
 | 23 | v2.11.0 (2026-06-04) | Bounded auto-apply with auto-revert: opt-in allowlisted config auto-tuning (default off) + snapshot + aggregator auto-revert on next-round regression + cooldown | [SPRINT-23.md](SPRINT-23.md) |
 | 24 | v2.12.0 (2026-06-05) | Self-correcting auto-apply: per-key outcome telemetry + `auto-tune-ineffective` meta-learning detector + lifetime self-demote + multi-key transactional revert | [SPRINT-24.md](SPRINT-24.md) |
+| 25 | v2.13.0 (2026-06-05) | Autonomous-loop observability: read-only `loop-audit.sh` reader + `/vibeflow:status` Autonomous Loop section (per-key revert rates, cooldowns, armed watch, learning findings) | [SPRINT-25.md](SPRINT-25.md) |
 
 ---
 

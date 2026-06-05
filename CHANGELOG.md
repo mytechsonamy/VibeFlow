@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.13.0] — 2026-06-05
+
+Sprint 25 — autonomous-loop observability. The deep autonomy of Sprints
+20–24 was opaque (telemetry spread across six files); v2.13.0 adds one
+pane of glass.
+
+- **Audit reader (S25-A).** New read-only `hooks/scripts/loop-audit.sh`
+  consolidates `history.jsonl` auto-apply outcomes, `cooldown-*` markers,
+  `auto-apply/watch.json`, the learning report, and the decisions log
+  into one JSON summary (per-key counts + revert rate, cooled-down keys,
+  armed watch, finding count, recent decisions). Fully guarded — empty
+  project ⇒ all-zero JSON.
+- **Status section (S25-B).** `/vibeflow:status` gains an **Autonomous
+  Loop** section that runs the reader and renders it, flagging keys at
+  `revertRate ≥ 0.5`; collapses to one idle line when there's no
+  activity.
+- **Config (S25-C).** New `LoopAuditConfigSchema` `{ window: 20 }` bounds
+  the per-key tally to recent history rows.
+
+Docs: `docs/LOOP-AUDIT.md` + `AUTO-APPLY.md` / `META-LEARNING.md`
+refreshes. Tests: sdlc-engine 182→185, hooks 155→167, new `sprint-25.sh`
+(42). Total baseline 2620 → 2677.
+
+- `.claude-plugin/plugin.json`: 2.12.0 → 2.13.0
+- `@vibeflow/sdlc-engine`: 1.10.0 → 1.11.0
+
+---
+
 ## [2.12.0] — 2026-06-05
 
 Sprint 24 — self-correcting auto-apply. Sprint 23 made config auto-apply

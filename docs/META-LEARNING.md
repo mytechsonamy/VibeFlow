@@ -84,8 +84,15 @@ one-key-at-a-time behaviour.
 All defaulted; `autoApply` stays OFF by default, so none of this engages
 until a project opts in.
 
+## Seeing it
+
+The per-key revert rate this meta-loop computes is surfaced live in
+`/vibeflow:status`'s **Autonomous Loop** section — a key crossing
+`revertRate ≥ 0.5` is flagged there too. See [LOOP-AUDIT.md](LOOP-AUDIT.md).
+
 ## See also
 
 - [AUTO-APPLY.md](AUTO-APPLY.md) — the bounded auto-apply + auto-revert base.
 - [LEARNING-LOOP.md](LEARNING-LOOP.md) — the detector lives in the
   consensus-history mode.
+- [LOOP-AUDIT.md](LOOP-AUDIT.md) — the operator-facing audit surface.

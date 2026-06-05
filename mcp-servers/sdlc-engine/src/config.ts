@@ -175,6 +175,20 @@ export const LearningApplyConfigSchema = z
 
 export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;
 
+/**
+ * Sprint 25-C: bounds for the autonomous-loop audit reader
+ * (`hooks/scripts/loop-audit.sh`, surfaced by `/vibeflow:status`).
+ * `window` is how many recent `auto-*` rows of `history.jsonl` the
+ * per-key tally summarizes — bounds the audit to recent activity.
+ */
+export const LoopAuditConfigSchema = z
+  .object({
+    window: z.number().int().min(1).max(1000).default(20),
+  })
+  .default({ window: 20 });
+
+export type LoopAuditConfig = z.infer<typeof LoopAuditConfigSchema>;
+
 export const EngineConfigSchema = z.object({
   project: z.string().min(1),
   stateStore: z
@@ -187,6 +201,7 @@ export const EngineConfigSchema = z.object({
   learningLoop: LearningLoopConfigSchema,
   reviewerMemory: ReviewerMemoryConfigSchema,
   learningApply: LearningApplyConfigSchema,
+  loopAudit: LoopAuditConfigSchema,
 });
 
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
@@ -213,6 +228,7 @@ export function resolveConfig(cwd: string = process.cwd()): EngineConfig {
     learningLoop: fileConfig.learningLoop ?? {},
     reviewerMemory: fileConfig.reviewerMemory ?? {},
     learningApply: fileConfig.learningApply ?? {},
+    loopAudit: fileConfig.loopAudit ?? {},
   });
 }
 
@@ -273,6 +289,14 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
         learningApply = parsed.data;
       }
     }
+    // Sprint 25-C: loop-audit window, same silent-fallback pattern.
+    let loopAudit: LoopAuditConfig | undefined;
+    if (typeof raw.loopAudit === "object" && raw.loopAudit !== null) {
+      const parsed = LoopAuditConfigSchema.safeParse(raw.loopAudit);
+      if (parsed.success) {
+        loopAudit = parsed.data;
+      }
+    }
     return {
       ...(typeof project === "string" ? { project } : {}),
       ...(dir ? { stateStore: { dir } } : {}),
@@ -281,6 +305,7 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
       ...(learningLoop ? { learningLoop } : {}),
       ...(reviewerMemory ? { reviewerMemory } : {}),
       ...(learningApply ? { learningApply } : {}),
+      ...(loopAudit ? { loopAudit } : {}),
     };
   } catch {
     return {};

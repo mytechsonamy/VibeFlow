@@ -156,6 +156,17 @@ export const LearningApplyConfigSchema = z
         regressionDelta: 0.05,
     },
 });
+/**
+ * Sprint 25-C: bounds for the autonomous-loop audit reader
+ * (`hooks/scripts/loop-audit.sh`, surfaced by `/vibeflow:status`).
+ * `window` is how many recent `auto-*` rows of `history.jsonl` the
+ * per-key tally summarizes — bounds the audit to recent activity.
+ */
+export const LoopAuditConfigSchema = z
+    .object({
+    window: z.number().int().min(1).max(1000).default(20),
+})
+    .default({ window: 20 });
 export const EngineConfigSchema = z.object({
     project: z.string().min(1),
     stateStore: z
@@ -168,6 +179,7 @@ export const EngineConfigSchema = z.object({
     learningLoop: LearningLoopConfigSchema,
     reviewerMemory: ReviewerMemoryConfigSchema,
     learningApply: LearningApplyConfigSchema,
+    loopAudit: LoopAuditConfigSchema,
 });
 /**
  * Resolve runtime config from (in order of precedence):
@@ -187,6 +199,7 @@ export function resolveConfig(cwd = process.cwd()) {
         learningLoop: fileConfig.learningLoop ?? {},
         reviewerMemory: fileConfig.reviewerMemory ?? {},
         learningApply: fileConfig.learningApply ?? {},
+        loopAudit: fileConfig.loopAudit ?? {},
     });
 }
 function loadFileConfig(cwd) {
@@ -243,6 +256,14 @@ function loadFileConfig(cwd) {
                 learningApply = parsed.data;
             }
         }
+        // Sprint 25-C: loop-audit window, same silent-fallback pattern.
+        let loopAudit;
+        if (typeof raw.loopAudit === "object" && raw.loopAudit !== null) {
+            const parsed = LoopAuditConfigSchema.safeParse(raw.loopAudit);
+            if (parsed.success) {
+                loopAudit = parsed.data;
+            }
+        }
         return {
             ...(typeof project === "string" ? { project } : {}),
             ...(dir ? { stateStore: { dir } } : {}),
@@ -251,6 +272,7 @@ function loadFileConfig(cwd) {
             ...(learningLoop ? { learningLoop } : {}),
             ...(reviewerMemory ? { reviewerMemory } : {}),
             ...(learningApply ? { learningApply } : {}),
+            ...(loopAudit ? { loopAudit } : {}),
         };
     }
     catch {

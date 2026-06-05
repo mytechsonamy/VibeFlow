@@ -1,7 +1,7 @@
 ---
 name: status
 description: Shows current VibeFlow project status including SDLC phase, pending tasks, quality metrics, and recent review results. Use when asking about project progress.
-allowed-tools: Read Grep Glob
+allowed-tools: Read Grep Glob Bash(bash *loop-audit.sh*) Bash(jq *)
 ---
 
 # VibeFlow Status
@@ -50,6 +50,37 @@ when the ledger is stale:
 A ledger whose `status` is terminal (`advanced` / `approved` /
 `rejected`) for the *current* phase may still be shown as the last
 completed run, clearly labelled "last run" rather than "in progress".
+
+### 6. Autonomous Loop (Sprint 25-B)
+Run the read-only audit reader and render the autonomous-loop state from
+its JSON:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/loop-audit.sh"
+```
+
+It consolidates the scattered telemetry (`history.jsonl` auto-apply
+outcomes, `auto-apply/cooldown-*` markers, `auto-apply/watch.json`,
+`consensus-learning-report.md`, `learning-apply-decisions.md`). Render:
+
+- **Auto-apply tally** — `applied` / `held` / `reverted` over the
+  `loopAudit.window` recent rows, with a **per-key revert rate**. Flag
+  any key whose `revertRate ≥ 0.5` as *"candidate for removal from
+  `autoApply.keys`"* (the same signal the S24-B `auto-tune-ineffective`
+  detector raises).
+- **Cooled-down keys** (`autoApply.cooldowns`) — won't re-tune this sprint.
+- **Armed watch** (`autoApply.armedWatch`) — a tune awaiting next-round
+  judgement (its `keys` + phase + primaryArtifact), if any.
+- **Learning report** — `learning.findingCount` findings; remind the
+  operator to read it via
+  `/vibeflow:learning-loop-engine --mode consensus-history`.
+- **Recent decisions** — the last few `recentDecisions` from
+  `learning-apply`.
+
+**Idle collapse.** When the reader returns all zeros / empties (no
+`applied`, no `cooldowns`, no `armedWatch`, `reportExists:false`), render
+a single line — `Autonomous loop: idle (autoApply off / no activity)` —
+so projects that don't use auto-apply see no noise.
 
 ## Output
 Display a concise status summary directly in the conversation. Do not create a file.

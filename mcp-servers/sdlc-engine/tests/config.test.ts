@@ -11,6 +11,7 @@ import {
   ReviewerMemoryConfigSchema,
   LearningApplyConfigSchema,
   AutoApplyConfigSchema,
+  LoopAuditConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -428,6 +429,29 @@ describe("LearningApplyConfigSchema (Sprint 22-D)", () => {
     expect(
       LearningApplyConfigSchema.safeParse({ maxRelativeStep: 0.5 }).success,
     ).toBe(true);
+  });
+});
+
+describe("LoopAuditConfigSchema (Sprint 25-C)", () => {
+  it("defaults window to 20", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.loopAudit.window).toBe(20);
+  });
+
+  it("accepts a partial loopAudit and merges from config file", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      loopAudit: { window: 50 },
+    });
+    expect(cfg.loopAudit.window).toBe(50);
+  });
+
+  it("rejects an out-of-range window", () => {
+    expect(LoopAuditConfigSchema.safeParse({ window: 0 }).success).toBe(false);
+    expect(LoopAuditConfigSchema.safeParse({ window: 1001 }).success).toBe(
+      false,
+    );
+    expect(LoopAuditConfigSchema.safeParse({ window: 20 }).success).toBe(true);
   });
 });
 

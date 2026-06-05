@@ -102,8 +102,16 @@ self-demotes a chronically-reverted key to propose-only
 (`demoteAfterReverts`). A multi-key run reverts as one
 transaction (`transactional`). See [META-LEARNING.md](META-LEARNING.md).
 
+## Seeing what auto-apply did
+
+`/vibeflow:status` has an **Autonomous Loop** section (Sprint 25) that
+consolidates every auto-apply outcome — applied/held/reverted tallies,
+per-key revert rates, cooled-down keys, the armed watch, and pending
+learning findings — into one view. See [LOOP-AUDIT.md](LOOP-AUDIT.md).
+
 ## See also
 
 - [LEARNING-APPLY.md](LEARNING-APPLY.md) — the skill + its lanes.
 - [ACTION-GAP.md](ACTION-GAP.md) — the full observe → frame → act loop.
 - [META-LEARNING.md](META-LEARNING.md) — the self-correcting meta-loop.
+- [LOOP-AUDIT.md](LOOP-AUDIT.md) — the autonomous-loop observability surface.

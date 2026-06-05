@@ -213,6 +213,20 @@ export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
     } | undefined;
 }>>;
 export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;
+/**
+ * Sprint 25-C: bounds for the autonomous-loop audit reader
+ * (`hooks/scripts/loop-audit.sh`, surfaced by `/vibeflow:status`).
+ * `window` is how many recent `auto-*` rows of `history.jsonl` the
+ * per-key tally summarizes — bounds the audit to recent activity.
+ */
+export declare const LoopAuditConfigSchema: z.ZodDefault<z.ZodObject<{
+    window: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    window: number;
+}, {
+    window?: number | undefined;
+}>>;
+export type LoopAuditConfig = z.infer<typeof LoopAuditConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -344,6 +358,13 @@ export declare const EngineConfigSchema: z.ZodObject<{
             transactional?: boolean | undefined;
         } | undefined;
     }>>;
+    loopAudit: z.ZodDefault<z.ZodObject<{
+        window: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        window: number;
+    }, {
+        window?: number | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
@@ -387,6 +408,9 @@ export declare const EngineConfigSchema: z.ZodObject<{
             transactional: boolean;
         };
     };
+    loopAudit: {
+        window: number;
+    };
 }, {
     project: string;
     stateStore?: {
@@ -429,6 +453,9 @@ export declare const EngineConfigSchema: z.ZodObject<{
             demoteAfterReverts?: number | undefined;
             transactional?: boolean | undefined;
         } | undefined;
+    } | undefined;
+    loopAudit?: {
+        window?: number | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
