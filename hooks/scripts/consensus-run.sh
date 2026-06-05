@@ -107,9 +107,17 @@ vf_run_timeout() {   # vf_run_timeout <seconds> <cmd...>   (forwards stdin)
   if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"; return $?; fi
   local _in; _in="$(mktemp)"; cat > "$_in"
   "$@" < "$_in" & local pid=$!
-  ( sleep "$secs"; kill -0 "$pid" 2>/dev/null && { touch "/tmp/vf_to_$pid"; kill -TERM "$pid" 2>/dev/null; }; ) & local wd=$!
+  # Watchdog. CRITICAL: redirect its stdout/stderr to /dev/null. When this
+  # runs inside `CMD="$( … | vf_run_timeout … )"`, a backgrounded subshell
+  # inherits the command-substitution's stdout pipe; if it (or its `sleep`
+  # child) keeps that fd open, `$( … )` blocks until `sleep $secs` ends —
+  # a full 90s hang AFTER the CLI already returned. The redirect drops the
+  # pipe fd so the substitution closes as soon as the CLI exits.
+  ( sleep "$secs"; kill -0 "$pid" 2>/dev/null && { touch "/tmp/vf_to_$pid"; kill -TERM "$pid" 2>/dev/null; }; ) >/dev/null 2>&1 & local wd=$!
   wait "$pid" 2>/dev/null; local rc=$?
-  kill -TERM "$wd" 2>/dev/null; wait "$wd" 2>/dev/null; rm -f "$_in"
+  # Tear down the watchdog AND its sleep child so nothing lingers.
+  kill -TERM "$wd" 2>/dev/null; pkill -P "$wd" 2>/dev/null
+  wait "$wd" 2>/dev/null; rm -f "$_in"
   if [[ -f "/tmp/vf_to_$pid" ]]; then rm -f "/tmp/vf_to_$pid"; return 124; fi
   return "$rc"
 }
@@ -230,11 +238,13 @@ fi
 # it's exactly the CLIs we just ran). It still writes history.jsonl,
 # reviewer-memory, and evaluates the auto-revert watch — identical to the
 # interactive path's finalization.
-bash "$SCRIPT_DIR/consensus-aggregator.sh" --finalize "$SESSION_ID" "$ROUND" >/dev/null 2>&1 || true
+AGG_ERR="$(bash "$SCRIPT_DIR/consensus-aggregator.sh" --finalize "$SESSION_ID" "$ROUND" 2>&1 >/dev/null)" || true
 
 VERDICT_FILE="$CONS_DIR/$SESSION_ID.verdict.json"
 if [[ ! -f "$VERDICT_FILE" ]]; then
-  echo "consensus-run: aggregator did not produce a verdict.json" >&2
+  echo "consensus-run: aggregator did not produce a verdict.json (session=$SESSION_ID)" >&2
+  echo "consensus-run: reviewer log: $LOG ($(wc -l < "$LOG" 2>/dev/null | tr -d ' ') line(s))" >&2
+  [[ -n "$AGG_ERR" ]] && echo "consensus-run: aggregator stderr: $AGG_ERR" >&2
   exit 1
 fi
 

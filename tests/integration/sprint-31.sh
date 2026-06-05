@@ -92,6 +92,13 @@ assert_grep "[S31-C] consensus-run.sh finalises via aggregator --finalize" \
 assert_grep "[S31-C] consensus-run.sh drains consensus-needed.json" \
   "consensus-needed.json" "$CRUN"
 assert_grep "[S31-C] consensus-run.sh exit 3 when no reviewer CLI" "exit 3" "$CRUN"
+# Regression pin: the pure-bash watchdog MUST redirect its subshell off the
+# captured stdout pipe, else `CMD="$( … | vf_run_timeout … )"` hangs the full
+# timeout (~90s) AFTER the CLI already returned. Both copies must carry it.
+assert_grep "[S31-C] consensus-run vf_run_timeout watchdog redirected off the capture pipe" \
+  '\) >/dev/null 2>&1 & local wd' "$CRUN"
+assert_grep "[S31-C] orchestrator vf_run_timeout watchdog redirected off the capture pipe" \
+  '\) >/dev/null 2>&1 & local wd' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
 
 # Aggregator gained the additive --finalize mode without breaking the
 # SubagentStop path.
@@ -160,6 +167,44 @@ if command -v jq >/dev/null 2>&1; then
     fail "[S31-C] runtime: SubagentStop path still logs a reviewer (unbroken)"
   fi
   rm -rf "$T"
+
+  # End-to-end no-hang probe: with fake fast reviewer CLIs, consensus-run.sh
+  # must finish ~instantly and exit 0. If the vf_run_timeout watchdog
+  # regresses (holds the capture pipe), the run hangs the full 90s/CLI — so
+  # we cap it: run in the background, give it 20s, then check. A fast finish
+  # leaves a `.done` marker; a hang leaves none → fail (never hangs the suite).
+  T2="$(mktemp -d)"; B2="$T2/bin"; mkdir -p "$B2" "$T2/proj/docs" "$T2/proj/.vibeflow/state"
+  printf '# PRD\n\nGereksinim.\n' > "$T2/proj/docs/PRD.md"
+  printf '{"project":"p","currentPhase":"REQUIREMENTS"}\n' > "$T2/proj/vibeflow.config.json"
+  printf '{"primaryArtifact":"docs/PRD.md","evidence":[],"createdBy":"prd-quality-analyzer"}\n' \
+    > "$T2/proj/.vibeflow/state/consensus-needed.json"
+  printf '#!/bin/bash\ncat >/dev/null\necho %s\n' "'{\"verdict\":\"APPROVED\",\"criticalIssues\":0}'" > "$B2/codex"
+  printf '#!/bin/bash\ncat >/dev/null\necho %s\n' "'{\"verdict\":\"APPROVED\",\"criticalIssues\":0}'" > "$B2/gemini"
+  chmod +x "$B2/codex" "$B2/gemini"
+  (
+    cd "$T2/proj" && PATH="$B2:$PATH" VIBEFLOW_CWD="$T2/proj" \
+      bash "$CRUN" .vibeflow/state/consensus-needed.json >/dev/null 2>&1
+    touch "$T2/.done"
+  ) &
+  PROBE_PID=$!
+  for _i in $(seq 1 20); do [[ -f "$T2/.done" ]] && break; sleep 1; done
+  if [[ -f "$T2/.done" ]]; then
+    pass "[S31-C] runtime: consensus-run.sh finishes fast (no watchdog pipe-hang)"
+    if [[ -f "$T2/proj/.vibeflow/state/consensus/"*verdict.json ]] 2>/dev/null || ls "$T2/proj/.vibeflow/state/consensus/"*verdict.json >/dev/null 2>&1; then
+      pass "[S31-C] runtime: consensus-run.sh wrote a verdict.json"
+    else
+      fail "[S31-C] runtime: consensus-run.sh wrote a verdict.json"
+    fi
+    if [[ ! -f "$T2/proj/.vibeflow/state/consensus-needed.json" ]]; then
+      pass "[S31-C] runtime: consensus-run.sh drained the consensus marker"
+    else
+      fail "[S31-C] runtime: consensus-run.sh drained the consensus marker"
+    fi
+  else
+    fail "[S31-C] runtime: consensus-run.sh finishes fast (no watchdog pipe-hang)"
+    kill "$PROBE_PID" 2>/dev/null; pkill -P "$PROBE_PID" 2>/dev/null
+  fi
+  rm -rf "$T2"
 fi
 
 # ---------------------------------------------------------------------------

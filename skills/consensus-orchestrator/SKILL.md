@@ -363,9 +363,15 @@ vf_run_timeout() {   # vf_run_timeout <seconds> <cmd...>   (forwards stdin)
   # the child's stdin from it explicitly so the prompt survives.
   local _in; _in="$(mktemp)"; cat > "$_in"
   "$@" < "$_in" & local pid=$!
-  ( sleep "$secs"; kill -0 "$pid" 2>/dev/null && { touch "/tmp/vf_to_$pid"; kill -TERM "$pid" 2>/dev/null; }; ) & local wd=$!
+  # Watchdog. CRITICAL: redirect its stdout/stderr to /dev/null. Inside a
+  # `CMD="$( … | vf_run_timeout … )"` capture the backgrounded subshell
+  # inherits the command-substitution's stdout pipe; if it (or its `sleep`
+  # child) holds that fd open, `$( … )` blocks until `sleep $secs` ends —
+  # a full 90s hang AFTER the CLI already returned. The redirect drops the
+  # pipe fd so the capture closes the instant the CLI exits.
+  ( sleep "$secs"; kill -0 "$pid" 2>/dev/null && { touch "/tmp/vf_to_$pid"; kill -TERM "$pid" 2>/dev/null; }; ) >/dev/null 2>&1 & local wd=$!
   wait "$pid" 2>/dev/null; local rc=$?
-  kill -TERM "$wd" 2>/dev/null; wait "$wd" 2>/dev/null; rm -f "$_in"
+  kill -TERM "$wd" 2>/dev/null; pkill -P "$wd" 2>/dev/null; wait "$wd" 2>/dev/null; rm -f "$_in"
   if [[ -f "/tmp/vf_to_$pid" ]]; then rm -f "/tmp/vf_to_$pid"; return 124; fi
   return "$rc"
 }

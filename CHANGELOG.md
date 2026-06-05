@@ -40,6 +40,17 @@ contradiction beneath them.
 - New `docs/ONBOARDING.md`; `docs/PHASE-BOUNDARIES.md` + the
   consensus-orchestrator skill note the interactive-vs-headless split.
 
+### Fixed
+- **`vf_run_timeout` pure-bash watchdog 90s hang** (latent since Sprint
+  26-F; hit on macOS, which ships no `timeout`/`gtimeout`). The backgrounded
+  watchdog subshell inherited the `CMD="$( … | vf_run_timeout … )"` capture
+  pipe, so `$( … )` blocked for the full timeout **after** the reviewer CLI
+  had already returned — every headless consensus run looked hung for
+  ~90s/CLI. The watchdog now redirects its fds to `/dev/null` (drops the
+  pipe) and reaps its `sleep` child. Fixed in both `consensus-run.sh` and
+  the `consensus-orchestrator` prose. consensus-run also surfaces the
+  aggregator's stderr if no `verdict.json` is produced.
+
 ### Unchanged
 - The interactive `/vibeflow:consensus-orchestrator` (full 3-AI panel +
   iteration) and the SubagentStop aggregator path are untouched; all
