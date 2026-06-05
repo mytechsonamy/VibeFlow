@@ -97,29 +97,30 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-echo "== [S13-D] init + four skills carry Phase Contract =="
+echo "== [S13-D] onboard + four skills carry Phase Contract =="
 
-INIT_MD="$REPO_ROOT/skills/init/SKILL.md"
+# Sprint 31: skills/init was renamed to skills/onboard (avoid /init collision).
+INIT_MD="$REPO_ROOT/skills/onboard/SKILL.md"
 if grep -q '## Phase Contract' "$INIT_MD"; then
-  pass "[S13-D] init/SKILL.md has Phase Contract section"
+  pass "[S13-D] onboard/SKILL.md has Phase Contract section"
 else
-  fail "[S13-D] init/SKILL.md has Phase Contract section"
+  fail "[S13-D] onboard/SKILL.md has Phase Contract section"
 fi
 
 # Regression: the root bug removed its reference to codebase-explorer.
 if ! grep -q 'codebase-explorer' "$INIT_MD"; then
-  pass "[S13-D] init/SKILL.md no longer invokes codebase-explorer (regression pin)"
+  pass "[S13-D] onboard/SKILL.md no longer invokes codebase-explorer (regression pin)"
 else
-  fail "[S13-D] init/SKILL.md no longer invokes codebase-explorer (regression pin)"
+  fail "[S13-D] onboard/SKILL.md no longer invokes codebase-explorer (regression pin)"
 fi
 
 # Regression: Sprint 11-E legacy 'mode: solo/team' prompt was stale;
 # Sprint 13-D removed it. Only the historical note about removal is
 # allowed in the skill body.
 if ! grep -qE '^\s*"mode"\s*:' "$INIT_MD"; then
-  pass "[S13-D] init/SKILL.md config template no longer carries 'mode' key"
+  pass "[S13-D] onboard/SKILL.md config template no longer carries 'mode' key"
 else
-  fail "[S13-D] init/SKILL.md config template no longer carries 'mode' key"
+  fail "[S13-D] onboard/SKILL.md config template no longer carries 'mode' key"
 fi
 
 for skill in component-test-writer release-decision-engine test-strategy-planner coverage-analyzer; do
@@ -138,7 +139,7 @@ if [[ -f "$SKILL_POLICY" ]] && jq empty "$SKILL_POLICY" >/dev/null 2>&1; then
 else
   fail "[S13-D] skills/phase-policy.json exists + valid JSON"
 fi
-for skill in init component-test-writer release-decision-engine test-strategy-planner coverage-analyzer; do
+for skill in onboard component-test-writer release-decision-engine test-strategy-planner coverage-analyzer; do
   if jq -e --arg s "$skill" '.skills[$s] != null' "$SKILL_POLICY" >/dev/null 2>&1; then
     pass "[S13-D] skills/phase-policy.json covers $skill"
   else

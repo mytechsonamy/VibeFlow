@@ -55,10 +55,10 @@ does fire, the bug is in `hooks/scripts/commit-guard.sh` line
 ### `load-sdlc-context (degraded: state.db missing; phase read from config)`
 
 **Cause**: the `.vibeflow/state.db` file doesn't exist. You either
-ran `/vibeflow:init` and the init didn't create the db, OR the db
+ran `/vibeflow:onboard` and the init didn't create the db, OR the db
 was deleted by hand.
 
-**Fix**: re-run `/vibeflow:init` to recreate it. The phase you see
+**Fix**: re-run `/vibeflow:onboard` to recreate it. The phase you see
 in the degraded note comes from `vibeflow.config.json.currentPhase`,
 which is fine for read-only work but will be overwritten on the
 first `/vibeflow:advance` once state.db is rebuilt.
@@ -73,7 +73,7 @@ sqlite3 version wrote it (incompatible page format).
 
 ```bash
 mv .vibeflow/state.db .vibeflow/state.db.corrupted-$(date +%s)
-/vibeflow:init                  # recreates state.db
+/vibeflow:onboard                  # recreates state.db
 ```
 
 If you have important satisfied criteria you don't want to lose,
@@ -87,7 +87,7 @@ disagreement.
 
 **Fix**: state.db wins (it's authoritative). Either revert the
 config change, or run `/vibeflow:status` followed by
-`/vibeflow:init --sync` to reconcile the config to the db.
+`/vibeflow:onboard --sync` to reconcile the config to the db.
 
 ### `compact-recovery: state integrity degraded: jq not installed`
 

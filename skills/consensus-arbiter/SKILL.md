@@ -20,7 +20,7 @@ safely. We never Write to source files here — that's the separate
 This skill runs in **any phase** (the decision matrix handles
 phase-relevance filtering per-suggestion). Before any other step,
 read `vibeflow.config.json.currentPhase` for context; if it's
-missing emit `"arbiter needs vibeflow.config.json — run /vibeflow:init
+missing emit `"arbiter needs vibeflow.config.json — run /vibeflow:onboard
 first"` and stop.
 
 ## Input

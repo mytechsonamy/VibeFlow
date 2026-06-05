@@ -1,8 +1,8 @@
 ---
 name: phase-runner
-description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, invokes consensus-orchestrator on the primary artifact, chains through arbiter → apply-arbiter-patch on NEEDS_REVISION (up to consensus.maxIterations), and auto-advances on APPROVED via sdlc_advance_phase MCP tool. In TESTING it first generates the coverage artifact (Sprint 29 — runs tech.coverageCommand so coverage-analyzer has input), making TESTING a true one-command walk too. One command replaces the manual analyzer → consensus → arbiter → apply → advance walk.
+description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, then drives a real cross-AI consensus verdict HEADLESSLY via hooks/scripts/consensus-run.sh (runs the codex/gemini reviewer CLIs + finalises verdict.json — no dependency on the disable-model-invocation consensus skills, so phase-runner no longer deadlocks). On APPROVED it records consensus + auto-advances via the sdlc-engine MCP tools; on NEEDS_REVISION/REJECTED it stops with an explicit operator breadcrumb (the deep-rewrite specialist→arbiter→apply chain edits the primary artifact and stays operator-confirmed by design). In TESTING it first generates the coverage artifact (Sprint 29). One command replaces the manual analyzer → consensus → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases
+allowed-tools: Read Write Bash(bash hooks/scripts/consensus-run.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -56,9 +56,9 @@ registrations + the Sprint 19-A `docs/PRIMARY-ARTIFACT.md` table.
 | DEPLOYMENT | `release-decision-engine`, `deploy-verifier` | `release-notes/<version>.md` |
 
 When the analyzer list is empty (DESIGN), the skill announces the
-manual-criterion reminder from `docs/AUTO-SATISFY.md` and
-invokes consensus-orchestrator directly on the design spec path
-from config (`design.sourceDir` fallback `design/`).
+manual-criterion reminder from `docs/AUTO-SATISFY.md` and runs the
+headless consensus (Step 3, `consensus-run.sh`) directly on the design
+spec path from config (`design.sourceDir` fallback `design/`).
 
 ## Process
 
@@ -180,36 +180,84 @@ have two analyzers, the second analyzer overwrites the marker
 (last-writer-wins — its evidence[] should include prior
 analyzer's report to avoid losing signal).
 
-### Step 3: Convergence loop (per phase-runner attempt)
+### Step 3: Consensus — headless, real verdict (Sprint 31-C)
 
-```
-for attempt in 1..maxConvergenceAttempts:
-    invoke consensus-orchestrator on the primary artifact
-    read verdict.json.status
-    case status:
-      APPROVED → break loop, go to Step 4
-      REJECTED (rejected >= 1) → stop, emit operator triage
-      REJECTED (rejected == 0)   ← can't happen post-S19-C, but defensive
-      NEEDS_REVISION / HUMAN_APPROVAL_REQUIRED:
-        invoke consensus-specialist (prefer deep rewrite) OR
-        fall back to consensus-arbiter (mechanical)
-        invoke apply-arbiter-patch --yes --run-tests
-        Sprint 19-E auto-chain writes the next-round marker
-        loop continues via attempt++
+phase-runner is the one **operator-invoked** entry point that may
+drive consensus itself. The `/vibeflow:consensus-orchestrator` skill
+(and specialist / arbiter / apply / advance) are
+`disable-model-invocation: true`, so Claude **cannot fork them** —
+before Sprint 31 that made this loop un-runnable and phase-runner
+deadlocked against its own `consensus-gate` (the analyzer's
+`consensus-needed.json` blocked every tool call, and the only thing
+that could drain it was an un-forkable skill). Instead, call the
+headless runner as **plain Bash**:
+
+```bash
+bash hooks/scripts/consensus-run.sh .vibeflow/state/consensus-needed.json
 ```
 
-Each `consensus-orchestrator` invocation internally runs up to
-`consensus.maxIterations` review rounds (Sprint 17-A). The
-phase-runner's `maxConvergenceAttempts` counts **specialist-apply
-cycles** on top of that — default 3. So the worst case walks
-3 × 5 = 15 reviewer-round × specialist-rewrite × reviewer-round
-passes before giving up. In practice most phases converge in 1.
+(If no marker exists — e.g. DESIGN, which has no analyzer — pass the
+primary artifact path directly: `bash hooks/scripts/consensus-run.sh design/spec.md`.)
 
-### Step 4: Auto-advance (APPROVED only)
+The runner resolves the primary, runs every external reviewer CLI on
+PATH (codex, gemini), finalises a real `verdict.json` via
+`consensus-aggregator.sh --finalize` (no 600s quorum stall — it knows
+the panel is exactly the CLIs that ran), feeds the same
+history.jsonl / reviewer-memory / auto-revert machinery the interactive
+path uses, and **drains `consensus-needed.json`** so the gate unblocks.
+It prints one JSON line:
+`{sessionId, status, agreement, criticalTotal, reviewers, verdictFile}`.
 
-When the loop exited with APPROVED and `phaseRunner.autoAdvance`
-is true, call the MCP tool directly — no shelling out to
-`/vibeflow:advance`:
+**Exit 3 — no reviewer CLI on PATH.** A headless panel needs codex or
+gemini (claude-reviewer is model-only). Stop and emit, as the last line:
+
+```
+No external reviewer CLI (codex/gemini) on PATH; headless consensus
+can't run. Use the interactive path — it always has claude-reviewer:
+▶ Next: /vibeflow:consensus-orchestrator <primary-artifact>
+```
+
+Read `status` from the runner's output (or `verdictFile`) and branch:
+
+- **APPROVED** → record + advance (Step 4).
+- **REJECTED** (`rejected ≥ 1`) → **stop**. Reviewers actively rejected
+  the artifact; emit triage citing `verdictFile`. Do NOT advance, do NOT
+  fabricate a pass.
+- **NEEDS_REVISION / HUMAN_APPROVAL_REQUIRED** → **stop** with the honest
+  revision breadcrumb. The deep-rewrite chain rewrites the primary
+  artifact (PRD/ADR/…) and is `disable-model-invocation: true` **by
+  design** — only the operator runs it. Emit, as the literal last lines:
+
+  ```
+  Consensus did not converge for $CURRENT (status=$STATUS, agreement=$AGREE).
+  Resolve, then re-run phase-runner:
+  ▶ Next: /vibeflow:consensus-specialist <session-id>   (deep rewrite)
+      then  /vibeflow:apply-arbiter-patch <session-id> --yes
+      then  /vibeflow:phase-runner
+  ```
+
+phase-runner does **not** auto-loop through specialist/apply — those
+edit the primary artifact and need human review. Autonomy stops at the
+verdict; human judgment owns the rewrite. One `phase-runner` invocation
+= analyzers + one consensus verdict + (advance | breadcrumb).
+
+### Step 4: Record + auto-advance (APPROVED only)
+
+On APPROVED, first **record the verdict** into project state — the
+advance gate reads `lastConsensus`, and consensus-run.sh (a shell
+script) cannot call MCP tools, so phase-runner does it:
+
+```
+mcp__sdlc-engine__sdlc_record_consensus {
+  "projectId": "<project id from config>",
+  "phase":     "<currentPhase from config>",
+  "status":    "APPROVED",
+  "agreement": <verdict.json .agreement>,
+  "criticalIssues": <verdict.json .criticalTotal>
+}
+```
+
+Then, if `phaseRunner.autoAdvance` is true, advance directly:
 
 ```
 mcp__sdlc-engine__sdlc_advance_phase {
@@ -218,12 +266,18 @@ mcp__sdlc-engine__sdlc_advance_phase {
 }
 ```
 
-If `autoAdvance` is false, emit a visible advisory naming the
-next phase + the command the operator should run:
+…and close with the breadcrumb for the new phase:
 
 ```
-Consensus APPROVED for $CURRENT. autoAdvance=false. To advance:
-  /vibeflow:advance
+Advanced $CURRENT → <next>.
+▶ Next: /vibeflow:phase-runner
+```
+
+If `autoAdvance` is false, emit the advisory instead:
+
+```
+Consensus APPROVED for $CURRENT. autoAdvance=false.
+▶ Next: /vibeflow:advance
 ```
 
 ### Step 5: Summary output
@@ -271,7 +325,7 @@ jq -c --arg st "$FINAL" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 - **Phase mismatch**: refuses to run if `TARGET_PHASE != currentPhase`
   (see Step 1).
 - **Config guard**: no `vibeflow.config.json` → refuse and suggest
-  `/vibeflow:init`.
+  `/vibeflow:onboard`.
 - **MCP unreachable**: if `mcp__sdlc-engine__sdlc_get_state` fails,
   emit a visible advisory and stop. The phase-runner needs state
   access to know which phase to run.

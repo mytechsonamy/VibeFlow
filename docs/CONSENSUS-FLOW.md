@@ -249,11 +249,12 @@ consensus record.
 |---|---|
 | `skills/consensus-orchestrator/SKILL.md` | Layer 1 + auto-chain to arbiter; Sprint 19-B resolves marker v2 → primary + evidence |
 | `docs/PRIMARY-ARTIFACT.md` | Sprint 19-A marker v2 schema + per-phase primary table |
-| `skills/phase-runner/SKILL.md` | Sprint 19-F end-to-end phase orchestrator (one command: analyzer → consensus → specialist → apply → advance) |
+| `skills/phase-runner/SKILL.md` | End-to-end phase orchestrator (analyzer → headless consensus via `consensus-run.sh` → record + advance on APPROVED; honest operator breadcrumb to specialist/apply on NEEDS_REVISION). Sprint 19-F, headless in Sprint 31-C |
 | `skills/consensus-arbiter/SKILL.md` | Layer 4 decision + diff synthesis |
 | `skills/apply-arbiter-patch/SKILL.md` | Operator apply |
-| `hooks/scripts/consensus-aggregator.sh` | jsonl tally + verdict.json |
-| `hooks/scripts/consensus-gate.sh` | Layer 2 PreToolUse block until marker drains (Sprint 16-A) |
+| `hooks/scripts/consensus-aggregator.sh` | jsonl tally + verdict.json (SubagentStop path + Sprint 31 `--finalize` mode) |
+| `hooks/scripts/consensus-run.sh` | Sprint 31 headless runner — codex/gemini + `--finalize` → verdict.json; what `phase-runner` calls |
+| `hooks/scripts/consensus-gate.sh` | Layer 2 PreToolUse block until marker drains (Sprint 16-A; allowlists `consensus-run.sh`) |
 | `hooks/scripts/trigger-ai-review.sh` | Post-commit marker |
 | `hooks/scripts/load-sdlc-context.sh` | SessionStart marker drain |
 | `mcp-servers/sdlc-engine/src/phases.ts` | Phase-scoped exit criteria |
@@ -306,3 +307,37 @@ The slow loop now *acts*, not just observes: `learning-apply` turns
 operator-confirmed `vibeflow.config.json` patches (config-tune) and
 phase-specialist dispatch recommendations (template-route) — never
 writing config or source directly. See [ACTION-GAP.md](ACTION-GAP.md).
+
+## Interactive vs headless consensus (Sprint 31)
+
+There are now two ways to reach a verdict, sharing one aggregator:
+
+- **Interactive — `/vibeflow:consensus-orchestrator`.** The full path: it
+  forks the `claude-reviewer` subagent (a third reviewer), whose
+  SubagentStop fires `consensus-aggregator.sh`, and runs the iterative
+  negotiation rounds (Step 5). `disable-model-invocation: true` — only the
+  operator launches it. Use when you want the deepest 3-AI review.
+- **Headless — `hooks/scripts/consensus-run.sh`.** What `phase-runner`
+  calls as plain Bash. It runs the external reviewer CLIs on PATH (codex,
+  gemini) and finalises the **same** `verdict.json` via
+  `consensus-aggregator.sh --finalize` — an additive mode that computes the
+  verdict from the reviewer lines already on disk, skipping the SubagentStop
+  stdin ingest and the 600s quorum wait (the panel is exactly the CLIs that
+  ran). No `claude-reviewer` (model-only) and no iteration; a real
+  codex+gemini panel. It drains `consensus-needed.json` so the gate
+  unblocks.
+
+This is why `phase-runner` no longer deadlocks: the consensus skills are
+all `disable-model-invocation: true` (un-forkable by the model), so before
+Sprint 31 phase-runner could never drive consensus and got stuck behind its
+own `consensus-gate`. Calling `consensus-run.sh` directly sidesteps the
+un-forkable skills while preserving the Sprint 16 guardrail — `phase-runner`
+is operator-invoked, so a human authorised the walk; the runner executes
+real reviewer CLIs (no fabricated verdicts). On a non-APPROVED verdict,
+phase-runner stops and hands the operator the specialist → arbiter → apply
+chain, which rewrites the primary artifact and stays operator-confirmed by
+design. See [ONBOARDING.md](ONBOARDING.md).
+
+Both paths feed the identical history.jsonl / reviewer-memory / auto-revert
+machinery (Layer 3), so headless verdicts participate in the slow loop just
+like interactive ones.

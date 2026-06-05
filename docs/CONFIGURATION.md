@@ -12,7 +12,7 @@ Everything you can set in VibeFlow, organized by where it lives.
 
 ## 1. `vibeflow.config.json`
 
-This file is created by `/vibeflow:init` in your project root. It is
+This file is created by `/vibeflow:onboard` in your project root. It is
 checked into git. Every hook and skill reads it for context.
 
 ### Shape

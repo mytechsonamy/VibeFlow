@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.19.0] — 2026-06-06
+
+Sprint 31 — onboarding clarity + a `phase-runner` that really runs.
+Triggered by a real first-run session that hit two papercuts and the
+contradiction beneath them.
+
+### Changed
+- **BREAKING (command rename): `/vibeflow:init` → `/vibeflow:onboard`.**
+  VibeFlow's bootstrap skill collided with Claude Code's built-in `/init`.
+  Renamed, no deprecation shim (a shim would re-create the collision).
+  Update muscle memory / scripts. Behaviour otherwise identical.
+- **`phase-runner` drives consensus headlessly instead of deadlocking.**
+  It no longer claims to fork the `disable-model-invocation` consensus
+  chain (which is impossible). It now calls the new
+  `hooks/scripts/consensus-run.sh` as plain Bash → a real `verdict.json`
+  → records consensus + auto-advances on APPROVED, or stops with an honest
+  operator breadcrumb on NEEDS_REVISION/REJECTED.
+
+### Added
+- **`hooks/scripts/consensus-run.sh`** — headless equivalent of the
+  orchestrator's codex/gemini pipeline; finalises a real verdict via the
+  new `consensus-aggregator.sh --finalize` mode (no 600s quorum stall),
+  drains `consensus-needed.json`.
+- **`consensus-aggregator.sh --finalize <session> <round>`** — additive
+  mode that computes `verdict.json` from existing reviewer lines without
+  the SubagentStop stdin ingest or quorum wait. The normal SubagentStop
+  path is byte-identical.
+- **`▶ Next:` breadcrumb convention** on `onboard`, `prd-quality-analyzer`,
+  and `phase-runner` — the next command is always the last output line.
+- **`consensus-gate.sh`** allowlists `consensus-run.sh` (it is the drain).
+- New `docs/ONBOARDING.md`; `docs/PHASE-BOUNDARIES.md` + the
+  consensus-orchestrator skill note the interactive-vs-headless split.
+
+### Unchanged
+- The interactive `/vibeflow:consensus-orchestrator` (full 3-AI panel +
+  iteration) and the SubagentStop aggregator path are untouched; all
+  existing consensus suites stay green.
+
+---
+
 ## [2.18.0] — 2026-06-05
 
 Sprint 30 (backlog B4) — the **loop-status dashboard**, and the capstone

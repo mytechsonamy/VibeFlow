@@ -64,7 +64,7 @@ hint.
 From your project's root directory:
 
 ```
-/vibeflow:init
+/vibeflow:onboard
 ```
 
 The command will prompt you for three fields:
@@ -159,7 +159,7 @@ npm install && npm test              # see the live test suite (45 tests)
 
 The walkthrough explains what each VibeFlow command does by pointing
 at the artifact it produces. If you're not sure whether to read this
-guide or run `/vibeflow:init` first, read the demo.
+guide or run `/vibeflow:onboard` first, read the demo.
 
 ## 8. Where to go next
 

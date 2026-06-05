@@ -96,7 +96,7 @@ The five skills with explicit Phase Contracts as of v2.1.0:
 
 | Skill | Allowed phases |
 |---|---|
-| `init` | REQUIREMENTS |
+| `onboard` | REQUIREMENTS |
 | `test-strategy-planner` | PLANNING |
 | `component-test-writer` | DEVELOPMENT, TESTING |
 | `coverage-analyzer` | TESTING |
