@@ -327,6 +327,23 @@ rows carry `{round, applied[], rejected[]}`. Window = last
   underlying objection to a human or the phase specialist for a
   structural fix instead of another cosmetic patch
 
+### LEARNING-AUTO-TUNE-INEFFECTIVE
+- **mode**: consensus-history (Sprint 24-B meta-learning)
+- **signature**: for a config key, count its `auto-apply` rows
+  (Sprint 24-A) and how many were followed by an `auto-revert` (vs an
+  `auto-apply-held`). Fires when `reverts ≥ 3` AND the revert rate
+  (`reverts / auto-applies`) ≥ 0.5
+- **minObservations**: 3 auto-apply attempts for the key
+- **severity**: `investigate`; escalates to `urgent` as the revert
+  count climbs
+- **rationale**: the loop's own auto-tuning of this key keeps getting
+  reverted — tuning it doesn't move agreement, so auto-applying it just
+  burns a consensus round each sprint before the cooldown catches it
+- **remediation**: remove the key from `autoApply.keys`
+  (`vibeflow.config.json`). `learning-apply` already self-demotes it to
+  propose-only after `autoApply.demoteAfterReverts` reverts (Sprint
+  24-C); this finding recommends making that permanent
+
 ---
 
 ## 5. Slope + noise-floor formulas
@@ -383,12 +400,12 @@ over the default is how patterns stop surfacing.
 
 ## 7. Current pattern catalog version
 
-**`patternCatalogVersion: 2`**
+**`patternCatalogVersion: 3`**
 
 - test-history patterns: 5
 - production-feedback patterns: 4
 - drift-analysis patterns: 4
-- consensus-history patterns: 6 (Sprint 20-B / 20-C)
+- consensus-history patterns: 7 (Sprint 20-B / 20-C + Sprint 24-B auto-tune-ineffective)
 - Minimum evidence: 3 observations per pattern
 - Noise floors: declared per signal
 

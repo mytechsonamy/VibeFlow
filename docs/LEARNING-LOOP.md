@@ -60,6 +60,7 @@ recommendation:
 | `convergence-stall` | ≥ 3 stall events (`convergence-stalled.md` / `max-iterations-reached.md`) | The iteration loop is grinding without converging |
 | `primary-artifact-churn` | one artifact consumes an outlier number of rounds | The artifact is under-specified or contested |
 | `ineffective-theme` | a theme `applied` at round R is followed by agreement delta ≤ 0.02, ≥ 3 times | **Wasted-effort signal** — applying this kind of fix never moves the needle (S20-C) |
+| `auto-tune-ineffective` | a config key's `auto-apply` rows are followed by `auto-revert` (not `held`) in ≥ 3 attempts, revert rate ≥ 0.5 | **Meta-learning** — the loop's own auto-tuning of this key doesn't stick; recommend removing it from `autoApply.keys` (S24-B). See [META-LEARNING.md](META-LEARNING.md) |
 
 ### The effectiveness trace (S20-C)
 

@@ -130,22 +130,35 @@ export type ReviewerMemoryConfig = z.infer<typeof ReviewerMemoryConfigSchema>;
  * `revertOnRegression` arms the aggregator's auto-revert watch, which
  * restores the pre-change snapshot if the next consensus round's
  * agreement drops by more than `regressionDelta`.
+ *
+ * Sprint 24: `demoteAfterReverts` makes auto-apply self-correcting — a
+ * key auto-reverted this many times (in the consensus history window) is
+ * demoted back to propose-only even while it stays allowlisted, a
+ * longer-horizon guard than the per-sprint cooldown. `transactional`
+ * makes a run's auto-applies one unit: a single pre-batch snapshot + one
+ * watch over `keys[]` that reverts/holds the whole set atomically.
  */
 export declare const AutoApplyConfigSchema: z.ZodDefault<z.ZodObject<{
     enabled: z.ZodDefault<z.ZodBoolean>;
     keys: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
     revertOnRegression: z.ZodDefault<z.ZodBoolean>;
     regressionDelta: z.ZodDefault<z.ZodNumber>;
+    demoteAfterReverts: z.ZodDefault<z.ZodNumber>;
+    transactional: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
     keys: string[];
     revertOnRegression: boolean;
     regressionDelta: number;
+    demoteAfterReverts: number;
+    transactional: boolean;
 }, {
     enabled?: boolean | undefined;
     keys?: string[] | undefined;
     revertOnRegression?: boolean | undefined;
     regressionDelta?: number | undefined;
+    demoteAfterReverts?: number | undefined;
+    transactional?: boolean | undefined;
 }>>;
 export type AutoApplyConfig = z.infer<typeof AutoApplyConfigSchema>;
 export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
@@ -157,16 +170,22 @@ export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
         keys: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
         revertOnRegression: z.ZodDefault<z.ZodBoolean>;
         regressionDelta: z.ZodDefault<z.ZodNumber>;
+        demoteAfterReverts: z.ZodDefault<z.ZodNumber>;
+        transactional: z.ZodDefault<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         keys: string[];
         revertOnRegression: boolean;
         regressionDelta: number;
+        demoteAfterReverts: number;
+        transactional: boolean;
     }, {
         enabled?: boolean | undefined;
         keys?: string[] | undefined;
         revertOnRegression?: boolean | undefined;
         regressionDelta?: number | undefined;
+        demoteAfterReverts?: number | undefined;
+        transactional?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
@@ -177,6 +196,8 @@ export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
         keys: string[];
         revertOnRegression: boolean;
         regressionDelta: number;
+        demoteAfterReverts: number;
+        transactional: boolean;
     };
 }, {
     enabled?: boolean | undefined;
@@ -187,6 +208,8 @@ export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
         keys?: string[] | undefined;
         revertOnRegression?: boolean | undefined;
         regressionDelta?: number | undefined;
+        demoteAfterReverts?: number | undefined;
+        transactional?: boolean | undefined;
     } | undefined;
 }>>;
 export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;
@@ -279,16 +302,22 @@ export declare const EngineConfigSchema: z.ZodObject<{
             keys: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
             revertOnRegression: z.ZodDefault<z.ZodBoolean>;
             regressionDelta: z.ZodDefault<z.ZodNumber>;
+            demoteAfterReverts: z.ZodDefault<z.ZodNumber>;
+            transactional: z.ZodDefault<z.ZodBoolean>;
         }, "strip", z.ZodTypeAny, {
             enabled: boolean;
             keys: string[];
             revertOnRegression: boolean;
             regressionDelta: number;
+            demoteAfterReverts: number;
+            transactional: boolean;
         }, {
             enabled?: boolean | undefined;
             keys?: string[] | undefined;
             revertOnRegression?: boolean | undefined;
             regressionDelta?: number | undefined;
+            demoteAfterReverts?: number | undefined;
+            transactional?: boolean | undefined;
         }>>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
@@ -299,6 +328,8 @@ export declare const EngineConfigSchema: z.ZodObject<{
             keys: string[];
             revertOnRegression: boolean;
             regressionDelta: number;
+            demoteAfterReverts: number;
+            transactional: boolean;
         };
     }, {
         enabled?: boolean | undefined;
@@ -309,6 +340,8 @@ export declare const EngineConfigSchema: z.ZodObject<{
             keys?: string[] | undefined;
             revertOnRegression?: boolean | undefined;
             regressionDelta?: number | undefined;
+            demoteAfterReverts?: number | undefined;
+            transactional?: boolean | undefined;
         } | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -350,6 +383,8 @@ export declare const EngineConfigSchema: z.ZodObject<{
             keys: string[];
             revertOnRegression: boolean;
             regressionDelta: number;
+            demoteAfterReverts: number;
+            transactional: boolean;
         };
     };
 }, {
@@ -391,6 +426,8 @@ export declare const EngineConfigSchema: z.ZodObject<{
             keys?: string[] | undefined;
             revertOnRegression?: boolean | undefined;
             regressionDelta?: number | undefined;
+            demoteAfterReverts?: number | undefined;
+            transactional?: boolean | undefined;
         } | undefined;
     } | undefined;
 }>;

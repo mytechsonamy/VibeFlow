@@ -17820,12 +17820,16 @@ var AutoApplyConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(false),
   keys: external_exports.array(external_exports.string()).default([]),
   revertOnRegression: external_exports.boolean().default(true),
-  regressionDelta: external_exports.number().min(0).max(1).default(0.05)
+  regressionDelta: external_exports.number().min(0).max(1).default(0.05),
+  demoteAfterReverts: external_exports.number().int().min(1).max(100).default(3),
+  transactional: external_exports.boolean().default(true)
 }).default({
   enabled: false,
   keys: [],
   revertOnRegression: true,
-  regressionDelta: 0.05
+  regressionDelta: 0.05,
+  demoteAfterReverts: 3,
+  transactional: true
 });
 var LearningApplyConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true),

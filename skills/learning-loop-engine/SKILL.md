@@ -104,6 +104,12 @@ default 3):
   `maxIterations`.
 - **primary-artifact-churn** — one `primaryArtifact` consuming an
   outlier number of rounds across sessions.
+- **auto-tune-ineffective** (Sprint 24-B) — a config key whose
+  `auto-apply` rows (Sprint 24-A) are followed by `auto-revert` rather
+  than `auto-apply-held` in ≥ 3 of its attempts (high revert rate). The
+  loop's own auto-tuning isn't sticking ⇒ recommend removing the key
+  from `autoApply.keys`. This closes the meta-loop: the slow loop learns
+  from its *own* tuning outcomes.
 
 Output: `.vibeflow/reports/consensus-learning-report.md` with the
 explainability contract (`{finding, why, impact, confidence}`) plus
@@ -151,7 +157,8 @@ patterns per mode:
   flake-growth, priority-inflation, gate-suppression-creep
 - **consensus-history patterns** — slow-converging-phase,
   reviewer-skew, recurring-suggestion-theme, convergence-stall,
-  primary-artifact-churn, ineffective-theme (the S20-C
+  primary-artifact-churn, auto-tune-ineffective (the S24-B
+  meta-learning detector), ineffective-theme (the S20-C
   applied-but-no-movement signal)
 
 Every pattern entry in the catalog carries:

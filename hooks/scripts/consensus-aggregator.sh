@@ -503,6 +503,11 @@ if [[ -f "$WATCH" ]]; then
     BASE_AGREE="$(jq -r '.baselineAgreement // 0' "$WATCH" 2>/dev/null || echo 0)"
     W_DELTA="$(jq -r '.regressionDelta // 0.05' "$WATCH" 2>/dev/null || echo 0.05)"
     W_KEY="$(jq -r '.key // "unknown"' "$WATCH" 2>/dev/null || echo "unknown")"
+    # Sprint 24-D: a transactional watch tracks a SET of keys under one
+    # snapshot. Read `keys[]`, falling back to the single Sprint-23 `key`
+    # for back-compat. The restore is already whole-file (atomic for the
+    # set); we cool down + log every key.
+    W_KEYS="$(jq -r '(.keys // [.key]) | .[]' "$WATCH" 2>/dev/null || echo "$W_KEY")"
     W_SNAP="$(jq -r '.snapshot // ""' "$WATCH" 2>/dev/null || echo "")"
     # Resolve a relative snapshot path against the project cwd.
     [[ -z "$W_SNAP" || "$W_SNAP" = /* ]] || W_SNAP="$(vf_cwd)/$W_SNAP"
@@ -512,24 +517,37 @@ if [[ -f "$WATCH" ]]; then
     REVERT_LOG="$(vf_cwd)/.vibeflow/reports/auto-apply-reverts.md"
     mkdir -p "$(dirname "$REVERT_LOG")"
     if [[ "$REGRESSED" == "yes" && -n "$W_SNAP" && -f "$W_SNAP" ]]; then
+      # Atomic restore of the whole snapshot — reverts every key in the
+      # transaction as one unit (Sprint 24-D).
       cp "$W_SNAP" "$(vf_cwd)/vibeflow.config.json" 2>/dev/null || true
-      # Cool the key down so learning-apply won't re-tune it this sprint.
-      : > "$AA_DIR/cooldown-$W_KEY" 2>/dev/null || true
       {
-        printf '## AUTO-REVERT — %s (round %s)\n' "$W_KEY" "$CURRENT_ROUND"
+        printf '## AUTO-REVERT — %s (round %s)\n' "$(echo "$W_KEYS" | tr '\n' ' ')" "$CURRENT_ROUND"
         printf -- '- baseline agreement: %s → this round: %s (drop > %s)\n' "$BASE_AGREE" "$THIS_AGREE" "$W_DELTA"
         printf -- '- restored snapshot: %s\n' "$W_SNAP"
-        printf -- '- cooldown armed: %s\n\n' "$W_KEY"
       } >> "$REVERT_LOG"
-      jq -n -c --arg key "$W_KEY" --argjson round "$CURRENT_ROUND" \
-        --arg ts "$TS" --argjson base "$BASE_AGREE" --argjson this "$THIS_AGREE" \
-        '{type:"auto-revert", key:$key, round:$round, baselineAgreement:$base, agreement:$this, recordedAt:$ts}' \
-        >> "$HISTORY_FILE" 2>/dev/null || true
+      # Cool down + log + record history for EVERY key in the set.
+      while IFS= read -r k; do
+        [[ -n "$k" ]] || continue
+        : > "$AA_DIR/cooldown-$k" 2>/dev/null || true
+        printf -- '- cooldown armed: %s\n' "$k" >> "$REVERT_LOG"
+        jq -n -c --arg key "$k" --argjson round "$CURRENT_ROUND" \
+          --arg ts "$TS" --argjson base "$BASE_AGREE" --argjson this "$THIS_AGREE" \
+          '{type:"auto-revert", key:$key, round:$round, baselineAgreement:$base, agreement:$this, recordedAt:$ts}' \
+          >> "$HISTORY_FILE" 2>/dev/null || true
+      done <<< "$W_KEYS"
+      printf '\n' >> "$REVERT_LOG"
     else
-      {
-        printf '## AUTO-APPLY HELD — %s (round %s)\n' "$W_KEY" "$CURRENT_ROUND"
-        printf -- '- baseline agreement: %s → this round: %s (no regression)\n\n' "$BASE_AGREE" "$THIS_AGREE"
-      } >> "$REVERT_LOG"
+      printf '## AUTO-APPLY HELD — %s (round %s)\n' "$(echo "$W_KEYS" | tr '\n' ' ')" "$CURRENT_ROUND" >> "$REVERT_LOG"
+      printf -- '- baseline agreement: %s → this round: %s (no regression)\n\n' "$BASE_AGREE" "$THIS_AGREE" >> "$REVERT_LOG"
+      # Sprint 24-A: record each held key so the meta-learning detector
+      # (S24-B) can compute a per-key revert rate from history.jsonl.
+      while IFS= read -r k; do
+        [[ -n "$k" ]] || continue
+        jq -n -c --arg key "$k" --argjson round "$CURRENT_ROUND" \
+          --arg ts "$TS" --argjson base "$BASE_AGREE" --argjson this "$THIS_AGREE" \
+          '{type:"auto-apply-held", key:$key, round:$round, baselineAgreement:$base, agreement:$this, recordedAt:$ts}' \
+          >> "$HISTORY_FILE" 2>/dev/null || true
+      done <<< "$W_KEYS"
     fi
     rm -f "$WATCH" 2>/dev/null || true
   fi

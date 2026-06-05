@@ -113,6 +113,13 @@ export const ReviewerMemoryConfigSchema = z
  * `revertOnRegression` arms the aggregator's auto-revert watch, which
  * restores the pre-change snapshot if the next consensus round's
  * agreement drops by more than `regressionDelta`.
+ *
+ * Sprint 24: `demoteAfterReverts` makes auto-apply self-correcting — a
+ * key auto-reverted this many times (in the consensus history window) is
+ * demoted back to propose-only even while it stays allowlisted, a
+ * longer-horizon guard than the per-sprint cooldown. `transactional`
+ * makes a run's auto-applies one unit: a single pre-batch snapshot + one
+ * watch over `keys[]` that reverts/holds the whole set atomically.
  */
 export const AutoApplyConfigSchema = z
     .object({
@@ -120,12 +127,16 @@ export const AutoApplyConfigSchema = z
     keys: z.array(z.string()).default([]),
     revertOnRegression: z.boolean().default(true),
     regressionDelta: z.number().min(0).max(1).default(0.05),
+    demoteAfterReverts: z.number().int().min(1).max(100).default(3),
+    transactional: z.boolean().default(true),
 })
     .default({
     enabled: false,
     keys: [],
     revertOnRegression: true,
     regressionDelta: 0.05,
+    demoteAfterReverts: 3,
+    transactional: true,
 });
 export const LearningApplyConfigSchema = z
     .object({

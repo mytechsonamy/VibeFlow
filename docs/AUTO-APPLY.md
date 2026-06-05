@@ -58,7 +58,9 @@ default), the aggregator is unchanged.
       "enabled": false,             // master switch — OFF by default
       "keys": [],                   // allowlist; e.g. ["consensus.maxIterations"]
       "revertOnRegression": true,   // arm the auto-revert watch
-      "regressionDelta": 0.05       // next-round agreement drop > this ⇒ revert
+      "regressionDelta": 0.05,      // next-round agreement drop > this ⇒ revert
+      "demoteAfterReverts": 3,      // Sprint 24: lifetime self-demote threshold
+      "transactional": true         // Sprint 24: atomic multi-key revert
     }
   }
 }
@@ -90,7 +92,18 @@ automatically and cooled down, so the loop can only keep changes that
 *improve* agreement. The operator still owns the allowlist (what may
 auto-tune at all) and everything off it.
 
+## Self-correcting (Sprint 24)
+
+Auto-apply doesn't just revert bad tunes — it *learns* from them. Every
+outcome (`auto-apply` → `auto-revert` | `auto-apply-held`) is recorded in
+`history.jsonl`; the `learning-loop-engine` `auto-tune-ineffective`
+detector flags keys that keep getting reverted, and `learning-apply`
+self-demotes a chronically-reverted key to propose-only
+(`demoteAfterReverts`). A multi-key run reverts as one
+transaction (`transactional`). See [META-LEARNING.md](META-LEARNING.md).
+
 ## See also
 
 - [LEARNING-APPLY.md](LEARNING-APPLY.md) — the skill + its lanes.
 - [ACTION-GAP.md](ACTION-GAP.md) — the full observe → frame → act loop.
+- [META-LEARNING.md](META-LEARNING.md) — the self-correcting meta-loop.

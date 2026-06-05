@@ -169,47 +169,78 @@ the Step 6 operator-confirmed path.
 AUTO_ON="$(jq -r '.learningApply.autoApply.enabled // false' vibeflow.config.json)"
 mapfile -t AUTO_KEYS < <(jq -r '.learningApply.autoApply.keys[]? // empty' vibeflow.config.json)
 REGRESS="$(jq -r '.learningApply.autoApply.regressionDelta // 0.05' vibeflow.config.json)"
+DEMOTE_AT="$(jq -r '.learningApply.autoApply.demoteAfterReverts // 3' vibeflow.config.json)"  # Sprint 24-C
+TRANSACTIONAL="$(jq -r '.learningApply.autoApply.transactional // true' vibeflow.config.json)" # Sprint 24-D
 ```
 
-For each config-tune patch whose `key ∈ AUTO_KEYS` that has **already
-cleared every Step 1-6 gate** (`minObservations`, `maxRelativeStep`
-clamp, **`EngineConfigSchema` re-validation** — the auto path skips
-*none* of them):
+**Self-demote on chronic reverts (Sprint 24-C).** Before auto-applying
+an allowlisted `KEY`, count its `auto-revert` rows in `history.jsonl`. A
+key reverted `≥ demoteAfterReverts` times doesn't respond to tuning — it
+is **demoted to propose-only for this run even though it stays
+allowlisted** (a longer-horizon guard than the per-sprint cooldown):
 
-1. **Snapshot** the current config + record the baseline agreement (the
-   pre-change agreement for this phase + primary from
-   `history.jsonl`, used by the auto-revert watch):
+```bash
+REVERTS="$(jq -s --arg k "$KEY" 'map(select(.type=="auto-revert" and .key==$k)) | length' \
+  .vibeflow/state/consensus/history.jsonl 2>/dev/null || echo 0)"
+if (( REVERTS >= DEMOTE_AT )); then
+  # Record `Applied: demoted (N reverts ≥ threshold) — proposing instead`
+  # and route KEY through the Step 6 propose-only path. Do NOT auto-apply.
+  continue
+fi
+```
+
+Eligible keys are the allowlisted ones that cleared **every Step 1-6
+gate** (`minObservations`, `maxRelativeStep` clamp, **`EngineConfigSchema`
+re-validation** — the auto path skips *none*) and are **not** demoted
+and **not** cooled-down.
+
+**Transactional batch (Sprint 24-D).** With `transactional` true
+(default), take **one** pre-batch snapshot, apply **all** eligible keys,
+and arm **one** watch over the whole set so they revert/hold as a unit:
 
 ```bash
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; SNAP=".vibeflow/state/auto-apply/$TS"
-mkdir -p "$SNAP"; cp vibeflow.config.json "$SNAP/vibeflow.config.json.bak"
+mkdir -p "$SNAP"; cp vibeflow.config.json "$SNAP/vibeflow.config.json.bak"   # ONE snapshot
 BASE_AGREE="$(jq -s 'map(select(.type=="verdict" and .primaryArtifact==$p and .phase==$ph))
   | (sort_by(.recordedAt) | last.agreement) // 0' \
   --arg p "$PRIMARY" --arg ph "$PHASE" .vibeflow/state/consensus/history.jsonl 2>/dev/null || echo 0)"
-```
 
-2. `git apply` the patch to `vibeflow.config.json` (no prompt).
-3. **Arm the revert watch** so the aggregator evaluates the next round:
+for KEY in "${ELIGIBLE[@]}"; do
+  git apply "$SNAP/../patches/.../$KEY.patch"   # apply each eligible tune, no prompt
+  # Sprint 24-A: record the auto-apply outcome so the meta-learning
+  # detector (S24-B) can compute a per-key revert rate.
+  jq -n -c --arg key "$KEY" --arg phase "$PHASE" --arg primary "$PRIMARY" --arg ts "$TS" \
+    '{type:"auto-apply", key:$key, phase:$phase, primaryArtifact:$primary, appliedAt:$ts}' \
+    >> .vibeflow/state/consensus/history.jsonl
+done
 
-```bash
-jq -n -c --arg key "$KEY" --argjson from "$FROM" --argjson to "$TO" \
+# ONE watch over the whole transaction (keys[] — the aggregator reverts
+# the set atomically by restoring this one snapshot, Sprint 24-D).
+jq -n -c --argjson keys "$(printf '%s\n' "${ELIGIBLE[@]}" | jq -R . | jq -s .)" \
   --arg phase "$PHASE" --arg primary "$PRIMARY" \
   --argjson baseline "$BASE_AGREE" --argjson delta "$REGRESS" \
   --arg snap "$SNAP/vibeflow.config.json.bak" --arg ts "$TS" \
-  '{key:$key, from:$from, to:$to, phase:$phase, primaryArtifact:$primary,
-    baselineAgreement:$baseline, regressionDelta:$delta,
-    snapshot:$snap, appliedAt:$ts}' \
+  '{keys:$keys, key:($keys[0] // "unknown"), phase:$phase, primaryArtifact:$primary,
+    baselineAgreement:$baseline, regressionDelta:$delta, snapshot:$snap, appliedAt:$ts}' \
   > .vibeflow/state/auto-apply/watch.json
 ```
 
-4. Audit in `learning-apply-decisions.md` as `Applied: auto` + the
-   revert command (`cp "$SNAP/vibeflow.config.json.bak" vibeflow.config.json`)
-   + the snapshot path.
+With `transactional` false, fall back to the Sprint-23 one-key-at-a-time
+flow (one snapshot + one single-`key` watch per applied key).
+
+Audit each applied key in `learning-apply-decisions.md` as
+`Applied: auto` + the revert command
+(`cp "$SNAP/vibeflow.config.json.bak" vibeflow.config.json`) + snapshot path.
 
 A key with an active **cooldown marker** (`.vibeflow/state/auto-apply/cooldown-<key>`,
 written by the aggregator after an auto-revert — Sprint 23-C) is
 **skipped** for the rest of the sprint and stays propose-only, so a
-reverted tune never immediately re-applies and flaps.
+reverted tune never immediately re-applies and flaps. The Sprint 24-C
+self-demote is the *long-horizon* counterpart: cooldown is per-sprint;
+self-demote fires whenever the key's lifetime revert count crosses
+`demoteAfterReverts`, so a key that simply doesn't respond to tuning
+stops auto-applying for good (and the `auto-tune-ineffective` detector
+recommends removing it from the allowlist — `docs/META-LEARNING.md`).
 
 ## Gate Contract
 

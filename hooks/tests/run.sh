@@ -1364,6 +1364,50 @@ assert_eq "[S23-C] no watch → config untouched (maxIterations=7)" "7" "$UNTOUC
 [[ ! -f "$DIR/.vibeflow/reports/auto-apply-reverts.md" ]] && pass "[S23-C] no watch → no reverts log" || fail "[S23-C] no watch → no reverts log"
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
+# ---------------------------------------------------------------------------
+echo "== auto-apply meta-learning telemetry + transactional revert [S24] =="
+
+# S24-A: HELD branch writes an auto-apply-held row to history.jsonl.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '.consensus = {maxIterations: 7, quorum: 1}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"; AA_DIR="$DIR/.vibeflow/state/auto-apply"
+mkdir -p "$CONS_DIR" "$AA_DIR/snap"
+echo "docs/PRD.md" > "$CONS_DIR/h24.primary.txt"; echo "1" > "$CONS_DIR/h24.current-round.txt"
+jq '.consensus.maxIterations = 5' "$DIR/vibeflow.config.json" > "$AA_DIR/snap/vibeflow.config.json.bak"
+jq -n -c --arg snap "$AA_DIR/snap/vibeflow.config.json.bak" \
+  '{key:"consensus.maxIterations", phase:"DEVELOPMENT", primaryArtifact:"docs/PRD.md",
+    baselineAgreement:0.0, regressionDelta:0.05, snapshot:$snap, appliedAt:"t0"}' > "$AA_DIR/watch.json"
+printf '%s' '{"session_id":"h24","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: APPROVED\ncritical issues: 0"}]}}' \
+  | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+HELDROW="$(jq -c 'select(.type=="auto-apply-held")' "$CONS_DIR/history.jsonl" 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "[S24-A] HELD branch writes auto-apply-held row to history" "1" "$HELDROW"
+HELDKEY="$(jq -sr 'map(select(.type=="auto-apply-held"))[0].key // ""' "$CONS_DIR/history.jsonl" 2>/dev/null)"
+assert_eq "[S24-A] auto-apply-held row carries the key" "consensus.maxIterations" "$HELDKEY"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# S24-D: a transactional 2-key watch reverts the set atomically + cools all keys.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '.consensus = {maxIterations: 7, quorum: 1}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+CONS_DIR="$DIR/.vibeflow/state/consensus"; AA_DIR="$DIR/.vibeflow/state/auto-apply"
+mkdir -p "$CONS_DIR" "$AA_DIR/snap"
+echo "docs/PRD.md" > "$CONS_DIR/tx1.primary.txt"; echo "1" > "$CONS_DIR/tx1.current-round.txt"
+jq '.consensus.maxIterations = 5' "$DIR/vibeflow.config.json" > "$AA_DIR/snap/vibeflow.config.json.bak"
+jq -n -c --arg snap "$AA_DIR/snap/vibeflow.config.json.bak" \
+  '{keys:["consensus.maxIterations","consensus.approvalThreshold"], key:"consensus.maxIterations",
+    phase:"DEVELOPMENT", primaryArtifact:"docs/PRD.md", baselineAgreement:1.0,
+    regressionDelta:0.05, snapshot:$snap, appliedAt:"t0"}' > "$AA_DIR/watch.json"
+printf '%s' '{"session_id":"tx1","subagent_type":"claude-reviewer","tool_response":{"content":[{"text":"Verdict: NEEDS_REVISION\ncritical issues: 0"}]}}' \
+  | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+TXRESTORED="$(jq -r '.consensus.maxIterations' "$DIR/vibeflow.config.json" 2>/dev/null)"
+assert_eq "[S24-D] transactional revert restores the snapshot (set)" "5" "$TXRESTORED"
+[[ -f "$AA_DIR/cooldown-consensus.maxIterations" ]] && pass "[S24-D] key 1 cooled down" || fail "[S24-D] key 1 cooled down"
+[[ -f "$AA_DIR/cooldown-consensus.approvalThreshold" ]] && pass "[S24-D] key 2 cooled down (atomic set)" || fail "[S24-D] key 2 cooled down (atomic set)"
+TXREVROWS="$(jq -c 'select(.type=="auto-revert")' "$CONS_DIR/history.jsonl" 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "[S24-D] one auto-revert row per key in the set" "2" "$TXREVROWS"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

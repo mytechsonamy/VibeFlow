@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.0] — 2026-06-05
+
+Sprint 24 — self-correcting auto-apply. Sprint 23 made config auto-apply
+autonomous; v2.12.0 makes it learn from its own outcomes + adds
+transactional revert.
+
+- **Telemetry (S24-A).** `learning-apply` appends an `auto-apply` row to
+  `history.jsonl` on auto-apply; `consensus-aggregator.sh` appends an
+  `auto-apply-held` row on the HELD branch (it already wrote
+  `auto-revert`). Every auto-tune outcome is now a queryable per-key row.
+- **Detector (S24-B).** `learning-loop-engine` consensus-history mode
+  gains `auto-tune-ineffective` (`LEARNING-AUTO-TUNE-INEFFECTIVE`): a key
+  reverted in ≥ 3 attempts at revert-rate ≥ 0.5 → recommend removing it
+  from `autoApply.keys`. `patternCatalogVersion` → 3.
+- **Self-demote (S24-C).** `learning-apply` counts a key's `auto-revert`
+  rows; ≥ `autoApply.demoteAfterReverts` (default 3) demotes it to
+  propose-only for the run even while allowlisted (`Applied: demoted`).
+- **Transactional revert (S24-D).** `autoApply.transactional` (default
+  true): a run's auto-applies share one snapshot + one `watch.json`
+  `keys[]`; the aggregator restores atomically and cools down every key.
+  Reads `keys // [key]` for Sprint-23 back-compat.
+
+Docs: `docs/META-LEARNING.md` + `AUTO-APPLY.md` / `LEARNING-LOOP.md`
+refreshes. Tests: sdlc-engine 179→182, hooks 149→155, new `sprint-24.sh`
+(41). Total baseline 2570 → 2620.
+
+- `.claude-plugin/plugin.json`: 2.11.0 → 2.12.0
+- `@vibeflow/sdlc-engine`: 1.9.0 → 1.10.0
+
+---
+
 ## [2.11.0] — 2026-06-04
 
 Sprint 23 — bounded auto-apply with auto-revert. Sprint 22's

@@ -465,6 +465,31 @@ describe("AutoApplyConfigSchema (Sprint 23-A)", () => {
       AutoApplyConfigSchema.safeParse({ regressionDelta: 0.05 }).success,
     ).toBe(true);
   });
+
+  it("defaults demoteAfterReverts to 3 and transactional to true (Sprint 24)", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.learningApply.autoApply.demoteAfterReverts).toBe(3);
+    expect(cfg.learningApply.autoApply.transactional).toBe(true);
+  });
+
+  it("accepts a partial autoApply with Sprint 24 fields", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      learningApply: { autoApply: { demoteAfterReverts: 5 } },
+    });
+    expect(cfg.learningApply.autoApply.demoteAfterReverts).toBe(5);
+    expect(cfg.learningApply.autoApply.transactional).toBe(true);
+    expect(cfg.learningApply.autoApply.enabled).toBe(false);
+  });
+
+  it("rejects demoteAfterReverts below 1 (Sprint 24)", () => {
+    expect(
+      AutoApplyConfigSchema.safeParse({ demoteAfterReverts: 0 }).success,
+    ).toBe(false);
+    expect(
+      AutoApplyConfigSchema.safeParse({ demoteAfterReverts: 3 }).success,
+    ).toBe(true);
+  });
 });
 
 describe("ReviewerMemoryConfigSchema compaction (Sprint 21-E)", () => {
