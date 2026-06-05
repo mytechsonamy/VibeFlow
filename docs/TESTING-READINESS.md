@@ -34,18 +34,44 @@ real problem, not the empty `artifacts/`.
 > artifact is produced by *running its skill*. `/vibeflow:advance` +
 > auto-satisfy moves the gate; the underlying work still has to run.
 
-## Walking TESTING
+## Walking TESTING (one command, Sprint 29)
 
 ```
 /vibeflow:phase-runner TESTING
 ```
 
-runs the TESTING analyzers (`coverage-analyzer`, `mutation-test-runner`)
-→ consensus on the coverage report → advance. Now `.vibeflow/artifacts/`
-fills (`coverage/<runId>/…`, `mutation/<runId>/…`). The exit criteria —
-`coverage.met`, `mutation.score.acceptable`, `consensus.testing.approved`
-— are auto-satisfied when each analyzer's verdict is PASS and consensus
-is APPROVED (see [AUTO-SATISFY.md](AUTO-SATISFY.md)).
+is now a **true one-command walk** — it:
+
+1. **generates the coverage artifact** (Step 2a) by running your coverage
+   command, because `coverage-analyzer` *parses* a coverage JSON, it
+   doesn't produce one. The command comes from
+   `vibeflow.config.json.tech.coverageCommand`, or defaults by
+   `tech.testRunner`:
+
+   | testRunner | default coverage command |
+   |---|---|
+   | `vitest` | `npx vitest run --coverage` |
+   | `jest` | `npx jest --coverage` |
+   | `pytest` | `pytest --cov --cov-report=json` |
+   | `dotnet` | `dotnet test --collect:"XPlat Code Coverage"` |
+
+   (`mutation-test-runner` self-generates its mutants and runs the suite
+   itself, so it only needs `tech.testCommand`.)
+2. forks the TESTING analyzers (`coverage-analyzer`,
+   `mutation-test-runner`) — now their inputs exist;
+3. runs consensus on the coverage report → auto-advances.
+
+`.vibeflow/artifacts/` fills (`coverage/<runId>/…`, `mutation/<runId>/…`).
+The exit criteria — `coverage.met`, `mutation.score.acceptable`,
+`consensus.testing.approved` — auto-satisfy on PASS + APPROVED
+([AUTO-SATISFY.md](AUTO-SATISFY.md)).
+
+**Best-effort + opt-out.** If the coverage command is missing (unknown
+runner) or fails, phase-runner logs it and continues — `coverage-analyzer`
+then surfaces the precise missing-coverage block. Pass `--no-generate`
+(or `VF_SKIP_GENERATE=1`) to skip the generate step entirely if you
+produce coverage in CI / by hand. The generate step runs **only** in
+TESTING.
 
 ## The TESTING → DEPLOYMENT boundary (Sprint 26)
 

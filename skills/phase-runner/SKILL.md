@@ -1,8 +1,8 @@
 ---
 name: phase-runner
-description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, invokes consensus-orchestrator on the primary artifact, chains through arbiter → apply-arbiter-patch on NEEDS_REVISION (up to consensus.maxIterations), and auto-advances on APPROVED via sdlc_advance_phase MCP tool. One command replaces the manual analyzer → consensus → arbiter → apply → advance walk.
+description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, invokes consensus-orchestrator on the primary artifact, chains through arbiter → apply-arbiter-patch on NEEDS_REVISION (up to consensus.maxIterations), and auto-advances on APPROVED via sdlc_advance_phase MCP tool. In TESTING it first generates the coverage artifact (Sprint 29 — runs tech.coverageCommand so coverage-analyzer has input), making TESTING a true one-command walk too. One command replaces the manual analyzer → consensus → arbiter → apply → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(jq *) Bash(mkdir *) Bash(rm *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases
+allowed-tools: Read Write Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -52,7 +52,7 @@ registrations + the Sprint 19-A `docs/PRIMARY-ARTIFACT.md` table.
 | ARCHITECTURE | `architecture-validator` | `docs/architecture.md` |
 | PLANNING | `test-strategy-planner`, `traceability-engine` | `.vibeflow/reports/test-strategy.md` |
 | DEVELOPMENT | `quality-gates` | `git diff HEAD~1..HEAD` (staged/committed work) |
-| TESTING | `coverage-analyzer`, `mutation-test-runner` | `.vibeflow/reports/coverage-report.md` |
+| TESTING | _(generate coverage — Step 2a)_ → `coverage-analyzer`, `mutation-test-runner` | `.vibeflow/reports/coverage-report.md` |
 | DEPLOYMENT | `release-decision-engine`, `deploy-verifier` | `release-notes/<version>.md` |
 
 When the analyzer list is empty (DESIGN), the skill announces the
@@ -77,6 +77,9 @@ fi
 AUTO_ADVANCE="$(vf_config_get '.phaseRunner.autoAdvance' 2>/dev/null || echo true)"
 MAX_CONV="$(vf_config_get '.phaseRunner.maxConvergenceAttempts' 2>/dev/null || echo 3)"
 MAX_ITER="$(vf_config_get '.consensus.maxIterations' 2>/dev/null || echo 5)"
+# Sprint 29: TESTING coverage generate-step opt-out (flag or env).
+NO_GENERATE=0
+[[ "$ARGUMENTS" == *--no-generate* || "${VF_SKIP_GENERATE:-}" == "1" ]] && NO_GENERATE=1
 ```
 
 ### Step 1b: Initialise the progress ledger (Sprint 21-C)
@@ -114,6 +117,50 @@ Call `vf_progress` at each boundary: `analyzer:<name>` (running→done),
 `consensus-round-<attempt>` (running, with `detail="agreement=<n>"`),
 `specialist` / `arbiter`, `apply`, and `advance`. At the very end set
 the terminal status (Step 5).
+
+### Step 2a: Generate TESTING artifacts (Sprint 29 — TESTING only)
+
+`coverage-analyzer` **parses** an existing coverage JSON — it does not
+run the suite to produce one. So in **TESTING only**, before forking the
+analyzers, generate the coverage artifact by running the project's
+coverage command. (`mutation-test-runner` self-generates its mutants and
+runs the suite itself, so it only needs `tech.testCommand` to exist.)
+Other phases skip this step entirely — the REQUIREMENTS / ARCHITECTURE /
+PLANNING / DEVELOPMENT / DEPLOYMENT walks are unchanged.
+
+```bash
+if [[ "$CURRENT" == "TESTING" && "$NO_GENERATE" != "1" ]]; then
+  RUNNER="$(vf_config_get '.tech.testRunner' 2>/dev/null || echo "")"
+  COV_CMD="$(vf_config_get '.tech.coverageCommand' 2>/dev/null || echo "")"
+  if [[ -z "$COV_CMD" ]]; then
+    case "$RUNNER" in
+      vitest) COV_CMD='npx vitest run --coverage' ;;
+      jest)   COV_CMD='npx jest --coverage' ;;
+      pytest) COV_CMD='pytest --cov --cov-report=json' ;;
+      dotnet) COV_CMD='dotnet test --collect:"XPlat Code Coverage"' ;;
+      *)      COV_CMD='' ;;   # unknown runner → nothing to run
+    esac
+  fi
+  vf_progress "generate:coverage" "running" "${COV_CMD:-<no coverage command>}"
+  if [[ -n "$COV_CMD" ]]; then
+    if eval "$COV_CMD"; then
+      vf_progress "generate:coverage" "done" "$COV_CMD"
+    else
+      # Best-effort: do NOT abort. The coverage-analyzer below will
+      # surface the missing/empty-coverage block, giving the operator a
+      # precise "coverage didn't generate" signal instead of a silent
+      # phase-runner failure.
+      vf_progress "generate:coverage" "failed" "$COV_CMD (continuing — analyzer will surface the gap)"
+    fi
+  else
+    vf_progress "generate:coverage" "skipped" "no coverage command for testRunner=$RUNNER"
+  fi
+fi
+```
+
+**Opt-out.** `--no-generate` (or `VF_SKIP_GENERATE=1`) sets
+`NO_GENERATE=1`, skipping this step — for operators who generate coverage
+in CI / by hand and just want the analyze → consensus → advance walk.
 
 ### Step 2: Run phase analyzers
 
@@ -215,6 +262,9 @@ jq -c --arg st "$FINAL" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   for a single run.
 - `--no-auto-chain` — override `apply-arbiter-patch`'s Sprint
   19-E chain (forwards `--no-chain` to every apply invocation).
+- `--no-generate` (or `VF_SKIP_GENERATE=1`) — Sprint 29: skip the
+  TESTING coverage generate-step (Step 2a). For operators who generate
+  coverage in CI / by hand. No effect outside TESTING.
 
 ## Guardrails
 

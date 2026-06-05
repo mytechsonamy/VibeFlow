@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.0] — 2026-06-05
+
+Sprint 29 (backlog B5) — phase-runner TESTING auto-run. TESTING was the
+one phase that wasn't a one-command walk, because `coverage-analyzer`
+parses an existing coverage JSON rather than producing it.
+
+- **Generate step (S29-A).** `phase-runner` Step 2a (TESTING only) runs
+  the project's coverage command before forking the analyzers — resolved
+  from `tech.coverageCommand` or defaulted by `tech.testRunner` (vitest →
+  `npx vitest run --coverage`, jest, pytest, dotnet). Recorded as
+  `generate:coverage` in the progress ledger; `allowed-tools` gains the
+  runner binaries.
+- **Safe by default (S29-B).** Best-effort (a missing/failing command
+  logs + continues so coverage-analyzer surfaces the gap); `--no-generate`
+  / `VF_SKIP_GENERATE=1` opt-out; runs **only** in TESTING (other phase
+  walks unchanged).
+
+Skill-only sprint (no engine change). Docs: `docs/TESTING-READINESS.md`
+refresh. Tests: new `sprint-29.sh` (34). Total baseline 2840 → 2874.
+**Backlog B5 done.**
+
+- `.claude-plugin/plugin.json`: 2.16.0 → 2.17.0
+
+---
+
 ## [2.16.0] — 2026-06-05
 
 Sprint 28 (backlog B2) — cross-project meta-learning, opt-in /
