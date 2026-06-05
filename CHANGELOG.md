@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.0] — 2026-06-05
+
+Sprint 30 (backlog B4) — the **loop-status dashboard**, and the capstone
+of the autonomous-loop arc. Sprints 20–29 built a deep loop whose state
+was scattered across half a dozen files; v2.18.0 gives it one pane of
+glass.
+
+- **Reader extension (S30-A).** `hooks/scripts/loop-audit.sh` gains two
+  sections: `phaseRunner` (from the Sprint-21 progress ledger) and
+  `crossProject` (from the Sprint-28 global store, only when
+  `globalLearning.enabled`). Both `null` when absent — `/vibeflow:status`'
+  Autonomous Loop section is byte-for-byte unchanged.
+- **New skill (S30-B).** `/vibeflow:loop-status` — a read-only dashboard
+  that consolidates phase-runner progress + auto-apply tally/revert-rates
+  + cooldowns + armed watch + learning findings + the cross-project
+  signal into one view, flags `revertRate ≥ 0.5` removal candidates,
+  surfaces cross-project as a recommendation only, collapses to one idle
+  line when nothing has looped, and writes a durable
+  `.vibeflow/reports/loop-status.md` audit. Registered in
+  `phase-policy.json` (ALL, read-only).
+- **Docs (S30-C).** New `docs/LOOP-STATUS.md`; `docs/LOOP-AUDIT.md`
+  refreshed (the reader now feeds two surfaces).
+
+Skill + hook only (no engine change). Tests: new `sprint-30.sh` (58),
+`hooks/tests/run.sh` 174 → 185 (+11). Total baseline 2874 → 2943 across
+30 test layers. **Backlog B4 done — B1/B2/B4/B5 all shipped; the
+autonomous-loop arc is feature-complete. B3 (embedding excerption)
+remains a deliberate non-goal.**
+
+---
+
 ## [2.17.0] — 2026-06-05
 
 Sprint 29 (backlog B5) — phase-runner TESTING auto-run. TESTING was the

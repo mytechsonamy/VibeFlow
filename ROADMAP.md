@@ -121,6 +121,7 @@ the short index. Details in each sprint's doc + the matching
 | 27 | v2.15.0 (2026-06-05) | Template-route autonomy (backlog B1): opt-in propose-only specialist auto-fork — `learningApply.autoForkSpecialist` forks the phase specialist on a recurring-theme finding → diff-first patch, operator-confirmed | [SPRINT-27.md](SPRINT-27.md) |
 | 28 | v2.16.0 (2026-06-05) | Cross-project meta-learning (backlog B2): opt-in, privacy-safe, read-only shared `~/.vibeflow/global-learning.jsonl` store + `cross-project-signal` recommendation detector | [SPRINT-28.md](SPRINT-28.md) |
 | 29 | v2.17.0 (2026-06-05) | phase-runner TESTING auto-run (backlog B5): TESTING-only generate step runs `tech.coverageCommand` before the analyzers (per-runner defaults + `--no-generate` opt-out), making TESTING a true one-command walk | [SPRINT-29.md](SPRINT-29.md) |
+| 30 | v2.18.0 (2026-06-05) | Loop-status dashboard (backlog B4, **capstone**): read-only `/vibeflow:loop-status` consolidates phase-runner progress + auto-apply tally/revert-rates + cooldowns + armed watch + learning findings + cross-project signal into one view + a durable `.vibeflow/reports/loop-status.md` report; `loop-audit.sh` gains `phaseRunner` + `crossProject` sections | [SPRINT-30.md](SPRINT-30.md) |
 
 ---
 
@@ -137,8 +138,8 @@ bugs) may interleave.
 |---|------|------|-------|
 | ~~B1~~ | ~~**Template-route autonomy** (auto-fork the phase specialist)~~ | ✅ **DONE** | Shipped v2.15.0 (Sprint 27) as opt-in propose-only auto-fork (`learningApply.autoForkSpecialist`) — specialist forks on a recurring-theme finding → diff-first patch, operator-confirmed via apply-arbiter-patch. |
 | ~~B2~~ | ~~**Cross-project meta-learning**~~ | ✅ **DONE** | Shipped v2.16.0 (Sprint 28) as opt-in, privacy-safe, read-only: `globalLearning.enabled` mirrors `{key, outcome, phase, projectHash}` to `~/.vibeflow/global-learning.jsonl`; `cross-project-signal` detector recommends (never auto-allowlists). |
-| B3 | **Embedding-based excerption / memory** | 🟠 Medium | Replace lexical (Jaccard + finding-density) scoring with true semantic vectors. Needs an embeddings dependency; trades away the deterministic/no-external-dep posture. |
-| B4 | **Live TUI / `/vibeflow:loop-status` dashboard** | 🟡 Medium | The Sprint-21 progress ledger + Sprint-25 status section already exist; a real redrawing terminal UI needs a host-side renderer (skills are prose+bash). |
+| B3 | **Embedding-based excerption / memory** | ⛔ Non-goal | **Intentionally not built.** Replacing lexical (Jaccard + finding-density) scoring with semantic vectors needs an embeddings dependency, which trades away VibeFlow's deterministic / no-external-dependency core posture. Documented as a deliberate non-goal, not a TODO. |
+| ~~B4~~ | ~~**Live TUI / `/vibeflow:loop-status` dashboard**~~ | ✅ **DONE** | Shipped v2.18.0 (Sprint 30, capstone): read-only `/vibeflow:loop-status` consolidates every loop surface (phase-runner progress, auto-apply tally/revert-rates, cooldowns, armed watch, learning findings, cross-project signal) into one dashboard + a durable `.vibeflow/reports/loop-status.md` report. (A redrawing terminal TUI stays out of scope — skills are prose+bash; the consolidated view + written report is the realistic surface.) |
 | ~~B5~~ | ~~**Auto-run TESTING skills from phase-runner without operator confirm**~~ | ✅ **DONE** | Shipped v2.17.0 (Sprint 29): phase-runner Step 2a generates coverage (`tech.coverageCommand` / per-runner defaults) before the TESTING analyzers — best-effort + `--no-generate` opt-out + TESTING-only. |
 
 **Intentionally deferred (design decision, NOT backlog):** auto-satisfy
@@ -146,8 +147,10 @@ for `design.approved` / `accessibility.verified` / `sprint.planned` —
 kept operator-driven per the Sprint 18 decision (human-judgement
 rituals; rationale in `docs/AUTO-SATISFY.md`).
 
-**Bottom line:** mandatory = 0; full vision-completion of B1–B5 ≈ 3–5
-sprints (optional); thereafter maintenance + consumer-driven fixes.
+**Bottom line:** the autonomous-loop arc is **feature-complete** as of
+v2.18.0 — every actionable backlog item (B1, B2, B4, B5) is shipped, and
+B3 is a deliberate non-goal. Remaining work is maintenance +
+consumer-driven fixes.
 
 ---
 

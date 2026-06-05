@@ -1450,6 +1450,53 @@ assert_eq "[S25-A] learning findingCount=2" "2" "$(printf '%s' "$OUT" | jq -r '.
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
 # ---------------------------------------------------------------------------
+echo "== loop-audit.sh phaseRunner + crossProject sections [S30-A] =="
+
+# Fresh project → both new sections null; existing fields still present.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+OUT="$(bash "$LAUDIT" 2>/dev/null)"
+assert_eq "[S30-A] fresh phaseRunner=null" "null" "$(printf '%s' "$OUT" | jq -r '.phaseRunner')"
+assert_eq "[S30-A] fresh crossProject=null" "null" "$(printf '%s' "$OUT" | jq -r '.crossProject')"
+assert_eq "[S30-A] fresh still has autoApply" "0" "$(printf '%s' "$OUT" | jq -r '.autoApply.applied')"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# Seeded progress ledger → phaseRunner populates with derived step counts.
+DIR="$(make_project TESTING)"
+export VIBEFLOW_CWD="$DIR"
+mkdir -p "$DIR/.vibeflow/state"
+cat > "$DIR/.vibeflow/state/phase-runner-progress.json" <<'JSON'
+{"phase":"TESTING","status":"running","currentStep":"consensus-round-1","attempt":2,"maxConvergenceAttempts":3,
+ "steps":[{"name":"analyzer:coverage-analyzer","status":"done"},{"name":"consensus-round-1","status":"running"}]}
+JSON
+OUT="$(bash "$LAUDIT" 2>/dev/null)"
+assert_eq "[S30-A] phaseRunner status=running" "running" "$(printf '%s' "$OUT" | jq -r '.phaseRunner.status')"
+assert_eq "[S30-A] phaseRunner attempt=2" "2" "$(printf '%s' "$OUT" | jq -r '.phaseRunner.attempt')"
+assert_eq "[S30-A] phaseRunner stepsDone=1" "1" "$(printf '%s' "$OUT" | jq -r '.phaseRunner.stepsDone')"
+assert_eq "[S30-A] phaseRunner stepsTotal=2" "2" "$(printf '%s' "$OUT" | jq -r '.phaseRunner.stepsTotal')"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# globalLearning.enabled + a global store → crossProject aggregates by key.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+GLOO="$(mktemp -d)"; export VIBEFLOW_GLOBAL_DIR="$GLOO"
+jq '.globalLearning = {enabled: true}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+{
+  echo '{"key":"consensus.maxIterations","outcome":"held","phase":"REQUIREMENTS","projectHash":"aaa"}'
+  echo '{"key":"consensus.maxIterations","outcome":"held","phase":"REQUIREMENTS","projectHash":"bbb"}'
+  echo '{"key":"consensus.maxIterations","outcome":"reverted","phase":"REQUIREMENTS","projectHash":"ccc"}'
+} > "$GLOO/global-learning.jsonl"
+OUT="$(bash "$LAUDIT" 2>/dev/null)"
+assert_eq "[S30-A] crossProject distinctProjects=3" "3" "$(printf '%s' "$OUT" | jq -r '.crossProject.distinctProjects')"
+assert_eq "[S30-A] crossProject key projects=3" "3" "$(printf '%s' "$OUT" | jq -r '.crossProject.perKey[] | select(.key=="consensus.maxIterations") | .projects')"
+assert_eq "[S30-A] crossProject holdRate=0.67" "0.67" "$(printf '%s' "$OUT" | jq -r '.crossProject.perKey[] | select(.key=="consensus.maxIterations") | .holdRate')"
+# globalLearning OFF → crossProject stays null even with a store present.
+jq '.globalLearning = {enabled: false}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+OUT="$(bash "$LAUDIT" 2>/dev/null)"
+assert_eq "[S30-A] crossProject null when globalLearning off" "null" "$(printf '%s' "$OUT" | jq -r '.crossProject')"
+rm -rf "$DIR" "$GLOO"; unset VIBEFLOW_CWD VIBEFLOW_GLOBAL_DIR
+
+# ---------------------------------------------------------------------------
 echo "== cross-project global-learning store [S28-B] =="
 
 # Helper: arm a regressing auto-apply watch + fire a low-agreement round.

@@ -147,6 +147,10 @@
       "phases": "ALL",
       "description": "Brownfield codebase scan. Read-only."
     },
+    "loop-status": {
+      "phases": "ALL",
+      "description": "Sprint 30-B. The autonomous-loop dashboard: runs loop-audit.sh and consolidates phase-runner progress + auto-apply outcomes/revert-rates + cooldowns + armed watch + learning findings + cross-project signal into one view; writes .vibeflow/reports/loop-status.md. Read-only."
+    },
     "traceability-engine": {
       "phases": "ALL",
       "description": "Maps requirements to test scenarios and source code."

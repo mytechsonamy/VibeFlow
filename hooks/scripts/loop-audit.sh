@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
-EMPTY='{"autoApply":{"applied":0,"reverted":0,"held":0,"armedWatch":null,"cooldowns":[]},"perKey":[],"learning":{"reportExists":false,"findingCount":0},"recentDecisions":[]}'
+EMPTY='{"autoApply":{"applied":0,"reverted":0,"held":0,"armedWatch":null,"cooldowns":[]},"perKey":[],"learning":{"reportExists":false,"findingCount":0},"recentDecisions":[],"phaseRunner":null,"crossProject":null}'
 
 if ! vf_have_jq; then
   echo "$EMPTY"
@@ -92,12 +92,47 @@ if [[ -f "$DECISIONS" ]]; then
   [[ -n "$RECENT" ]] || RECENT="[]"
 fi
 
+# Sprint 30-A: phase-runner progress (from the Sprint-21 ledger).
+LEDGER="$STATE_DIR/phase-runner-progress.json"
+PHASERUNNER="null"
+if [[ -f "$LEDGER" ]]; then
+  PHASERUNNER="$(jq -c '{phase:(.phase // ""), status:(.status // ""),
+    currentStep:(.currentStep // ""), attempt:(.attempt // 1),
+    maxConvergenceAttempts:(.maxConvergenceAttempts // 0),
+    stepsDone:((.steps // []) | map(select(.status=="done")) | length),
+    stepsTotal:((.steps // []) | length)}' "$LEDGER" 2>/dev/null || echo "null")"
+  [[ -n "$PHASERUNNER" ]] || PHASERUNNER="null"
+fi
+
+# Sprint 30-A: cross-project signal (only when globalLearning.enabled).
+CROSSPROJECT="null"
+if [[ "$(vf_config_get '.globalLearning.enabled' 2>/dev/null || echo false)" == "true" ]]; then
+  GLOBAL_FILE="$(vf_global_dir)/global-learning.jsonl"
+  if [[ -f "$GLOBAL_FILE" ]]; then
+    CROSSPROJECT="$(jq -s -c '
+      {
+        distinctProjects: ([.[].projectHash] | unique | length),
+        perKey: (group_by(.key) | map(
+          { key: .[0].key,
+            projects: ([.[].projectHash] | unique | length),
+            held: (map(select(.outcome=="held")) | length),
+            reverted: (map(select(.outcome=="reverted")) | length) } as $o
+          | { key: $o.key, projects: $o.projects,
+              holdRate: (if ($o.held + $o.reverted) > 0
+                         then (($o.held / ($o.held + $o.reverted)) * 100 | round) / 100 else 0 end) }))
+      }' "$GLOBAL_FILE" 2>/dev/null || echo "null")"
+    [[ -n "$CROSSPROJECT" ]] || CROSSPROJECT="null"
+  fi
+fi
+
 jq -n -c \
   --argjson applied "$APPLIED" --argjson reverted "$REVERTED" --argjson held "$HELD" \
   --argjson armed "$ARMED" --argjson cooldowns "$COOLDOWNS" --argjson perkey "$PERKEY" \
   --argjson reportExists "$REPORT_EXISTS" --argjson findingCount "$FINDING_COUNT" \
-  --argjson recent "$RECENT" \
+  --argjson recent "$RECENT" --argjson phaseRunner "$PHASERUNNER" --argjson crossProject "$CROSSPROJECT" \
   '{autoApply:{applied:$applied, reverted:$reverted, held:$held, armedWatch:$armed, cooldowns:$cooldowns},
     perKey:$perkey,
     learning:{reportExists:$reportExists, findingCount:$findingCount},
-    recentDecisions:$recent}' 2>/dev/null || echo "$EMPTY"
+    recentDecisions:$recent,
+    phaseRunner:$phaseRunner,
+    crossProject:$crossProject}' 2>/dev/null || echo "$EMPTY"
