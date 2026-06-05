@@ -13,6 +13,7 @@ import {
   AutoApplyConfigSchema,
   LoopAuditConfigSchema,
   GatesConfigSchema,
+  GlobalLearningConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -445,6 +446,30 @@ describe("LearningApplyConfigSchema (Sprint 22-D)", () => {
     expect(
       LearningApplyConfigSchema.safeParse({ maxRelativeStep: 0.5 }).success,
     ).toBe(true);
+  });
+});
+
+describe("GlobalLearningConfigSchema (Sprint 28-A)", () => {
+  it("defaults enabled to false (nothing leaves a project)", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.globalLearning.enabled).toBe(false);
+  });
+
+  it("accepts enabled:true and merges from config file", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      globalLearning: { enabled: true },
+    });
+    expect(cfg.globalLearning.enabled).toBe(true);
+  });
+
+  it("rejects a non-boolean enabled", () => {
+    expect(
+      GlobalLearningConfigSchema.safeParse({ enabled: "yes" }).success,
+    ).toBe(false);
+    expect(GlobalLearningConfigSchema.safeParse({ enabled: true }).success).toBe(
+      true,
+    );
   });
 });
 

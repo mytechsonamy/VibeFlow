@@ -29,6 +29,26 @@ vf_state_dir() {
   echo "$d"
 }
 
+# Sprint 28-A: cross-project meta-learning shared store directory.
+# Default `$HOME/.vibeflow`; overridable via VIBEFLOW_GLOBAL_DIR (tests
+# point it at a temp dir so they never touch the real home store).
+vf_global_dir() {
+  echo "${VIBEFLOW_GLOBAL_DIR:-$HOME/.vibeflow}"
+}
+
+# Sprint 28-A: one-way, stable hash of the project id — lets the global
+# store COUNT distinct projects without IDENTIFYING them (no project name
+# leaves the repo). First 12 hex chars of sha256. `shasum` ships on macOS
+# + Linux; degrades to a fixed sentinel if absent so callers never break.
+vf_project_hash() {
+  local pid; pid="$(vf_project_id)"
+  if command -v shasum >/dev/null 2>&1; then
+    printf '%s' "$pid" | shasum -a 256 | cut -c1-12
+  else
+    echo "unknownproj0"
+  fi
+}
+
 # Sprint 11-C: filesystem backend per-project directory.
 # <cwd>/.vibeflow/state/<projectId>/project.json is the rollup target.
 # Prints nothing (returns 1) if the project id can't be resolved yet.

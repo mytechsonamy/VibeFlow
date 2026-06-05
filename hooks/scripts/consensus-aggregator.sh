@@ -516,6 +516,19 @@ if [[ -f "$WATCH" ]]; then
       'BEGIN { print ((b - t) > d) ? "yes" : "no" }')"
     REVERT_LOG="$(vf_cwd)/.vibeflow/reports/auto-apply-reverts.md"
     mkdir -p "$(dirname "$REVERT_LOG")"
+    # Sprint 28-B: privacy-safe cross-project outcome mirror. When
+    # globalLearning.enabled, append ONLY {key, outcome, phase,
+    # projectHash} to the shared store — never the artifact/file/theme.
+    # Off by default ⇒ nothing leaves the project.
+    GL_ENABLED="$(vf_config_get '.globalLearning.enabled' 2>/dev/null || echo false)"
+    vf_global_outcome() {  # <key> <outcome>
+      [[ "$GL_ENABLED" == "true" ]] || return 0
+      local gdir; gdir="$(vf_global_dir)"; mkdir -p "$gdir" 2>/dev/null || return 0
+      jq -n -c --arg key "$1" --arg outcome "$2" --arg phase "$HIST_PHASE" \
+        --arg ph "$(vf_project_hash)" --arg ts "$TS" \
+        '{key:$key, outcome:$outcome, phase:$phase, projectHash:$ph, recordedAt:$ts}' \
+        >> "$gdir/global-learning.jsonl" 2>/dev/null || true
+    }
     if [[ "$REGRESSED" == "yes" && -n "$W_SNAP" && -f "$W_SNAP" ]]; then
       # Atomic restore of the whole snapshot — reverts every key in the
       # transaction as one unit (Sprint 24-D).
@@ -534,6 +547,7 @@ if [[ -f "$WATCH" ]]; then
           --arg ts "$TS" --argjson base "$BASE_AGREE" --argjson this "$THIS_AGREE" \
           '{type:"auto-revert", key:$key, round:$round, baselineAgreement:$base, agreement:$this, recordedAt:$ts}' \
           >> "$HISTORY_FILE" 2>/dev/null || true
+        vf_global_outcome "$k" "reverted"
       done <<< "$W_KEYS"
       printf '\n' >> "$REVERT_LOG"
     else
@@ -547,6 +561,7 @@ if [[ -f "$WATCH" ]]; then
           --arg ts "$TS" --argjson base "$BASE_AGREE" --argjson this "$THIS_AGREE" \
           '{type:"auto-apply-held", key:$key, round:$round, baselineAgreement:$base, agreement:$this, recordedAt:$ts}' \
           >> "$HISTORY_FILE" 2>/dev/null || true
+        vf_global_outcome "$k" "held"
       done <<< "$W_KEYS"
     fi
     rm -f "$WATCH" 2>/dev/null || true

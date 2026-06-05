@@ -119,10 +119,11 @@ the short index. Details in each sprint's doc + the matching
 | 25 | v2.13.0 (2026-06-05) | Autonomous-loop observability: read-only `loop-audit.sh` reader + `/vibeflow:status` Autonomous Loop section (per-key revert rates, cooldowns, armed watch, learning findings) | [SPRINT-25.md](SPRINT-25.md) |
 | 26 | v2.14.0 (2026-06-05) | TESTING→DEPLOYMENT consumer hardening: `release.decision.go` wiring + opt-in entry-gate; FlowBridge-surfaced macOS-no-timeout + codex-stdin-hang fixes | [SPRINT-26.md](SPRINT-26.md) |
 | 27 | v2.15.0 (2026-06-05) | Template-route autonomy (backlog B1): opt-in propose-only specialist auto-fork — `learningApply.autoForkSpecialist` forks the phase specialist on a recurring-theme finding → diff-first patch, operator-confirmed | [SPRINT-27.md](SPRINT-27.md) |
+| 28 | v2.16.0 (2026-06-05) | Cross-project meta-learning (backlog B2): opt-in, privacy-safe, read-only shared `~/.vibeflow/global-learning.jsonl` store + `cross-project-signal` recommendation detector | [SPRINT-28.md](SPRINT-28.md) |
 
 ---
 
-## Remaining Backlog (Sprint 28+ candidates)
+## Remaining Backlog (Sprint 29+ candidates)
 
 The core mission is feature-complete as of v2.14.0 (7 phases, full
 consensus + L3 learning/autonomy loop, observability, consumer
@@ -134,7 +135,7 @@ bugs) may interleave.
 | # | Item | Size | Notes |
 |---|------|------|-------|
 | ~~B1~~ | ~~**Template-route autonomy** (auto-fork the phase specialist)~~ | ✅ **DONE** | Shipped v2.15.0 (Sprint 27) as opt-in propose-only auto-fork (`learningApply.autoForkSpecialist`) — specialist forks on a recurring-theme finding → diff-first patch, operator-confirmed via apply-arbiter-patch. |
-| B2 | **Cross-project meta-learning** | 🟠 Med-Large | Shared auto-tune-effectiveness store across repos (e.g. `~/.vibeflow`). Breaks the single-project assumption; external-state complexity. |
+| ~~B2~~ | ~~**Cross-project meta-learning**~~ | ✅ **DONE** | Shipped v2.16.0 (Sprint 28) as opt-in, privacy-safe, read-only: `globalLearning.enabled` mirrors `{key, outcome, phase, projectHash}` to `~/.vibeflow/global-learning.jsonl`; `cross-project-signal` detector recommends (never auto-allowlists). |
 | B3 | **Embedding-based excerption / memory** | 🟠 Medium | Replace lexical (Jaccard + finding-density) scoring with true semantic vectors. Needs an embeddings dependency; trades away the deterministic/no-external-dep posture. |
 | B4 | **Live TUI / `/vibeflow:loop-status` dashboard** | 🟡 Medium | The Sprint-21 progress ledger + Sprint-25 status section already exist; a real redrawing terminal UI needs a host-side renderer (skills are prose+bash). |
 | B5 | **Auto-run TESTING skills from phase-runner without operator confirm** | 🟢 Small-Med | Currently operator-initiated under normal skill dispatch; an autonomy-posture change. |

@@ -86,6 +86,7 @@ needle?"
 | Sprint window | optional | `--sprint N` limits the window; default: last 3 sprints (`learningLoop.sprintWindow`). |
 | `convergence-stalled.md` / `max-iterations-reached.md` | optional | From the apply auto-chain (Sprint 19-E); each is one stall observation. |
 | `.vibeflow/state/patches/<session>/manifest.json` | optional | Cross-checks the `arbiter-decision` rows for the effectiveness trace (S20-C). |
+| `$(vf_global_dir)/global-learning.jsonl` | optional | Sprint 28-C cross-project store (only when `globalLearning.enabled`). Privacy-safe `{key, outcome, phase, projectHash}` rows aggregated across distinct projects for the `cross-project-signal` recommendation. |
 
 **Pattern detectors** (each gated by the universal ≥ 3-observation
 floor; `consensus-history` reads `learningLoop.minObservations`,
@@ -110,6 +111,16 @@ default 3):
   loop's own auto-tuning isn't sticking ⇒ recommend removing the key
   from `autoApply.keys`. This closes the meta-loop: the slow loop learns
   from its *own* tuning outcomes.
+- **cross-project-signal** (Sprint 28-C, opt-in) — when
+  `globalLearning.enabled`, read the shared
+  `$(vf_global_dir)/global-learning.jsonl` (privacy-safe rows: `{key,
+  outcome, phase, projectHash}`) and aggregate per-key outcomes across
+  **distinct projects**. For a key seen in ≥ 3 projects: hold-rate ≥ 0.7
+  ⇒ *"consider allowlisting `<key>` (held in N/M projects)"*; ≤ 0.3 ⇒
+  *"avoid auto-applying `<key>` (reverted in N/M projects)"*. **Read-only
+  recommendation** — it NEVER auto-allowlists or auto-applies; the
+  operator decides. Absent store / `globalLearning` off ⇒ detector is a
+  no-op.
 
 Output: `.vibeflow/reports/consensus-learning-report.md` with the
 explainability contract (`{finding, why, impact, confidence}`) plus
@@ -158,7 +169,8 @@ patterns per mode:
 - **consensus-history patterns** — slow-converging-phase,
   reviewer-skew, recurring-suggestion-theme, convergence-stall,
   primary-artifact-churn, auto-tune-ineffective (the S24-B
-  meta-learning detector), ineffective-theme (the S20-C
+  meta-learning detector), cross-project-signal (the S28-C opt-in
+  cross-project recommendation), ineffective-theme (the S20-C
   applied-but-no-movement signal)
 
 Every pattern entry in the catalog carries:

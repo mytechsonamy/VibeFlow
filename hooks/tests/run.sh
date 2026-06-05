@@ -1449,6 +1449,52 @@ assert_eq "[S25-A] cooled-down key listed" "consensus.maxIterations" "$(printf '
 assert_eq "[S25-A] learning findingCount=2" "2" "$(printf '%s' "$OUT" | jq -r '.learning.findingCount')"
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
+# ---------------------------------------------------------------------------
+echo "== cross-project global-learning store [S28-B] =="
+
+# Helper: arm a regressing auto-apply watch + fire a low-agreement round.
+_s28_fire() { # <dir> <session>
+  local d="$1" s="$2"
+  jq '.consensus = {maxIterations: 7, quorum: 1}' "$d/vibeflow.config.json" > "$d/c.tmp" && mv "$d/c.tmp" "$d/vibeflow.config.json"
+  local cons="$d/.vibeflow/state/consensus" aa="$d/.vibeflow/state/auto-apply"
+  mkdir -p "$cons" "$aa/snap"
+  echo "docs/PRD.md" > "$cons/$s.primary.txt"; echo "1" > "$cons/$s.current-round.txt"
+  jq '.consensus.maxIterations = 5' "$d/vibeflow.config.json" > "$aa/snap/vibeflow.config.json.bak"
+  jq -n -c --arg snap "$aa/snap/vibeflow.config.json.bak" \
+    '{key:"consensus.maxIterations", phase:"DEVELOPMENT", primaryArtifact:"docs/PRD.md",
+      baselineAgreement:1.0, regressionDelta:0.05, snapshot:$snap, appliedAt:"t0"}' > "$aa/watch.json"
+  printf '%s' "{\"session_id\":\"$s\",\"subagent_type\":\"claude-reviewer\",\"tool_response\":{\"content\":[{\"text\":\"Verdict: NEEDS_REVISION\\ncritical issues: 0\"}]}}" \
+    | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+}
+
+# Enabled → a privacy-safe row lands in the global store.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+GLOBAL="$DIR/_global"; export VIBEFLOW_GLOBAL_DIR="$GLOBAL"
+jq '. + {globalLearning: {enabled: true}}' "$DIR/vibeflow.config.json" > "$DIR/g.tmp" && mv "$DIR/g.tmp" "$DIR/vibeflow.config.json"
+_s28_fire "$DIR" "gl1"
+GF="$GLOBAL/global-learning.jsonl"
+[[ -f "$GF" ]] && pass "[S28-B] enabled → global-learning.jsonl written" || fail "[S28-B] enabled → global-learning.jsonl written"
+if [[ -f "$GF" ]]; then
+  assert_eq "[S28-B] row outcome is reverted" "reverted" "$(jq -r '.outcome' "$GF" | head -1)"
+  assert_eq "[S28-B] row carries the key" "consensus.maxIterations" "$(jq -r '.key' "$GF" | head -1)"
+  HASHLEN="$(jq -r '.projectHash' "$GF" | head -1 | tr -d '\n' | wc -c | tr -d ' ')"
+  assert_eq "[S28-B] projectHash present (12 chars)" "12" "$HASHLEN"
+  HASNOFILE="$(jq -r 'has("primaryArtifact") or has("artifact") or has("file")' "$GF" | head -1)"
+  assert_eq "[S28-B] privacy: NO primaryArtifact/file fields" "false" "$HASNOFILE"
+  KEYS="$(jq -r 'keys | join(",")' "$GF" | head -1)"
+  assert_eq "[S28-B] row has exactly the 5 privacy-safe fields" "key,outcome,phase,projectHash,recordedAt" "$(echo "$KEYS" | tr ',' '\n' | sort | tr '\n' ',' | sed 's/,$//')"
+fi
+rm -rf "$DIR" "$GLOBAL"; unset VIBEFLOW_CWD VIBEFLOW_GLOBAL_DIR
+
+# Disabled (default) → nothing leaves the project.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+GLOBAL="$DIR/_global"; export VIBEFLOW_GLOBAL_DIR="$GLOBAL"
+_s28_fire "$DIR" "gl2"
+[[ ! -f "$GLOBAL/global-learning.jsonl" ]] && pass "[S28-B] disabled (default) → no global store write" || fail "[S28-B] disabled (default) → no global store write"
+rm -rf "$DIR" "$GLOBAL"; unset VIBEFLOW_CWD VIBEFLOW_GLOBAL_DIR
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

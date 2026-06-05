@@ -17860,6 +17860,9 @@ var LoopAuditConfigSchema = external_exports.object({
 var GatesConfigSchema = external_exports.object({
   enforceEntryCriteria: external_exports.boolean().default(false)
 }).default({ enforceEntryCriteria: false });
+var GlobalLearningConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(false)
+}).default({ enabled: false });
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
@@ -17871,7 +17874,8 @@ var EngineConfigSchema = external_exports.object({
   reviewerMemory: ReviewerMemoryConfigSchema,
   learningApply: LearningApplyConfigSchema,
   loopAudit: LoopAuditConfigSchema,
-  gates: GatesConfigSchema
+  gates: GatesConfigSchema,
+  globalLearning: GlobalLearningConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17886,7 +17890,8 @@ function resolveConfig(cwd = process.cwd()) {
     reviewerMemory: fileConfig.reviewerMemory ?? {},
     learningApply: fileConfig.learningApply ?? {},
     loopAudit: fileConfig.loopAudit ?? {},
-    gates: fileConfig.gates ?? {}
+    gates: fileConfig.gates ?? {},
+    globalLearning: fileConfig.globalLearning ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17947,6 +17952,13 @@ function loadFileConfig(cwd) {
         gates = parsed.data;
       }
     }
+    let globalLearning;
+    if (typeof raw.globalLearning === "object" && raw.globalLearning !== null) {
+      const parsed = GlobalLearningConfigSchema.safeParse(raw.globalLearning);
+      if (parsed.success) {
+        globalLearning = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
       ...dir ? { stateStore: { dir } } : {},
@@ -17956,7 +17968,8 @@ function loadFileConfig(cwd) {
       ...reviewerMemory ? { reviewerMemory } : {},
       ...learningApply ? { learningApply } : {},
       ...loopAudit ? { loopAudit } : {},
-      ...gates ? { gates } : {}
+      ...gates ? { gates } : {},
+      ...globalLearning ? { globalLearning } : {}
     };
   } catch {
     return {};

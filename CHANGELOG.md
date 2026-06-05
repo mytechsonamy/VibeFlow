@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.16.0] — 2026-06-05
+
+Sprint 28 (backlog B2) — cross-project meta-learning, opt-in /
+privacy-safe / read-only.
+
+- **Config + helpers (S28-A).** New `GlobalLearningConfigSchema`
+  `{ enabled: false }` (default off); `_lib.sh` `vf_global_dir()`
+  (`$HOME/.vibeflow`, overridable via `VIBEFLOW_GLOBAL_DIR`) +
+  `vf_project_hash()` (one-way sha256, first 12 chars).
+- **Global-store writes (S28-B).** When `globalLearning.enabled`,
+  `consensus-aggregator.sh` (reverted/held) and `learning-apply`
+  (applied) mirror **only** `{key, outcome, phase, projectHash}` to
+  `global-learning.jsonl` — never code/content/file names/themes. Off ⇒
+  nothing leaves the project.
+- **Detector (S28-C).** `learning-loop-engine` consensus-history mode
+  gains `cross-project-signal` (`LEARNING-CROSS-PROJECT-SIGNAL`): per-key
+  hold-rate across ≥ 3 distinct projects → a **read-only** recommendation
+  (≥ 0.7 allowlist / ≤ 0.3 avoid); never auto-allowlists.
+  `patternCatalogVersion` → 4.
+
+Docs: `docs/CROSS-PROJECT-LEARNING.md` + META-LEARNING refresh. Tests:
+sdlc-engine 196→199, hooks 167→174, new `sprint-28.sh` (44). Total
+baseline 2786 → 2840. **Backlog B2 done.**
+
+- `.claude-plugin/plugin.json`: 2.15.0 → 2.16.0
+- `@vibeflow/sdlc-engine`: 1.13.0 → 1.14.0
+
+---
+
 ## [2.15.0] — 2026-06-05
 
 Sprint 27 (backlog B1) — template-route autonomy, propose-only. The

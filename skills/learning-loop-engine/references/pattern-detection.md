@@ -344,6 +344,27 @@ rows carry `{round, applied[], rejected[]}`. Window = last
   propose-only after `autoApply.demoteAfterReverts` reverts (Sprint
   24-C); this finding recommends making that permanent
 
+### LEARNING-CROSS-PROJECT-SIGNAL
+- **mode**: consensus-history (Sprint 28-C — opt-in, read-only)
+- **signature**: when `globalLearning.enabled`, read the shared
+  `$(vf_global_dir)/global-learning.jsonl` (privacy-safe rows
+  `{key, outcome, phase, projectHash}`). For each config key, count
+  distinct `projectHash`es and the hold-rate
+  `held / (held + reverted)`. Fires when the key appears in ≥ 3 distinct
+  projects AND hold-rate ≥ 0.7 (positive) or ≤ 0.3 (negative)
+- **minObservations**: 3 distinct projects
+- **severity**: `recommend`
+- **rationale**: a tune that reliably holds (or reverts) across many
+  *independent* projects is a stronger signal than one project's local
+  history — but it is still only advice; every project's config + domain
+  differ
+- **remediation**: **recommendation only.** Positive ⇒ "consider adding
+  `<key>` to `autoApply.keys` (held in N/M projects)"; negative ⇒
+  "avoid auto-applying `<key>` (reverted in N/M projects)". The detector
+  **NEVER** auto-allowlists or auto-applies — one repo's record can't
+  change another's behaviour. Privacy: only key/outcome/phase/projectHash
+  ever leave a repo (no code, content, file names, or theme text)
+
 ---
 
 ## 5. Slope + noise-floor formulas
@@ -400,12 +421,12 @@ over the default is how patterns stop surfacing.
 
 ## 7. Current pattern catalog version
 
-**`patternCatalogVersion: 3`**
+**`patternCatalogVersion: 4`**
 
 - test-history patterns: 5
 - production-feedback patterns: 4
 - drift-analysis patterns: 4
-- consensus-history patterns: 7 (Sprint 20-B / 20-C + Sprint 24-B auto-tune-ineffective)
+- consensus-history patterns: 8 (Sprint 20-B / 20-C + Sprint 24-B auto-tune-ineffective + Sprint 28-C cross-project-signal)
 - Minimum evidence: 3 observations per pattern
 - Noise floors: declared per signal
 

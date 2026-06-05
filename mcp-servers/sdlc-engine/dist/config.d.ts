@@ -246,6 +246,23 @@ export declare const GatesConfigSchema: z.ZodDefault<z.ZodObject<{
     enforceEntryCriteria?: boolean | undefined;
 }>>;
 export type GatesConfig = z.infer<typeof GatesConfigSchema>;
+/**
+ * Sprint 28-A: cross-project meta-learning. `enabled` (default OFF) opts
+ * a project into mirroring its auto-tune *outcomes* (key + outcome +
+ * phase + one-way projectHash — never code/content/file names) to a
+ * shared `~/.vibeflow/global-learning.jsonl` store, and into reading that
+ * store for cross-project recommendations. Read-only: it never
+ * auto-allowlists or auto-applies — one repo's record can't change
+ * another's behaviour. Off by default so nothing leaves a project.
+ */
+export declare const GlobalLearningConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+}, {
+    enabled?: boolean | undefined;
+}>>;
+export type GlobalLearningConfig = z.infer<typeof GlobalLearningConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -394,6 +411,13 @@ export declare const EngineConfigSchema: z.ZodObject<{
     }, {
         enforceEntryCriteria?: boolean | undefined;
     }>>;
+    globalLearning: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+    }, {
+        enabled?: boolean | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
@@ -444,6 +468,9 @@ export declare const EngineConfigSchema: z.ZodObject<{
     gates: {
         enforceEntryCriteria: boolean;
     };
+    globalLearning: {
+        enabled: boolean;
+    };
 }, {
     project: string;
     stateStore?: {
@@ -493,6 +520,9 @@ export declare const EngineConfigSchema: z.ZodObject<{
     } | undefined;
     gates?: {
         enforceEntryCriteria?: boolean | undefined;
+    } | undefined;
+    globalLearning?: {
+        enabled?: boolean | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

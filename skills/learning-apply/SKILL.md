@@ -260,6 +260,15 @@ for KEY in "${ELIGIBLE[@]}"; do
   jq -n -c --arg key "$KEY" --arg phase "$PHASE" --arg primary "$PRIMARY" --arg ts "$TS" \
     '{type:"auto-apply", key:$key, phase:$phase, primaryArtifact:$primary, appliedAt:$ts}' \
     >> .vibeflow/state/consensus/history.jsonl
+  # Sprint 28-B: privacy-safe cross-project mirror (opt-in). ONLY
+  # {key, outcome, phase, projectHash} — never primaryArtifact/file/theme.
+  if [[ "$(vf_config_get '.globalLearning.enabled' 2>/dev/null || echo false)" == "true" ]]; then
+    GDIR="$(vf_global_dir)"; mkdir -p "$GDIR" 2>/dev/null || true
+    jq -n -c --arg key "$KEY" --arg outcome "applied" --arg phase "$PHASE" \
+      --arg ph "$(vf_project_hash)" --arg ts "$TS" \
+      '{key:$key, outcome:$outcome, phase:$phase, projectHash:$ph, recordedAt:$ts}' \
+      >> "$GDIR/global-learning.jsonl" 2>/dev/null || true
+  fi
 done
 
 # ONE watch over the whole transaction (keys[] — the aggregator reverts

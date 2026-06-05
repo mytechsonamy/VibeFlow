@@ -90,9 +90,21 @@ The per-key revert rate this meta-loop computes is surfaced live in
 `/vibeflow:status`'s **Autonomous Loop** section — a key crossing
 `revertRate ≥ 0.5` is flagged there too. See [LOOP-AUDIT.md](LOOP-AUDIT.md).
 
+## Across projects (Sprint 28)
+
+The meta-loop above is **single-project**. With `globalLearning.enabled`
+(opt-in, default off), a multi-project operator can share *just the
+outcomes* (`{key, outcome, phase, projectHash}` — no code/content/file
+names) to `~/.vibeflow/global-learning.jsonl`, and the `cross-project-signal`
+detector turns "this key holds in N/M projects" into a **read-only
+recommendation** (never auto-allowlisting). See
+[CROSS-PROJECT-LEARNING.md](CROSS-PROJECT-LEARNING.md).
+
 ## See also
 
 - [AUTO-APPLY.md](AUTO-APPLY.md) — the bounded auto-apply + auto-revert base.
 - [LEARNING-LOOP.md](LEARNING-LOOP.md) — the detector lives in the
   consensus-history mode.
 - [LOOP-AUDIT.md](LOOP-AUDIT.md) — the operator-facing audit surface.
+- [CROSS-PROJECT-LEARNING.md](CROSS-PROJECT-LEARNING.md) — sharing
+  outcomes across repos (opt-in, read-only).

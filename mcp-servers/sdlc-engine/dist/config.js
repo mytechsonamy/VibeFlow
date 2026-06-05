@@ -187,6 +187,20 @@ export const GatesConfigSchema = z
     enforceEntryCriteria: z.boolean().default(false),
 })
     .default({ enforceEntryCriteria: false });
+/**
+ * Sprint 28-A: cross-project meta-learning. `enabled` (default OFF) opts
+ * a project into mirroring its auto-tune *outcomes* (key + outcome +
+ * phase + one-way projectHash — never code/content/file names) to a
+ * shared `~/.vibeflow/global-learning.jsonl` store, and into reading that
+ * store for cross-project recommendations. Read-only: it never
+ * auto-allowlists or auto-applies — one repo's record can't change
+ * another's behaviour. Off by default so nothing leaves a project.
+ */
+export const GlobalLearningConfigSchema = z
+    .object({
+    enabled: z.boolean().default(false),
+})
+    .default({ enabled: false });
 export const EngineConfigSchema = z.object({
     project: z.string().min(1),
     stateStore: z
@@ -201,6 +215,7 @@ export const EngineConfigSchema = z.object({
     learningApply: LearningApplyConfigSchema,
     loopAudit: LoopAuditConfigSchema,
     gates: GatesConfigSchema,
+    globalLearning: GlobalLearningConfigSchema,
 });
 /**
  * Resolve runtime config from (in order of precedence):
@@ -222,6 +237,7 @@ export function resolveConfig(cwd = process.cwd()) {
         learningApply: fileConfig.learningApply ?? {},
         loopAudit: fileConfig.loopAudit ?? {},
         gates: fileConfig.gates ?? {},
+        globalLearning: fileConfig.globalLearning ?? {},
     });
 }
 function loadFileConfig(cwd) {
@@ -294,6 +310,14 @@ function loadFileConfig(cwd) {
                 gates = parsed.data;
             }
         }
+        // Sprint 28-A: cross-project meta-learning opt-in, same fallback.
+        let globalLearning;
+        if (typeof raw.globalLearning === "object" && raw.globalLearning !== null) {
+            const parsed = GlobalLearningConfigSchema.safeParse(raw.globalLearning);
+            if (parsed.success) {
+                globalLearning = parsed.data;
+            }
+        }
         return {
             ...(typeof project === "string" ? { project } : {}),
             ...(dir ? { stateStore: { dir } } : {}),
@@ -304,6 +328,7 @@ function loadFileConfig(cwd) {
             ...(learningApply ? { learningApply } : {}),
             ...(loopAudit ? { loopAudit } : {}),
             ...(gates ? { gates } : {}),
+            ...(globalLearning ? { globalLearning } : {}),
         };
     }
     catch {
