@@ -43,8 +43,8 @@ filesystem-only. Do not ask about mode.)
   "currentPhase": "REQUIREMENTS",
   "models": {
     "claude": "claude-sonnet-4-6",
-    "openai": "gpt-4o",
-    "gemini": "gemini-2.0-flash"
+    "openai": "default",
+    "gemini": "default"
   },
   "sourceDir": "src/",
   "testDir": "src/",
@@ -52,6 +52,18 @@ filesystem-only. Do not ask about mode.)
   "defaultPipeline": "new-feature"
 }
 ```
+
+**On `models.openai` / `models.gemini`.** Leave these as `"default"`
+(the value above) and consensus will NOT pass `-m`/`--model` to the
+reviewer CLIs — codex uses the model in your `~/.codex/config.toml`,
+gemini uses its own default. This is the robust choice: the right model
+id is **account- and CLI-version-specific** (codex runs on the operator's
+ChatGPT login, gemini on its own auth), and a hardcoded id like the old
+`gpt-4o` / `gemini-2.0-flash` silently fails when the account doesn't
+accept it. Only pin a concrete id (e.g. `"openai": "gpt-5.5"`,
+`"gemini": "gemini-2.5-flash"`) if you specifically want to override the
+CLI's configured default. `models.claude` is informational (the native
+claude-reviewer uses the session model).
 
 ### Step 3: Create Output Directory
 ```bash

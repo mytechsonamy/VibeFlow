@@ -86,7 +86,7 @@ assert_file "[S31-C] consensus-run.sh exists" "$CRUN"
 if [[ -x "$CRUN" ]]; then pass "[S31-C] consensus-run.sh is executable"; else fail "[S31-C] consensus-run.sh is executable"; fi
 bash -n "$CRUN" 2>/dev/null && pass "[S31-C] consensus-run.sh parses" || fail "[S31-C] consensus-run.sh parses"
 assert_grep "[S31-C] consensus-run.sh runs the codex CLI" "codex exec" "$CRUN"
-assert_grep "[S31-C] consensus-run.sh runs the gemini CLI" "gemini --model" "$CRUN"
+assert_grep "[S31-C] consensus-run.sh runs the gemini CLI" "vf_run_timeout 90 gemini" "$CRUN"
 assert_grep "[S31-C] consensus-run.sh finalises via aggregator --finalize" \
   "consensus-aggregator.sh.*--finalize|--finalize" "$CRUN"
 assert_grep "[S31-C] consensus-run.sh drains consensus-needed.json" \
@@ -99,6 +99,22 @@ assert_grep "[S31-C] consensus-run vf_run_timeout watchdog redirected off the ca
   '\) >/dev/null 2>&1 & local wd' "$CRUN"
 assert_grep "[S31-C] orchestrator vf_run_timeout watchdog redirected off the capture pipe" \
   '\) >/dev/null 2>&1 & local wd' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
+# errexit leak: _lib.sh ships `set -euo pipefail`; consensus-run captures CLI
+# rcs and MUST re-disable errexit or a non-zero reviewer aborts the whole run.
+assert_grep "[S31-C] consensus-run re-disables errexit after sourcing _lib.sh" \
+  '^set \+e' "$CRUN"
+# Model resolution defers to the CLI's own model when "default"/unset.
+assert_grep "[S31-C] consensus-run omits -m/--model on default (CODEX_MFLAG)" \
+  'CODEX_MFLAG' "$CRUN"
+assert_grep "[S31-C] consensus-run treats default/empty as omit" \
+  'case "\$openaiModel" in ""\|default' "$CRUN"
+# A reviewer CLI error is warned + skipped (not a phantom REJECTED vote).
+assert_grep "[S31-C] consensus-run warns loudly on a CLI error" \
+  'warn_cli_error' "$CRUN"
+assert_no_grep "[S31-C] consensus-run no longer records a cli_error:RC REJECTED vote" \
+  'cli_error:' "$CRUN"
+assert_grep "[S31-C] onboard config template defers models (default)" \
+  '"openai": "default"' "$ONBOARD"
 
 # Aggregator gained the additive --finalize mode without breaking the
 # SubagentStop path.
@@ -205,6 +221,30 @@ if command -v jq >/dev/null 2>&1; then
     kill "$PROBE_PID" 2>/dev/null; pkill -P "$PROBE_PID" 2>/dev/null
   fi
   rm -rf "$T2"
+
+  # errexit/cli_error probe: a failing reviewer CLI must NOT abort the run
+  # (the set+e fix) — it's warned + skipped, and the surviving reviewer still
+  # yields a verdict. Pre-fix, sourcing _lib.sh's `set -e` aborted at the
+  # `OUT="$(codex …)"` assignment and produced no verdict.
+  T3="$(mktemp -d)"; B3="$T3/bin"; mkdir -p "$B3" "$T3/proj/docs" "$T3/proj/.vibeflow/state"
+  printf '# PRD\n\nx.\n' > "$T3/proj/docs/PRD.md"
+  printf '{"project":"p","currentPhase":"REQUIREMENTS","models":{"openai":"bad-model","gemini":"default"}}\n' \
+    > "$T3/proj/vibeflow.config.json"
+  printf '{"primaryArtifact":"docs/PRD.md","evidence":[],"createdBy":"prd-quality-analyzer"}\n' \
+    > "$T3/proj/.vibeflow/state/consensus-needed.json"
+  printf '#!/bin/bash\ncat >/dev/null\necho "bad model" >&2\nexit 1\n' > "$B3/codex"   # errors
+  printf '#!/bin/bash\ncat >/dev/null\nprintf %s "{\\"verdict\\":\\"APPROVED\\",\\"criticalIssues\\":0}"\n' > "$B3/gemini"
+  chmod +x "$B3/codex" "$B3/gemini"
+  RC3=0
+  ( cd "$T3/proj" && PATH="$B3:$PATH" VIBEFLOW_CWD="$T3/proj" bash "$CRUN" .vibeflow/state/consensus-needed.json >/dev/null 2>&1 ) || RC3=$?
+  if [[ "$RC3" == "0" ]] && ls "$T3/proj/.vibeflow/state/consensus/"*verdict.json >/dev/null 2>&1; then
+    pass "[S31-C] runtime: a failing reviewer CLI doesn't abort the run (set+e); survivor yields a verdict"
+    assert_eq "[S31-C] runtime: errored reviewer skipped → 1-reviewer panel" \
+      "1" "$(jq -r '.total' "$T3/proj/.vibeflow/state/consensus/"*verdict.json 2>/dev/null)"
+  else
+    fail "[S31-C] runtime: a failing reviewer CLI doesn't abort the run (rc=$RC3)"
+  fi
+  rm -rf "$T3"
 fi
 
 # ---------------------------------------------------------------------------

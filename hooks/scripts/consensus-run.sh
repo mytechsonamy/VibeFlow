@@ -42,6 +42,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
+# CRITICAL: _lib.sh declares `set -euo pipefail`, so sourcing it leaks
+# errexit into THIS script. consensus-run is built to *capture* reviewer
+# CLI exit codes (`OUT="$(codex …)"; RC=$?`) and keep going — under errexit
+# a single non-zero CLI would abort the run at the assignment, BEFORE the
+# rc is read, so the cli_error/cli_timeout handling never fires and no
+# verdict is produced. Re-disable errexit (keep nounset + pipefail).
+set +e
 
 ARG="${1:-}"
 if [[ -z "$ARG" ]]; then
@@ -78,10 +85,21 @@ if ! command -v codex >/dev/null 2>&1 && ! command -v gemini >/dev/null 2>&1; th
   exit 3
 fi
 
-openaiModel="$(vf_config_get '.models.openai' 2>/dev/null || echo 'gpt-4o')"
-[[ -n "$openaiModel" && "$openaiModel" != "null" ]] || openaiModel='gpt-4o'
-geminiModel="$(vf_config_get '.models.gemini' 2>/dev/null || echo 'gemini-2.0-flash')"
-[[ -n "$geminiModel" && "$geminiModel" != "null" ]] || geminiModel='gemini-2.0-flash'
+openaiModel="$(vf_config_get '.models.openai' 2>/dev/null || echo '')"
+[[ "$openaiModel" == "null" ]] && openaiModel=''
+geminiModel="$(vf_config_get '.models.gemini' 2>/dev/null || echo '')"
+[[ "$geminiModel" == "null" ]] && geminiModel=''
+# Build the model flag ONLY when explicitly pinned. Empty / "default" /
+# "null" → omit it and let each CLI use its OWN configured model
+# (codex: ~/.codex/config.toml; gemini: its built-in default). This is
+# immune to stale hardcoded defaults and to per-account model availability —
+# a fixed "gpt-4o" / "gemini-2.0-flash" was exactly what silently broke
+# headless consensus when the account/CLI didn't accept it. Model ids are
+# safe single tokens, so the unquoted expansion below splits cleanly.
+CODEX_MFLAG=""
+case "$openaiModel" in ""|default) : ;; *) CODEX_MFLAG="-m $openaiModel" ;; esac
+GEMINI_MFLAG=""
+case "$geminiModel" in ""|default) : ;; *) GEMINI_MFLAG="--model $geminiModel" ;; esac
 
 SESSION_ID="${CLAUDE_SESSION_ID:-headless-$(date -u +%s)-$$}"
 STATE_DIR="$(vf_state_dir)"
@@ -114,10 +132,12 @@ vf_run_timeout() {   # vf_run_timeout <seconds> <cmd...>   (forwards stdin)
   # a full 90s hang AFTER the CLI already returned. The redirect drops the
   # pipe fd so the substitution closes as soon as the CLI exits.
   ( sleep "$secs"; kill -0 "$pid" 2>/dev/null && { touch "/tmp/vf_to_$pid"; kill -TERM "$pid" 2>/dev/null; }; ) >/dev/null 2>&1 & local wd=$!
+  # disown so the shell doesn't print a "Terminated" job notice when we kill
+  # the watchdog below (the CLI finished early — the common case).
+  disown "$wd" 2>/dev/null
   wait "$pid" 2>/dev/null; local rc=$?
   # Tear down the watchdog AND its sleep child so nothing lingers.
-  kill -TERM "$wd" 2>/dev/null; pkill -P "$wd" 2>/dev/null
-  wait "$wd" 2>/dev/null; rm -f "$_in"
+  kill -TERM "$wd" 2>/dev/null; pkill -P "$wd" 2>/dev/null; rm -f "$_in"
   if [[ -f "/tmp/vf_to_$pid" ]]; then rm -f "/tmp/vf_to_$pid"; return 124; fi
   return "$rc"
 }
@@ -199,34 +219,60 @@ append_cli_verdict() {
 }
 
 # --- Step 2: run the external reviewer CLIs (those on PATH) ---------------
-RAN=0
+# A CLI that ERRORS (non-zero, e.g. a bad model id / auth) is NOT a review —
+# we warn loudly (naming the model + the config key to fix) and skip it, so
+# a misconfigured reviewer can't poison the panel with a phantom REJECTED
+# vote. A CLI that TIMES OUT did participate but didn't converge → counts as
+# a conservative REJECTED (mirrors the interactive orchestrator).
+ERRORS=0
+warn_cli_error() {  # <name> <rc> <model-label> <config-key> <output>
+  local name="$1" rc="$2" mdl="$3" key="$4" out="$5"
+  echo "consensus-run: $name FAILED (rc=$rc, model: ${mdl:-<CLI default>}) — NOT counted as a review." >&2
+  echo "  → Check '$key' in vibeflow.config.json. Your $name login/CLI may not accept that model;" >&2
+  echo "    set '$key' to \"default\" to defer to the CLI's own configured model, or pin a valid id." >&2
+  [[ -n "$out" ]] && echo "  → $name said: $(printf '%s' "$out" | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-300)" >&2
+}
+
 if command -v codex >/dev/null 2>&1; then
-  RAN=$((RAN + 1))
-  CODEX_OUT="$( build_review_prompt | vf_run_timeout 90 codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1 )"
+  CODEX_OUT="$( build_review_prompt | vf_run_timeout 90 codex exec $CODEX_MFLAG --skip-git-repo-check --ephemeral 2>&1 )"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
+    echo "consensus-run: codex timed out after 90s (model: ${openaiModel:-<CLI default>})" >&2
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
   elif (( CODEX_RC != 0 )); then
-    append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_error:$CODEX_RC"
+    ERRORS=$((ERRORS + 1))
+    warn_cli_error codex "$CODEX_RC" "$openaiModel" "models.openai" "$CODEX_OUT"
   else
     append_cli_verdict codex "$CODEX_OUT" ""
   fi
 fi
 if command -v gemini >/dev/null 2>&1; then
-  RAN=$((RAN + 1))
-  GEMINI_OUT="$( build_review_prompt | vf_run_timeout 90 gemini --model "$geminiModel" 2>&1 )"
+  GEMINI_OUT="$( build_review_prompt | vf_run_timeout 90 gemini $GEMINI_MFLAG 2>&1 )"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
+    echo "consensus-run: gemini timed out after 90s (model: ${geminiModel:-<CLI default>})" >&2
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
   elif (( GEMINI_RC != 0 )); then
-    append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_error:$GEMINI_RC"
+    ERRORS=$((ERRORS + 1))
+    warn_cli_error gemini "$GEMINI_RC" "$geminiModel" "models.gemini" "$GEMINI_OUT"
   else
     append_cli_verdict gemini "$GEMINI_OUT" ""
   fi
 fi
 
-if (( RAN == 0 )); then
-  echo "consensus-run: no reviewer ran" >&2
+# A reviewer counts only if it produced a verdict line. If every present CLI
+# errored, there is no panel → fail loudly (the per-CLI warnings above name
+# the fix) instead of writing a meaningless verdict.
+if [[ -f "$LOG" ]]; then
+  LINES="$(wc -l < "$LOG" 2>/dev/null | tr -d ' ')"
+else
+  LINES=0
+fi
+[[ "$LINES" =~ ^[0-9]+$ ]] || LINES=0
+if (( LINES == 0 )); then
+  echo "consensus-run: no reviewer produced a verdict ($ERRORS CLI error(s)). Fix the model id(s) in" >&2
+  echo "  vibeflow.config.json (models.openai / models.gemini), or set them to \"default\" to defer to" >&2
+  echo "  each CLI's own configured model. Or run /vibeflow:consensus-orchestrator (adds claude-reviewer)." >&2
   rm -f "$CONS_DIR/$SESSION_ID.current-round.txt" "$CONS_DIR/$SESSION_ID.primary.txt"
   exit 3
 fi
@@ -269,7 +315,7 @@ jq -n -c \
   --arg verdictFile "$VERDICT_FILE" \
   --argjson agreement "$AGREEMENT" \
   --argjson critical "$CRITICAL" \
-  --argjson reviewers "$RAN" \
+  --argjson reviewers "$LINES" \
   --arg primary "$PRIMARY" \
   '{sessionId:$session, status:$status, agreement:$agreement, criticalTotal:$critical, reviewers:$reviewers, primaryArtifact:$primary, verdictFile:$verdictFile}'
 exit 0

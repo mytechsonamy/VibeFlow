@@ -47,9 +47,27 @@ contradiction beneath them.
   pipe, so `$( … )` blocked for the full timeout **after** the reviewer CLI
   had already returned — every headless consensus run looked hung for
   ~90s/CLI. The watchdog now redirects its fds to `/dev/null` (drops the
-  pipe) and reaps its `sleep` child. Fixed in both `consensus-run.sh` and
-  the `consensus-orchestrator` prose. consensus-run also surfaces the
-  aggregator's stderr if no `verdict.json` is produced.
+  pipe), `disown`s itself (no "Terminated" job notice), and reaps its
+  `sleep` child. Fixed in both `consensus-run.sh` and the
+  `consensus-orchestrator` prose.
+- **`set -e` leak aborting consensus-run on the first reviewer error.**
+  `_lib.sh` declares `set -euo pipefail`, so sourcing it turned errexit ON
+  inside `consensus-run.sh`; a single reviewer CLI exiting non-zero (e.g. a
+  bad model id) aborted the whole run at `OUT="$(codex …)"` — before the rc
+  was read — so the error handling never fired and no verdict was produced.
+  consensus-run now `set +e`s after sourcing.
+- **Stale, account-incompatible default models.** The hardcoded defaults
+  `gpt-4o` / `gemini-2.0-flash` silently failed on accounts/CLIs that don't
+  accept them (codex runs on the operator's ChatGPT login). Now: when
+  `models.openai` / `models.gemini` is `"default"` / empty / unset,
+  consensus-run **omits** `-m` / `--model` and lets each CLI use its own
+  configured model. `onboard`'s template ships `"default"`. Pin a concrete
+  id only to override. A reviewer CLI that errors is now **warned loudly**
+  (naming the model + the config key) and **skipped** — no longer recorded
+  as a phantom `REJECTED` vote that poisons the panel; if every CLI errors,
+  consensus-run exits 3 with the fix instructions instead of a silent bad
+  verdict. consensus-run also surfaces the aggregator's stderr if no
+  `verdict.json` is produced.
 
 ### Unchanged
 - The interactive `/vibeflow:consensus-orchestrator` (full 3-AI panel +

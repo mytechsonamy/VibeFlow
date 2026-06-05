@@ -34,9 +34,22 @@ Manages the multi-AI review cycle that replaces MyVibe's CLI subprocess approach
 
 ### Step 1: Read Configuration
 ```
-openaiModel = vibeflow.config.json.models.openai  // default: "gpt-4o" (NOT gpt-5.3!)
-geminiModel = vibeflow.config.json.models.gemini   // default: "gemini-2.0-flash"
+openaiModel = vibeflow.config.json.models.openai   // "default" / unset → omit -m
+geminiModel = vibeflow.config.json.models.gemini    // "default" / unset → omit --model
 ```
+
+**Model resolution.** When `models.openai` / `models.gemini` is `"default"`,
+empty, or unset, do **NOT** pass `-m` / `--model` — let codex (`~/.codex/config.toml`)
+and gemini use their own configured model. A hardcoded id (the old `gpt-4o` /
+`gemini-2.0-flash` defaults) is account/CLI-version-specific and silently
+fails when the login doesn't accept it. Only pass the flag when the operator
+pinned a concrete id. (The headless sibling `hooks/scripts/consensus-run.sh`
+implements exactly this — keep them in step.)
+
+> **errexit caution.** `_lib.sh` declares `set -euo pipefail`. If you source
+> it, run `set +e` before the reviewer-CLI calls below: they rely on
+> `OUT="$(codex …)"; RC=$?` and under errexit a non-zero CLI aborts the run
+> at the assignment, before the rc is read.
 
 **Note (Sprint 14-A):** There is no `mode` concept anymore. Every
 reviewer participation is decided by CLI availability — codex and
