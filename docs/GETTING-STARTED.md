@@ -55,7 +55,7 @@ for the local-path case — the directory-type marketplace does a
 recursive copy that includes your populated `node_modules` (hundreds of
 megabytes across the five MCP servers) and can take minutes to complete.
 
-Either way, verify installation by running `/vibeflow:status` inside a
+Either way, verify installation by running `/vibeflow:flow-status` inside a
 Claude Code session — it should respond with a "project not initialized"
 hint.
 
@@ -113,7 +113,7 @@ and when to use each one.
 ## 5. Check status any time
 
 ```
-/vibeflow:status
+/vibeflow:flow-status
 ```
 
 Returns the current phase, satisfied criteria, last consensus result,

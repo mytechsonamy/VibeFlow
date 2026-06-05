@@ -122,7 +122,7 @@ and plan to revert.
 Check:
 1. Is the policy file present? `ls hooks/scripts/phase-policy.json`
 2. Is python3 on PATH? `command -v python3`
-3. Is your phase really what you think? `/vibeflow:status`
+3. Is your phase really what you think? `/vibeflow:flow-status`
 
 The guard is fail-safe by design, which means a missing dependency
 shows up as "nothing was blocked". The integration harness assertions

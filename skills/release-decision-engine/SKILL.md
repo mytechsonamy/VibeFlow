@@ -142,7 +142,7 @@ Every finding MUST include:
 
 `release.decision.go` is DEPLOYMENT's entry criterion. Before v2.14.0 the
 release decision was computed but **never recorded** in project state, so
-it never showed in `/vibeflow:status` or the loop-audit and couldn't gate
+it never showed in `/vibeflow:flow-status` or the loop-audit and couldn't gate
 deployment. Now: **when and only when your verdict is `GO`**, record it by
 invoking the MCP tool (the main agent resolves this as a standard tool
 call — same pattern as `deploy-verifier`):

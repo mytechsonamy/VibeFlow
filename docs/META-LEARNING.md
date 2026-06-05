@@ -87,7 +87,7 @@ until a project opts in.
 ## Seeing it
 
 The per-key revert rate this meta-loop computes is surfaced live in
-`/vibeflow:status`'s **Autonomous Loop** section — a key crossing
+`/vibeflow:flow-status`'s **Autonomous Loop** section — a key crossing
 `revertRate ≥ 0.5` is flagged there too. See [LOOP-AUDIT.md](LOOP-AUDIT.md).
 
 ## Across projects (Sprint 28)

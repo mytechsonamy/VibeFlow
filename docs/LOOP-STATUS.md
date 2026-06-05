@@ -4,7 +4,7 @@ By Sprint 29 the autonomous loop reached deep across the SDLC — mining
 consensus history, tuning config, auto-applying and auto-reverting,
 self-demoting, sharing a privacy-safe signal across projects, and walking
 whole phases unattended. Its *state*, though, lived in half a dozen
-files. `/vibeflow:status` showed a slice; nothing showed all of it.
+files. `/vibeflow:flow-status` showed a slice; nothing showed all of it.
 
 **`/vibeflow:loop-status`** is the capstone: one read-only **dashboard**
 that consolidates every loop surface, plus a durable
@@ -14,7 +14,7 @@ that consolidates every loop surface, plus a durable
 
 | Command | Scope | Output |
 |---|---|---|
-| `/vibeflow:status` → Autonomous Loop | a *quick inline glance* (am I looping, anything pending?) | inline, no file |
+| `/vibeflow:flow-status` → Autonomous Loop | a *quick inline glance* (am I looping, anything pending?) | inline, no file |
 | `/vibeflow:loop-status` | the *full pane of glass* — every surface | inline **+** `.vibeflow/reports/loop-status.md` |
 
 Both render the same reader — [`loop-audit.sh`](LOOP-AUDIT.md). The

@@ -230,14 +230,14 @@ cooldown markers, the armed watch, learning findings, recent decisions,
 phase‑runner progress, and the cross‑project signal — into one JSON
 document. It feeds two surfaces:
 
-- `/vibeflow:status` — a quick inline "Autonomous Loop" glance.
+- `/vibeflow:flow-status` — a quick inline "Autonomous Loop" glance.
 - `/vibeflow:loop-status` — the full dashboard, which also writes a
   durable `.vibeflow/reports/loop-status.md`. It flags keys at
   `revertRate ≥ 0.5` as removal candidates and surfaces the cross‑project
   signal as a recommendation only.
 
 Every absent input degrades to nulls/zeros, so a fresh project never
-errors and `/vibeflow:status` is unaffected by the extra fields.
+errors and `/vibeflow:flow-status` is unaffected by the extra fields.
 
 ---
 

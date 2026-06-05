@@ -103,7 +103,7 @@ assert_grep "[S30-B] phase-policy description mentions read-only" "[Rr]ead-only"
 echo "== [S30-C] docs =="
 
 assert_file "[S30-C] docs/LOOP-STATUS.md exists" "$LS_DOC"
-assert_grep "[S30-C] doc: two-surfaces contrast with /vibeflow:status" "/vibeflow:status" "$LS_DOC"
+assert_grep "[S30-C] doc: two-surfaces contrast with /vibeflow:flow-status" "/vibeflow:flow-status" "$LS_DOC"
 assert_grep "[S30-C] doc: the dashboard layout" "Autonomous Loop" "$LS_DOC"
 assert_grep "[S30-C] doc: phase-runner line documented" "Phase-runner" "$LS_DOC"
 assert_grep "[S30-C] doc: revertRate >= 0.5 flag" "revertRate" "$LS_DOC"

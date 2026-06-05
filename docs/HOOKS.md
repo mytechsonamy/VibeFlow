@@ -67,7 +67,7 @@ context summary:
 
 ```
 VibeFlow active: domain=e-commerce, phase=DEVELOPMENT, last_consensus=APPROVED, satisfied_criteria=4
-Use /vibeflow:status for full state, /vibeflow:advance to move phase.
+Use /vibeflow:flow-status for full state, /vibeflow:advance to move phase.
 ```
 
 Claude Code injects this line into the session as a system note,
@@ -178,7 +178,7 @@ patterns, and writes the candidate list to
 `.vibeflow/state/next-test-hint.json`.
 
 The hint is **non-blocking** — the test command runs unmodified.
-Reading the hint is the responsibility of `/vibeflow:status` and
+Reading the hint is the responsibility of `/vibeflow:flow-status` and
 the `test-priority-engine` skill.
 
 ### Resolution patterns
@@ -225,7 +225,7 @@ VibeFlow context restored after compact.
  phase=DEVELOPMENT, domain=e-commerce, last_consensus=APPROVED
  satisfied_criteria: prd.approved, testability.score>=60, design.approved
  Pending AI review: 80 lines @ a1b2c3d4.
-Run /vibeflow:status for full state.
+Run /vibeflow:flow-status for full state.
 ```
 
 ### Integrity check (S4-02 hardening)
@@ -238,7 +238,7 @@ Before emitting the snapshot, the hook walks four integrity checks:
 4. `jq` is available
 
 Any failure appends a `state integrity degraded: <reasons>` line so
-the model knows to re-hydrate via `/vibeflow:status` rather than
+the model knows to re-hydrate via `/vibeflow:flow-status` rather than
 trust the snapshot. The integrity check has caught real bugs
 during development (config drift after a manual edit, db corruption
 after a crash).

@@ -1,10 +1,10 @@
 ---
-name: status
-description: Shows current VibeFlow project status including SDLC phase, pending tasks, quality metrics, and recent review results. Use when asking about project progress.
+name: flow-status
+description: Shows current VibeFlow project status including SDLC phase, pending tasks, quality metrics, and recent review results. Use when asking about project progress. Renamed from `status` in v2.20.0 to avoid colliding with Claude Code's built-in `/status` (usage/quota).
 allowed-tools: Read Grep Glob Bash(bash *loop-audit.sh*) Bash(jq *)
 ---
 
-# VibeFlow Status
+# VibeFlow Flow-Status
 
 Read vibeflow.config.json and .vibeflow/ directory to compile project status.
 

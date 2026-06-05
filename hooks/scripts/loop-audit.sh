@@ -2,7 +2,7 @@
 # VibeFlow Loop Audit reader (Sprint 25-A).
 #
 # Read-only. Consolidates the scattered autonomous-loop telemetry into one
-# compact JSON summary on stdout, for the /vibeflow:status "Autonomous
+# compact JSON summary on stdout, for the /vibeflow:flow-status "Autonomous
 # Loop" section (Sprint 25-B). Reads (all guarded — every absent file
 # degrades to zeros/empties so a fresh project never errors):
 #   - .vibeflow/state/consensus/history.jsonl   (auto-apply/-revert/-held)

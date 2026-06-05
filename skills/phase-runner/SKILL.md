@@ -88,7 +88,7 @@ NO_GENERATE=0
 `maxIterations` reviewer rounds). So the operator can see where a run
 is, write a structured ledger to
 `.vibeflow/state/phase-runner-progress.json` and update it at **every
-step boundary**. `/vibeflow:status` reads this file (Sprint 21-D).
+step boundary**. `/vibeflow:flow-status` reads this file (Sprint 21-D).
 
 ```bash
 LEDGER="$(vf_state_dir)/phase-runner-progress.json"
@@ -298,7 +298,7 @@ applied, and final status. Operators who want to audit a run
 have a single doc to read.
 
 **Finalise the ledger (Sprint 21-C).** Set the terminal status so
-`/vibeflow:status` stops showing a "running" walk:
+`/vibeflow:flow-status` stops showing a "running" walk:
 
 ```bash
 FINAL=advanced   # or: approved | stalled | rejected | blocked
@@ -344,7 +344,7 @@ jq -c --arg st "$FINAL" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   phase automatically).
 - **No interactive TUI**: there is no live-redrawing terminal UI.
   Sprint 21-C ships a structured progress **ledger**
-  (`.vibeflow/state/phase-runner-progress.json`) that `/vibeflow:status`
+  (`.vibeflow/state/phase-runner-progress.json`) that `/vibeflow:flow-status`
   renders on demand (Sprint 21-D) — a real redrawing TUI would need a
   host-side renderer and stays Sprint 22+ out-of-scope.
 

@@ -93,7 +93,7 @@ so the action is auditable.
 
 ### "`/vibeflow:advance` blocks with `<criterion> not satisfied`"
 
-Check `/vibeflow:status` first — it lists every unsatisfied
+Check `/vibeflow:flow-status` first — it lists every unsatisfied
 criterion. Then:
 
 1. **Auto-satisfiable criterion**: run the owning skill from the

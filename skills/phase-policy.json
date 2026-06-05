@@ -127,9 +127,9 @@
       "phases": "ALL",
       "description": "Sprint 19-F end-to-end phase orchestrator. Runs the current phase's analyzer(s) → consensus-orchestrator on primaryArtifact → specialist/arbiter → apply-arbiter-patch (auto-chain) → sdlc_advance_phase. Bounded by phaseRunner.{autoAdvance, maxConvergenceAttempts}. Uses the S19-A marker schema v2 so reviewers see the primary artifact with analyzer reports as context."
     },
-    "status": {
+    "flow-status": {
       "phases": "ALL",
-      "description": "Reports current phase and pending work. Read-only."
+      "description": "Reports current phase and pending work. Read-only. Renamed from `status` in v2.20.0 (avoids the built-in /status collision)."
     },
     "advance": {
       "phases": "ALL",

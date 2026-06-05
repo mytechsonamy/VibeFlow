@@ -212,7 +212,7 @@ learning-loop-engine ── findings ──► learning-apply
 # Observability of the loop
 
 - `loop-audit.sh` — a read‑only, fully‑guarded reader that consolidates every loop surface into one JSON document.
-- Feeds two surfaces: `/vibeflow:status` (quick inline glance) and `/vibeflow:loop-status` (full dashboard + durable `.vibeflow/reports/loop-status.md`).
+- Feeds two surfaces: `/vibeflow:flow-status` (quick inline glance) and `/vibeflow:loop-status` (full dashboard + durable `.vibeflow/reports/loop-status.md`).
 - Surfaces per‑key revert rates (flags `revertRate ≥ 0.5` removal candidates), cooldowns, armed watches, phase‑runner progress, and the cross‑project signal.
 
 > Notes: You can't run an autonomous loop you can't see. This is the pane of glass — and it's read‑only, so observing never mutates. Every absent file degrades to nulls, so a fresh project never errors.

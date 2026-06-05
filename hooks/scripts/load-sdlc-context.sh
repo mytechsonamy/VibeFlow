@@ -116,5 +116,5 @@ if vf_have_jq; then
   fi
 fi
 
-echo "Use /vibeflow:status for full state, /vibeflow:advance to move phase."
+echo "Use /vibeflow:flow-status for full state, /vibeflow:advance to move phase."
 exit 0

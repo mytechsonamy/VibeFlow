@@ -35,11 +35,11 @@ shows a phantom step from a previous run.
 
 ## Seeing it
 
-`/vibeflow:status` renders a **Phase-Runner Progress** section from the
+`/vibeflow:flow-status` renders a **Phase-Runner Progress** section from the
 ledger: current step, attempt N of max, and completed-vs-total steps
 with each step's status and detail.
 
-**Stale-guard.** `/vibeflow:status` ignores a ledger whose `phase` no
+**Stale-guard.** `/vibeflow:flow-status` ignores a ledger whose `phase` no
 longer matches the live phase, or whose `startedAt` predates the last
 phase transition — a finished-and-advanced run never shows as "in
 progress". A terminal-status ledger for the *current* phase may be shown

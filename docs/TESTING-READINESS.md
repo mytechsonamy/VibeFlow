@@ -80,7 +80,7 @@ changes make this real:
 
 - **`release-decision-engine` now records it.** When its verdict is
   **GO** (not CONDITIONAL/BLOCKED), it auto-satisfies `release.decision.go`,
-  so the decision flows into `project.json`, `/vibeflow:status`, and the
+  so the decision flows into `project.json`, `/vibeflow:flow-status`, and the
   loop-audit.
 - **`gates.enforceEntryCriteria` (opt-in, default off).** With it on,
   `/vibeflow:advance` into DEPLOYMENT is **blocked until a GO is

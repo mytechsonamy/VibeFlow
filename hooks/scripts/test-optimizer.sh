@@ -4,7 +4,7 @@
 # Reads .vibeflow/traces/changed-files.log (written by post-edit.sh) and maps
 # recently-changed source files to candidate test files using conventional
 # name patterns. Writes the candidate list to
-# .vibeflow/state/next-test-hint.json so commands like /vibeflow:status can
+# .vibeflow/state/next-test-hint.json so commands like /vibeflow:flow-status can
 # surface it. This is a non-blocking hint: we never rewrite the user's test
 # command, since a false negative here would silently skip coverage.
 

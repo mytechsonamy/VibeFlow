@@ -158,7 +158,7 @@ mcp__sdlc-engine__sdlc_satisfy_criterion {projectId:…, criterion:'quality.gate
 
 - `.vibeflow/reports/quality-gates-<timestamp>.md`
 - State update (criterion satisfied) via MCP — visible in
-  `/vibeflow:status`
+  `/vibeflow:flow-status`
 
 ## Guardrails
 

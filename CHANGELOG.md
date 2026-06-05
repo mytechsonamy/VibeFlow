@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.20.0] — 2026-06-06
+
+Built-in command-collision audit + the second (and last) rename it found.
+
+### Changed
+- **BREAKING (command rename): `/vibeflow:status` → `/vibeflow:flow-status`.**
+  A full audit of all 41 VibeFlow skills against Claude Code's built-in
+  slash commands found exactly one remaining exact collision after the
+  v2.19.0 `init`→`onboard` rename: `status` shadowed the built-in `/status`
+  (usage/quota), so typing `/status` surfaced VibeFlow's skill. Renamed, no
+  shim. `loop-status` was reviewed and kept (distinct name; `/loop` matches
+  the built-in exactly, only a fuzzy-search edge surfaces it).
+
+### Fixed
+- **Stale `/vibeflow:review` Key Command** in CLAUDE.md — no such skill
+  exists; replaced with `/vibeflow:consensus-orchestrator` (the real
+  multi-AI review trigger).
+
+### Audit result
+- 41 skills × Claude Code built-ins → after this rename, **zero exact
+  collisions remain**. The audit is captured in `docs/COMMAND-COLLISIONS.md`.
+
+---
+
 ## [2.19.0] — 2026-06-06
 
 Sprint 31 — onboarding clarity + a `phase-runner` that really runs.

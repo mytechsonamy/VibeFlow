@@ -9,7 +9,7 @@ allowed-tools: Read
 
 Thin wrapper around the `sdlc_advance_phase` MCP tool so operators
 can move phases without hand-assembling tool-call arguments. Paired
-with `/vibeflow:status` for inspection.
+with `/vibeflow:flow-status` for inspection.
 
 ## Usage
 
@@ -48,7 +48,7 @@ REQUIREMENTS → DESIGN → ARCHITECTURE → PLANNING
 
 If `currentPhase == DEPLOYMENT`, no default next phase exists —
 the skill stops with "Already at the last phase; nothing to
-advance. Use `/vibeflow:status` to inspect."
+advance. Use `/vibeflow:flow-status` to inspect."
 
 ## Process
 
@@ -82,7 +82,7 @@ If no phase token is supplied (v2.5.2 default-to-next):
 3. If `currentPhase == DEPLOYMENT`, emit:
    ```
    Already at the last phase (DEPLOYMENT). Nothing to advance.
-   Use /vibeflow:status to inspect exit criteria.
+   Use /vibeflow:flow-status to inspect exit criteria.
    ```
    and stop.
 
@@ -151,7 +151,7 @@ remediation:
 
 On success, print a one-liner naming the next expected step for
 the new phase (e.g. "DESIGN: design-bridge + accessibility
-checks. Try /vibeflow:status to see the new phase's exit
+checks. Try /vibeflow:flow-status to see the new phase's exit
 criteria.").
 
 ## Guardrails
@@ -171,7 +171,7 @@ criteria.").
 
 ## See also
 
-- `/vibeflow:status` — show current phase + missing exit criteria
+- `/vibeflow:flow-status` — show current phase + missing exit criteria
 - `/vibeflow:consensus-orchestrator` — satisfy `consensus.<phase>.approved`
 - `/vibeflow:consensus-arbiter` / `/vibeflow:consensus-specialist` —
   resolve NEEDS_REVISION with diff-first patches

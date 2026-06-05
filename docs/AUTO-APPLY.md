@@ -104,7 +104,7 @@ transaction (`transactional`). See [META-LEARNING.md](META-LEARNING.md).
 
 ## Seeing what auto-apply did
 
-`/vibeflow:status` has an **Autonomous Loop** section (Sprint 25) that
+`/vibeflow:flow-status` has an **Autonomous Loop** section (Sprint 25) that
 consolidates every auto-apply outcome — applied/held/reverted tallies,
 per-key revert rates, cooled-down keys, the armed watch, and pending
 learning findings — into one view. See [LOOP-AUDIT.md](LOOP-AUDIT.md).

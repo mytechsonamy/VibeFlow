@@ -3,7 +3,7 @@
 By Sprint 24 the slow loop was deeply autonomous — but its activity was
 scattered across six files. Sprint 25 adds a single pane of glass: a
 read-only **audit reader** that consolidates the telemetry, surfaced as
-the **Autonomous Loop** section of `/vibeflow:status`.
+the **Autonomous Loop** section of `/vibeflow:flow-status`.
 
 ## The reader
 
@@ -49,12 +49,12 @@ It reads:
 `phaseRunner` is `null` when no phase-runner walk has run;
 `crossProject` is `null` unless `globalLearning.enabled` *and* a
 `global-learning.jsonl` exists. Both were added in **Sprint 30-A** to feed
-the dedicated `/vibeflow:loop-status` dashboard — `/vibeflow:status`'
+the dedicated `/vibeflow:loop-status` dashboard — `/vibeflow:flow-status`'
 Autonomous Loop section ignores them and is byte-for-byte unchanged.
 
 ## Reading the signals
 
-`/vibeflow:status` → **Autonomous Loop** renders this as:
+`/vibeflow:flow-status` → **Autonomous Loop** renders this as:
 
 - **Auto-apply tally + per-key revert rate.** A key with
   `revertRate ≥ 0.5` is flagged *"candidate for removal from
@@ -85,7 +85,7 @@ behaviour, not the whole project lifetime.
 
 The reader feeds **two** surfaces:
 
-- **`/vibeflow:status`** → Autonomous Loop section — a *quick inline
+- **`/vibeflow:flow-status`** → Autonomous Loop section — a *quick inline
   glance* using `autoApply` / `perKey` / `learning` / `recentDecisions`.
 - **`/vibeflow:loop-status`** (Sprint 30-B) → the *full dashboard* — uses
   every field, including `phaseRunner` + `crossProject`, and writes a

@@ -3,7 +3,7 @@
 #
 # Sections:
 #   [S25-A] loop-audit.sh reader
-#   [S25-B] /vibeflow:status Autonomous Loop section
+#   [S25-B] /vibeflow:flow-status Autonomous Loop section
 #   [S25-C] LoopAuditConfigSchema
 #   [S25-D] Docs (LOOP-AUDIT.md + refreshes)
 #   [S25-Z] Harness self-audit
@@ -22,7 +22,7 @@ assert_grep() { local l="$1" pat="$2" f="$3"; if grep -qE "$pat" "$f" 2>/dev/nul
 assert_eq() { local l="$1" e="$2" a="$3"; if [[ "$e" == "$a" ]]; then pass "$l"; else fail "$l (expected=$e actual=$a)"; fi; }
 
 LAUDIT="$REPO_ROOT/hooks/scripts/loop-audit.sh"
-STATUS="$REPO_ROOT/skills/status/SKILL.md"
+STATUS="$REPO_ROOT/skills/flow-status/SKILL.md"
 CFG="$REPO_ROOT/mcp-servers/sdlc-engine/src/config.ts"
 CFG_TEST="$REPO_ROOT/mcp-servers/sdlc-engine/tests/config.test.ts"
 HOOKT="$REPO_ROOT/hooks/tests/run.sh"
@@ -61,7 +61,7 @@ assert_grep "[S25-A] hook tests exercise the reader" "loop-audit\\.sh reader \\[
 rm -rf "$RT"
 
 # ---------------------------------------------------------------------------
-echo "== [S25-B] /vibeflow:status Autonomous Loop section =="
+echo "== [S25-B] /vibeflow:flow-status Autonomous Loop section =="
 
 assert_grep "[S25-B] status section 6 Autonomous Loop" "Autonomous Loop" "$STATUS"
 assert_grep "[S25-B] status runs loop-audit.sh" "loop-audit\\.sh" "$STATUS"

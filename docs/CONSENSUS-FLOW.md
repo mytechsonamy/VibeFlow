@@ -196,7 +196,7 @@ If you still see `reviewer=unknown` entries on 2.3.0:
 
 ### "advance is blocked and I don't know why"
 
-Run `/vibeflow:status`. The output names every missing exit
+Run `/vibeflow:flow-status`. The output names every missing exit
 criterion. If you see `consensus.<phase>.approved` in that list,
 run `/vibeflow:consensus-orchestrator <path-to-primary-report>` —
 a fresh APPROVED verdict satisfies the gate.
@@ -298,7 +298,7 @@ mechanics:
   [REVIEWER-MEMORY.md](REVIEWER-MEMORY.md).
 - **Progress ledger** — `phase-runner` writes
   `.vibeflow/state/phase-runner-progress.json`, rendered by
-  `/vibeflow:status`. See [PROGRESS-LEDGER.md](PROGRESS-LEDGER.md).
+  `/vibeflow:flow-status`. See [PROGRESS-LEDGER.md](PROGRESS-LEDGER.md).
 
 ## Closing the action gap (Sprint 22)
 

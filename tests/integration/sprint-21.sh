@@ -6,7 +6,7 @@
 #   [S21-A] Semantic primary-artifact excerption
 #   [S21-B] Reviewer-memory theme-aware compaction
 #   [S21-C] Phase-runner progress ledger
-#   [S21-D] /vibeflow:status renders the ledger
+#   [S21-D] /vibeflow:flow-status renders the ledger
 #   [S21-E] Typed config (excerpt + compaction)
 #   [S21-F] Docs (EXCERPTION.md + PROGRESS-LEDGER.md + refreshes)
 #   [S21-Z] Harness self-audit
@@ -29,7 +29,7 @@ ORCH="$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
 EXC="$REPO_ROOT/skills/consensus-orchestrator/references/excerption.md"
 AGG="$SCRIPTS/consensus-aggregator.sh"
 PR="$REPO_ROOT/skills/phase-runner/SKILL.md"
-STATUS="$REPO_ROOT/skills/status/SKILL.md"
+STATUS="$REPO_ROOT/skills/flow-status/SKILL.md"
 CFG="$REPO_ROOT/mcp-servers/sdlc-engine/src/config.ts"
 CFG_TEST="$REPO_ROOT/mcp-servers/sdlc-engine/tests/config.test.ts"
 

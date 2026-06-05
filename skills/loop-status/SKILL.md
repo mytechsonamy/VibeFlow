@@ -1,13 +1,13 @@
 ---
 name: loop-status
-description: The autonomous-loop dashboard. Consolidates every loop surface — phase-runner progress, auto-apply outcomes + per-key revert rates, cooled-down keys, the armed revert watch, learning-report findings, and the opt-in cross-project signal — into one read-only view, and writes a durable .vibeflow/reports/loop-status.md audit. Where /vibeflow:status gives a quick inline glance, /vibeflow:loop-status is the full pane of glass. Read-only — never changes config or source.
+description: The autonomous-loop dashboard. Consolidates every loop surface — phase-runner progress, auto-apply outcomes + per-key revert rates, cooled-down keys, the armed revert watch, learning-report findings, and the opt-in cross-project signal — into one read-only view, and writes a durable .vibeflow/reports/loop-status.md audit. Where /vibeflow:flow-status gives a quick inline glance, /vibeflow:loop-status is the full pane of glass. Read-only — never changes config or source.
 allowed-tools: Read Write Grep Glob Bash(bash *loop-audit.sh*) Bash(jq *)
 ---
 
 # Loop Status — the autonomous-loop dashboard (Sprint 30)
 
 After Sprints 20–29, the autonomous loop's state lives across several
-files. `/vibeflow:status` shows a quick *inline* glance; this skill is the
+files. `/vibeflow:flow-status` shows a quick *inline* glance; this skill is the
 **full pane of glass** — one consolidated, read-only dashboard, plus a
 durable written audit.
 
@@ -68,7 +68,7 @@ call (via `learning-apply` / editing `autoApply.keys`).
 
 ## When to use
 
-- `/vibeflow:status` → a quick "where am I + is the loop doing anything"
+- `/vibeflow:flow-status` → a quick "where am I + is the loop doing anything"
   inline glance (its Autonomous Loop section).
 - `/vibeflow:loop-status` → the full dashboard + a durable report, when
   you want to audit *everything the loop has done* in one place.

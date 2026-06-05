@@ -171,7 +171,7 @@ compound the damage with a guess).
   subsequent apply-arbiter-patch call isn't blocked by the
   Sprint 16 PreToolUse hook.
 - **No phase inference.** If `currentPhase` is wrong, run
-  `/vibeflow:status` and `/vibeflow:advance` to correct it
+  `/vibeflow:flow-status` and `/vibeflow:advance` to correct it
   first — don't rely on the dispatcher to guess.
 
 ## Adding a new specialist

@@ -2,7 +2,7 @@
 
 Common failure modes with cause + fix. If your symptom isn't here,
 check `.vibeflow/logs/` for hook output and the
-`/vibeflow:status` command for state details.
+`/vibeflow:flow-status` command for state details.
 
 ## Phase + commit problems
 
@@ -86,7 +86,7 @@ overwrote `currentPhase`. The compact-recovery hook caught the
 disagreement.
 
 **Fix**: state.db wins (it's authoritative). Either revert the
-config change, or run `/vibeflow:status` followed by
+config change, or run `/vibeflow:flow-status` followed by
 `/vibeflow:onboard --sync` to reconcile the config to the db.
 
 ### `compact-recovery: state integrity degraded: jq not installed`
@@ -346,7 +346,7 @@ every doc-tracking sentinel in the harness suite.
 
 ## When all else fails
 
-1. Check `/vibeflow:status` — does the basic state look right?
+1. Check `/vibeflow:flow-status` — does the basic state look right?
 2. Check `bash hooks/tests/run.sh` — do the hook tests still pass
    on your machine?
 3. Check `bash tests/integration/run.sh` — does the platform

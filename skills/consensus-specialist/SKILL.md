@@ -224,7 +224,7 @@ Rollback (if applied patch breaks something):
 ## Non-goals
 
 - **No phase inference.** If `currentPhase` is wrong, fix the
-  phase via `/vibeflow:status` + `/vibeflow:advance` first.
+  phase via `/vibeflow:flow-status` + `/vibeflow:advance` first.
 - **No multi-patch output.** One specialist invocation = one
   patch. If the session needs both mechanical and deep rewrites,
   run arbiter first, apply, then run specialist on a fresh

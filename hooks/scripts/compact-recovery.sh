@@ -90,7 +90,7 @@ fi
 
 INTEGRITY_NOTE=""
 if [[ "$INTEGRITY_DEGRADED" == "true" ]]; then
-  INTEGRITY_NOTE=$'\n state integrity degraded: '"$INTEGRITY_REASONS"$'\n run /vibeflow:status to re-hydrate from source.'
+  INTEGRITY_NOTE=$'\n state integrity degraded: '"$INTEGRITY_REASONS"$'\n run /vibeflow:flow-status to re-hydrate from source.'
 fi
 
 cat <<EOF
@@ -98,6 +98,6 @@ VibeFlow context restored after compact.
  phase=$PHASE, domain=$DOMAIN${CONSENSUS:+, last_consensus=$CONSENSUS}
  satisfied_criteria: $SATISFIED_LIST
 ${REVIEW_NOTE:+$REVIEW_NOTE}${INTEGRITY_NOTE}
-Run /vibeflow:status for full state.
+Run /vibeflow:flow-status for full state.
 EOF
 exit 0
