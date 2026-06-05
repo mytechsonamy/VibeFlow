@@ -90,6 +90,18 @@ export class PhaseTransitionValidator {
         if (missing.length > 0) {
             errors.push(`Exit criteria not met for ${req.from}: ${missing.join(", ")}`);
         }
+        // Sprint 26-B: opt-in entry-gate. When enabled, the TARGET phase's
+        // entryCriteria must also be satisfied — so e.g. DEPLOYMENT cannot be
+        // entered without a recorded `release.decision.go`. Off by default
+        // (entryCriteria stay informational), so existing advances are
+        // unaffected.
+        if (req.enforceEntryCriteria) {
+            const target = this.registry.get(req.to);
+            const missingEntry = target.entryCriteria.filter((c) => !satisfied.has(c));
+            if (missingEntry.length > 0) {
+                errors.push(`Entry criteria not met for ${req.to}: ${missingEntry.join(", ")}`);
+            }
+        }
         // Legacy global check — only fires when the from-phase does NOT
         // carry a phase-scoped consensus criterion (i.e. DEVELOPMENT,
         // which retains the old cross-phase APPROVED requirement). The

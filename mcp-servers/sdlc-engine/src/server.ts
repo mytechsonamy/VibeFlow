@@ -13,6 +13,8 @@ export interface CreateServerOptions {
   registry?: PhaseRegistry;
   name?: string;
   version?: string;
+  /** Sprint 26-B: phase-gate strictness, threaded to the advance tool. */
+  gates?: { enforceEntryCriteria: boolean };
 }
 
 export function createServer(opts: CreateServerOptions): {
@@ -22,7 +24,7 @@ export function createServer(opts: CreateServerOptions): {
 } {
   const registry = opts.registry ?? new PhaseRegistry();
   const engine = new SdlcEngine(opts.store, registry);
-  const tools = buildTools(engine);
+  const tools = buildTools(engine, opts.gates);
   const toolMap = new Map(tools.map((t) => [t.name, t] as const));
 
   const server = new Server(

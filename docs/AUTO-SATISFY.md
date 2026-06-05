@@ -34,6 +34,7 @@ enumerates exactly which is which.
 | TESTING | `coverage.met` | `coverage-analyzer` | only when verdict == PASS |
 | TESTING | `mutation.score.acceptable` | `mutation-test-runner` | only when verdict == PASS |
 | TESTING | `consensus.testing.approved` | `consensus-orchestrator` | on any terminal verdict |
+| DEPLOYMENT (entry) | `release.decision.go` | `release-decision-engine` | **only when verdict == GO** (Sprint 26-A); CONDITIONAL/BLOCKED leave it unsatisfied so the opt-in `gates.enforceEntryCriteria` can block DEPLOYMENT entry |
 | DEPLOYMENT | `deployment.verified` | `deploy-verifier` | only when overall verdict == PASS |
 | DEPLOYMENT | `health.checks.passed` | `deploy-verifier` | only when overall verdict == PASS |
 | DEPLOYMENT | `consensus.deployment.approved` | `consensus-orchestrator` | on any terminal verdict |

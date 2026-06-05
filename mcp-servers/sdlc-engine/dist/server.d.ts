@@ -8,6 +8,10 @@ export interface CreateServerOptions {
     registry?: PhaseRegistry;
     name?: string;
     version?: string;
+    /** Sprint 26-B: phase-gate strictness, threaded to the advance tool. */
+    gates?: {
+        enforceEntryCriteria: boolean;
+    };
 }
 export declare function createServer(opts: CreateServerOptions): {
     server: Server;

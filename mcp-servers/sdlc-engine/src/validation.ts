@@ -15,6 +15,14 @@ export interface PhaseTransitionRequest {
   readonly lastConsensusPhase?: PhaseId | null;
   /** When true, bypass gate criteria — still enforces structural rules. */
   readonly force?: boolean;
+  /**
+   * Sprint 26-B: opt-in entry-gate. When true, the validator also
+   * requires the TARGET phase's `entryCriteria` to be satisfied (in
+   * addition to the source phase's `exitCriteria`). Default behaviour
+   * (false/undefined) leaves entryCriteria informational, so consumers
+   * mid-flight are never broken. Sourced from `gates.enforceEntryCriteria`.
+   */
+  readonly enforceEntryCriteria?: boolean;
 }
 
 export interface TransitionResult {
@@ -127,6 +135,23 @@ export class PhaseTransitionValidator {
       errors.push(
         `Exit criteria not met for ${req.from}: ${missing.join(", ")}`,
       );
+    }
+
+    // Sprint 26-B: opt-in entry-gate. When enabled, the TARGET phase's
+    // entryCriteria must also be satisfied — so e.g. DEPLOYMENT cannot be
+    // entered without a recorded `release.decision.go`. Off by default
+    // (entryCriteria stay informational), so existing advances are
+    // unaffected.
+    if (req.enforceEntryCriteria) {
+      const target = this.registry.get(req.to);
+      const missingEntry = target.entryCriteria.filter(
+        (c) => !satisfied.has(c),
+      );
+      if (missingEntry.length > 0) {
+        errors.push(
+          `Entry criteria not met for ${req.to}: ${missingEntry.join(", ")}`,
+        );
+      }
     }
 
     // Legacy global check — only fires when the from-phase does NOT

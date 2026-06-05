@@ -137,3 +137,60 @@ describe("Bug #5 — phase transitions are validated", () => {
     expect(result.errors.some((e) => /Unknown target phase/.test(e))).toBe(true);
   });
 });
+
+describe("Sprint 26-B — opt-in entry-criteria enforcement", () => {
+  // TESTING exit: coverage.met, mutation.score.acceptable,
+  // consensus.testing.approved. DEPLOYMENT entry: release.decision.go.
+  const testingExit = [
+    "coverage.met",
+    "mutation.score.acceptable",
+  ];
+  const advanceTestingToDeployment = (
+    satisfied: string[],
+    enforceEntryCriteria: boolean,
+  ) =>
+    mkValidator().validate({
+      from: "TESTING",
+      to: "DEPLOYMENT",
+      satisfiedCriteria: satisfied,
+      lastConsensus: ConsensusStatus.APPROVED,
+      lastConsensusPhase: "TESTING",
+      enforceEntryCriteria,
+    });
+
+  it("default (off) — advances with TESTING exit met even without release.decision.go", () => {
+    const result = advanceTestingToDeployment(testingExit, false);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("on — blocks when the target entry criterion release.decision.go is unsatisfied", () => {
+    const result = advanceTestingToDeployment(testingExit, true);
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors.some((e) =>
+        /Entry criteria not met for DEPLOYMENT: release\.decision\.go/.test(e),
+      ),
+    ).toBe(true);
+  });
+
+  it("on — advances once release.decision.go is satisfied", () => {
+    const result = advanceTestingToDeployment(
+      [...testingExit, "release.decision.go"],
+      true,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("force bypasses the entry gate too", () => {
+    const result = mkValidator().validate({
+      from: "TESTING",
+      to: "DEPLOYMENT",
+      satisfiedCriteria: [],
+      enforceEntryCriteria: true,
+      force: true,
+    });
+    expect(result.ok).toBe(true);
+  });
+});

@@ -167,6 +167,19 @@ export const LoopAuditConfigSchema = z
     window: z.number().int().min(1).max(1000).default(20),
 })
     .default({ window: 20 });
+/**
+ * Sprint 26-B: phase-gate strictness. `enforceEntryCriteria` is an
+ * opt-in (default OFF) that makes `sdlc_advance_phase` also require the
+ * TARGET phase's `entryCriteria` to be satisfied — e.g. no entering
+ * DEPLOYMENT without a recorded `release.decision.go`. Default off keeps
+ * existing advances unchanged; consumers that want the stricter gate
+ * turn it on.
+ */
+export const GatesConfigSchema = z
+    .object({
+    enforceEntryCriteria: z.boolean().default(false),
+})
+    .default({ enforceEntryCriteria: false });
 export const EngineConfigSchema = z.object({
     project: z.string().min(1),
     stateStore: z
@@ -180,6 +193,7 @@ export const EngineConfigSchema = z.object({
     reviewerMemory: ReviewerMemoryConfigSchema,
     learningApply: LearningApplyConfigSchema,
     loopAudit: LoopAuditConfigSchema,
+    gates: GatesConfigSchema,
 });
 /**
  * Resolve runtime config from (in order of precedence):
@@ -200,6 +214,7 @@ export function resolveConfig(cwd = process.cwd()) {
         reviewerMemory: fileConfig.reviewerMemory ?? {},
         learningApply: fileConfig.learningApply ?? {},
         loopAudit: fileConfig.loopAudit ?? {},
+        gates: fileConfig.gates ?? {},
     });
 }
 function loadFileConfig(cwd) {
@@ -264,6 +279,14 @@ function loadFileConfig(cwd) {
                 loopAudit = parsed.data;
             }
         }
+        // Sprint 26-B: phase-gate strictness, same silent-fallback pattern.
+        let gates;
+        if (typeof raw.gates === "object" && raw.gates !== null) {
+            const parsed = GatesConfigSchema.safeParse(raw.gates);
+            if (parsed.success) {
+                gates = parsed.data;
+            }
+        }
         return {
             ...(typeof project === "string" ? { project } : {}),
             ...(dir ? { stateStore: { dir } } : {}),
@@ -273,6 +296,7 @@ function loadFileConfig(cwd) {
             ...(reviewerMemory ? { reviewerMemory } : {}),
             ...(learningApply ? { learningApply } : {}),
             ...(loopAudit ? { loopAudit } : {}),
+            ...(gates ? { gates } : {}),
         };
     }
     catch {

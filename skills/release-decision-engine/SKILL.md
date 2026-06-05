@@ -138,6 +138,28 @@ Every finding MUST include:
 - **impact**: What happens if ignored (quantified if possible)
 - **confidence**: HIGH/MEDIUM/LOW based on data quality
 
+## Auto-Satisfy: `release.decision.go` (Sprint 26-A — GO only)
+
+`release.decision.go` is DEPLOYMENT's entry criterion. Before v2.14.0 the
+release decision was computed but **never recorded** in project state, so
+it never showed in `/vibeflow:status` or the loop-audit and couldn't gate
+deployment. Now: **when and only when your verdict is `GO`**, record it by
+invoking the MCP tool (the main agent resolves this as a standard tool
+call — same pattern as `deploy-verifier`):
+
+```
+mcp__sdlc-engine__sdlc_satisfy_criterion {
+  "projectId": "<project id from vibeflow.config.json>",
+  "criterion": "release.decision.go"
+}
+```
+
+**CONDITIONAL and BLOCKED do NOT satisfy it** — leaving it unsatisfied is
+what lets the opt-in entry-gate (`gates.enforceEntryCriteria`, Sprint
+26-B) block DEPLOYMENT entry until a genuine GO is recorded. Do not
+satisfy on CONDITIONAL "GO-with-mitigations"; that is a separate operator
+decision, not an automatic GO.
+
 ## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
 
 After your output files are written to `.vibeflow/reports/`, your

@@ -25,7 +25,10 @@ const SatisfyCriterionInput = z.object({
     projectId: z.string().min(1),
     criterion: z.string().min(1),
 });
-export function buildTools(engine) {
+export function buildTools(engine, 
+// Sprint 26-B: phase-gate strictness from config. Optional so existing
+// callers/tests that pass only the engine keep the default (off).
+gates = { enforceEntryCriteria: false }) {
     return [
         {
             name: "sdlc_list_phases",
@@ -115,7 +118,10 @@ export function buildTools(engine) {
             handler: async (raw) => {
                 const args = AdvancePhaseInput.parse(raw);
                 try {
-                    const { state, transition } = await engine.advancePhase(args);
+                    const { state, transition } = await engine.advancePhase({
+                        ...args,
+                        enforceEntryCriteria: gates.enforceEntryCriteria,
+                    });
                     return { ok: true, state, transition };
                 }
                 catch (err) {

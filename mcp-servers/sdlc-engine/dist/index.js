@@ -13,6 +13,7 @@ async function main() {
         store,
         name: "vibeflow-sdlc-engine",
         version: "0.1.0",
+        gates: config.gates,
     });
     const transport = new StdioServerTransport();
     await server.connect(transport);

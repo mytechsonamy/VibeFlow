@@ -17850,6 +17850,9 @@ var LearningApplyConfigSchema = external_exports.object({
 var LoopAuditConfigSchema = external_exports.object({
   window: external_exports.number().int().min(1).max(1e3).default(20)
 }).default({ window: 20 });
+var GatesConfigSchema = external_exports.object({
+  enforceEntryCriteria: external_exports.boolean().default(false)
+}).default({ enforceEntryCriteria: false });
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
@@ -17860,7 +17863,8 @@ var EngineConfigSchema = external_exports.object({
   learningLoop: LearningLoopConfigSchema,
   reviewerMemory: ReviewerMemoryConfigSchema,
   learningApply: LearningApplyConfigSchema,
-  loopAudit: LoopAuditConfigSchema
+  loopAudit: LoopAuditConfigSchema,
+  gates: GatesConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17874,7 +17878,8 @@ function resolveConfig(cwd = process.cwd()) {
     learningLoop: fileConfig.learningLoop ?? {},
     reviewerMemory: fileConfig.reviewerMemory ?? {},
     learningApply: fileConfig.learningApply ?? {},
-    loopAudit: fileConfig.loopAudit ?? {}
+    loopAudit: fileConfig.loopAudit ?? {},
+    gates: fileConfig.gates ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17928,6 +17933,13 @@ function loadFileConfig(cwd) {
         loopAudit = parsed.data;
       }
     }
+    let gates;
+    if (typeof raw.gates === "object" && raw.gates !== null) {
+      const parsed = GatesConfigSchema.safeParse(raw.gates);
+      if (parsed.success) {
+        gates = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
       ...dir ? { stateStore: { dir } } : {},
@@ -17936,7 +17948,8 @@ function loadFileConfig(cwd) {
       ...learningLoop ? { learningLoop } : {},
       ...reviewerMemory ? { reviewerMemory } : {},
       ...learningApply ? { learningApply } : {},
-      ...loopAudit ? { loopAudit } : {}
+      ...loopAudit ? { loopAudit } : {},
+      ...gates ? { gates } : {}
     };
   } catch {
     return {};
@@ -19931,6 +19944,13 @@ var PhaseTransitionValidator = class {
     if (missing.length > 0) {
       errors.push(`Exit criteria not met for ${req.from}: ${missing.join(", ")}`);
     }
+    if (req.enforceEntryCriteria) {
+      const target = this.registry.get(req.to);
+      const missingEntry = target.entryCriteria.filter((c) => !satisfied.has(c));
+      if (missingEntry.length > 0) {
+        errors.push(`Entry criteria not met for ${req.to}: ${missingEntry.join(", ")}`);
+      }
+    }
     const hasScopedConsensus = current.exitCriteria.some((c) => CONSENSUS_CRITERION_PATTERN.test(c));
     if (!hasScopedConsensus && req.lastConsensus !== void 0 && req.lastConsensus !== null && req.lastConsensus !== ConsensusStatus.APPROVED) {
       errors.push(`Cannot advance from ${req.from}: last consensus is ${req.lastConsensus}, expected ${ConsensusStatus.APPROVED}`);
@@ -20021,7 +20041,8 @@ var SdlcEngine = class {
         satisfiedCriteria: base.satisfiedCriteria,
         lastConsensus: base.lastConsensus?.status ?? null,
         lastConsensusPhase: base.lastConsensus?.phase ?? null,
-        force: input.force ?? false
+        force: input.force ?? false,
+        enforceEntryCriteria: input.enforceEntryCriteria ?? false
       });
       if (!transition.ok) {
         throw new PhaseTransitionError(transition.errors, base);
@@ -20102,7 +20123,7 @@ var SatisfyCriterionInput = external_exports.object({
   projectId: external_exports.string().min(1),
   criterion: external_exports.string().min(1)
 });
-function buildTools(engine) {
+function buildTools(engine, gates = { enforceEntryCriteria: false }) {
   return [
     {
       name: "sdlc_list_phases",
@@ -20186,7 +20207,10 @@ function buildTools(engine) {
       handler: async (raw) => {
         const args = AdvancePhaseInput.parse(raw);
         try {
-          const { state, transition } = await engine.advancePhase(args);
+          const { state, transition } = await engine.advancePhase({
+            ...args,
+            enforceEntryCriteria: gates.enforceEntryCriteria
+          });
           return { ok: true, state, transition };
         } catch (err) {
           if (err instanceof PhaseTransitionError) {
@@ -20207,7 +20231,7 @@ function buildTools(engine) {
 function createServer(opts) {
   const registry2 = opts.registry ?? new PhaseRegistry();
   const engine = new SdlcEngine(opts.store, registry2);
-  const tools = buildTools(engine);
+  const tools = buildTools(engine, opts.gates);
   const toolMap = new Map(tools.map((t) => [t.name, t]));
   const server = new Server({
     name: opts.name ?? "vibeflow-sdlc-engine",
@@ -20959,7 +20983,8 @@ async function main() {
   const { server } = createServer({
     store,
     name: "vibeflow-sdlc-engine",
-    version: "0.1.0"
+    version: "0.1.0",
+    gates: config2.gates
   });
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -78,4 +78,27 @@ describe("Bug #9 — phase order is data-driven", () => {
   it("DEFAULT_PHASE_ORDER is frozen (immutability sanity check)", () => {
     expect(Object.isFrozen(DEFAULT_PHASE_ORDER)).toBe(true);
   });
+
+  // Sprint 26-C: the TESTING + DEPLOYMENT criteria are a contract real
+  // consumers (FlowBridge) walk — pin them so a refactor can't silently
+  // drop or rename one.
+  it("pins the TESTING phase entry/exit criteria contract", () => {
+    const t = new PhaseRegistry().get("TESTING");
+    expect(t.entryCriteria).toEqual(["code.reviewed"]);
+    expect(t.exitCriteria).toEqual([
+      "coverage.met",
+      "mutation.score.acceptable",
+      "consensus.testing.approved",
+    ]);
+  });
+
+  it("pins the DEPLOYMENT phase entry/exit criteria contract", () => {
+    const d = new PhaseRegistry().get("DEPLOYMENT");
+    expect(d.entryCriteria).toEqual(["release.decision.go"]);
+    expect(d.exitCriteria).toEqual([
+      "deployment.verified",
+      "health.checks.passed",
+      "consensus.deployment.approved",
+    ]);
+  });
 });

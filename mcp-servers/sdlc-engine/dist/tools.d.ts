@@ -5,4 +5,6 @@ export interface ToolDefinition {
     inputSchema: Record<string, unknown>;
     handler: (args: unknown) => Promise<unknown>;
 }
-export declare function buildTools(engine: SdlcEngine): ToolDefinition[];
+export declare function buildTools(engine: SdlcEngine, gates?: {
+    enforceEntryCriteria: boolean;
+}): ToolDefinition[];

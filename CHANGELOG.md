@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.14.0] — 2026-06-05
+
+Sprint 26 — TESTING→DEPLOYMENT consumer hardening. A real consumer's
+(FlowBridge) phase walk surfaced two boundary gaps + two consensus-CLI
+bugs.
+
+- **release.decision.go wiring (S26-A).** `release-decision-engine`
+  auto-satisfies `release.decision.go` on a GO verdict only — the release
+  decision now flows into project state / `/vibeflow:status` / loop-audit.
+- **Opt-in entry-gate (S26-B).** New `GatesConfigSchema`
+  `{ enforceEntryCriteria: false }`. When on, the validator also enforces
+  the target phase's `entryCriteria` (e.g. no DEPLOYMENT without a
+  recorded GO). Default off ⇒ unchanged behaviour. Threaded
+  config → engine → tools → validator.
+- **Portable timeout (S26-F).** macOS ships no `timeout`/`gtimeout`, so
+  the orchestrator's `timeout 90 codex …` failed (rc 127) → every CLI
+  recorded as cli_error on macOS. New `vf_run_timeout` helper: timeout →
+  gtimeout → pure-bash watchdog (returns 124, preserves the piped prompt
+  so the child doesn't get stdin from /dev/null).
+- **codex stdin footgun (S26-G).** The documented `codex exec "$(cat …)"`
+  argument form leaves stdin open and hangs; fixed to the pipe form
+  (stdin EOF) with a warning.
+- **Pipeline contract (S26-C/D).** Harness + phases unit tests pin the
+  TESTING/DEPLOYMENT criteria + analyzer artifact/auto-satisfy/map; new
+  `docs/TESTING-READINESS.md` (incl. "empty artifacts/ in DEVELOPMENT is
+  normal").
+
+Bug tracker: #14 (macOS no-timeout) + #15 (codex stdin hang) — both
+FIXED. Tests: sdlc-engine 185→194, new `sprint-26.sh` (54). Total
+baseline 2677 → 2740.
+
+- `.claude-plugin/plugin.json`: 2.13.0 → 2.14.0
+- `@vibeflow/sdlc-engine`: 1.11.0 → 1.12.0
+
+---
+
 ## [2.13.0] — 2026-06-05
 
 Sprint 25 — autonomous-loop observability. The deep autonomy of Sprints

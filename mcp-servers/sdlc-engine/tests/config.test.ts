@@ -12,6 +12,7 @@ import {
   LearningApplyConfigSchema,
   AutoApplyConfigSchema,
   LoopAuditConfigSchema,
+  GatesConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -428,6 +429,30 @@ describe("LearningApplyConfigSchema (Sprint 22-D)", () => {
     ).toBe(false);
     expect(
       LearningApplyConfigSchema.safeParse({ maxRelativeStep: 0.5 }).success,
+    ).toBe(true);
+  });
+});
+
+describe("GatesConfigSchema (Sprint 26-B)", () => {
+  it("defaults enforceEntryCriteria to false (back-compat)", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.gates.enforceEntryCriteria).toBe(false);
+  });
+
+  it("accepts enforceEntryCriteria:true and merges from config file", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      gates: { enforceEntryCriteria: true },
+    });
+    expect(cfg.gates.enforceEntryCriteria).toBe(true);
+  });
+
+  it("rejects a non-boolean enforceEntryCriteria", () => {
+    expect(
+      GatesConfigSchema.safeParse({ enforceEntryCriteria: "yes" }).success,
+    ).toBe(false);
+    expect(
+      GatesConfigSchema.safeParse({ enforceEntryCriteria: true }).success,
     ).toBe(true);
   });
 });

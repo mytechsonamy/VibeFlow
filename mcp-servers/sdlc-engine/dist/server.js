@@ -6,7 +6,7 @@ import { buildTools } from "./tools.js";
 export function createServer(opts) {
     const registry = opts.registry ?? new PhaseRegistry();
     const engine = new SdlcEngine(opts.store, registry);
-    const tools = buildTools(engine);
+    const tools = buildTools(engine, opts.gates);
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const server = new Server({
         name: opts.name ?? "vibeflow-sdlc-engine",

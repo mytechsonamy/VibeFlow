@@ -147,3 +147,25 @@ the Sprint 13 plan.
   `vf_phase_decision`)
 - Unit tests: `hooks/tests/run.sh` section `[S13-A]`
 - Integration tests: `tests/integration/sprint-13.sh`
+
+## Phase entry / exit criteria (Sprint 26-B)
+
+Distinct from the path-write policy above, each phase declares
+`entryCriteria` and `exitCriteria` (`mcp-servers/sdlc-engine/src/phases.ts`)
+that gate `/vibeflow:advance`:
+
+- **`exitCriteria`** — what the *current* phase must have satisfied to
+  leave it. **Always enforced** by the validator. (e.g. TESTING exits on
+  `coverage.met` + `mutation.score.acceptable` + `consensus.testing.approved`.)
+- **`entryCriteria`** — what the *target* phase expects on entry. **Not
+  enforced by default** (informational) — historically advance checked
+  only the source phase's `exitCriteria`.
+
+**Opt-in entry-gate.** Set `gates.enforceEntryCriteria: true` in
+`vibeflow.config.json` to *also* require the target phase's
+`entryCriteria` on advance. The headline case: DEPLOYMENT's entry
+criterion `release.decision.go` — with the gate on, you can't enter
+DEPLOYMENT until `release-decision-engine` records a GO (Sprint 26-A).
+Default **off** so existing consumers are never broken mid-flight;
+`force: true` bypasses both gates (structural rules still hold). See
+[TESTING-READINESS.md](TESTING-READINESS.md).

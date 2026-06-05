@@ -98,6 +98,7 @@ export class SdlcEngine {
                 lastConsensus: base.lastConsensus?.status ?? null,
                 lastConsensusPhase: base.lastConsensus?.phase ?? null,
                 force: input.force ?? false,
+                enforceEntryCriteria: input.enforceEntryCriteria ?? false,
             });
             if (!transition.ok) {
                 // Do not mutate on failure: return the current state with bumped

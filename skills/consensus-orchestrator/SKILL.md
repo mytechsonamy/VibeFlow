@@ -2,7 +2,7 @@
 name: consensus-orchestrator
 description: Orchestrates multi-AI review process. Coordinates Claude, ChatGPT (codex CLI), and Gemini (gemini CLI) reviews. Each CLI's verdict is appended to the session jsonl the aggregator reads, per-CLI 90s timeout so the aggregator never falls through to its 600s global wait. On NEEDS_REVISION verdicts the skill auto-invokes consensus-arbiter to decide which reviewer suggestions are applicable to the current phase.
 disable-model-invocation: true
-allowed-tools: Read Write Bash(codex *) Bash(gemini *) Bash(jq *) Bash(timeout *) Bash(rm *) Bash(mkdir *) Grep Glob
+allowed-tools: Read Write Bash(codex *) Bash(gemini *) Bash(jq *) Bash(timeout *) Bash(gtimeout *) Bash(sleep *) Bash(kill *) Bash(touch *) Bash(rm *) Bash(mkdir *) Grep Glob
 ---
 
 # Consensus Orchestrator
@@ -126,10 +126,19 @@ Output ONLY valid JSON per the agreed schema.
 ```
 
 **ChatGPT Review (via codex CLI):**
+
+> ⚠️ **Sprint 26-G — always PIPE the prompt to `codex exec`; never pass
+> it as an argument.** The argument form (`codex exec "$PROMPT"`) leaves
+> stdin open, so `codex exec` blocks waiting for stdin EOF and **hangs
+> indefinitely** (observed: 51-minute hangs in a real consumer). Piping
+> the prompt closes stdin (EOF) and codex returns normally. The full
+> invocation in Step 3 (`build_review_prompt | vf_run_timeout 90 codex
+> exec …`) is the canonical, EOF-safe form — this example mirrors it.
+
 ```bash
 if command -v codex &>/dev/null; then
-  build_review_prompt > /tmp/vf_review_prompt  # primary + evidence block
-  codex exec "$(cat /tmp/vf_review_prompt)" -m $openaiModel --skip-git-repo-check --ephemeral
+  # PIPE the prompt → stdin EOF. The argument form hangs (open stdin).
+  build_review_prompt | codex exec -m $openaiModel --skip-git-repo-check --ephemeral
 fi
 ```
 
@@ -320,9 +329,33 @@ Your verdict is about the PRIMARY, not the evidence reports.
 PROMPT
 }
 
+# Sprint 26-F: portable 90s timeout. macOS ships NO `timeout` binary, so a
+# bare call fails with `command not found` (rc 127) on every invocation →
+# every CLI gets recorded as cli_error/REJECTED and consensus can never use
+# the external reviewers on stock macOS. Prefer GNU `timeout`,
+# then `gtimeout` (coreutils), else a pure-bash watchdog. The watchdog
+# returns 124 on its own kill so the existing `(( RC == 124 ))` cli_timeout
+# branch handles all three uniformly.
+vf_run_timeout() {   # vf_run_timeout <seconds> <cmd...>   (forwards stdin)
+  local secs="$1"; shift
+  if command -v timeout  >/dev/null 2>&1; then timeout  "$secs" "$@"; return $?; fi
+  if command -v gtimeout >/dev/null 2>&1; then gtimeout "$secs" "$@"; return $?; fi
+  # Pure-bash fallback. CRITICAL: a backgrounded command (`cmd &`) gets its
+  # stdin from /dev/null by POSIX rule — which would feed codex/gemini an
+  # EMPTY prompt. Drain the piped prompt to a temp file first and redirect
+  # the child's stdin from it explicitly so the prompt survives.
+  local _in; _in="$(mktemp)"; cat > "$_in"
+  "$@" < "$_in" & local pid=$!
+  ( sleep "$secs"; kill -0 "$pid" 2>/dev/null && { touch "/tmp/vf_to_$pid"; kill -TERM "$pid" 2>/dev/null; }; ) & local wd=$!
+  wait "$pid" 2>/dev/null; local rc=$?
+  kill -TERM "$wd" 2>/dev/null; wait "$wd" 2>/dev/null; rm -f "$_in"
+  if [[ -f "/tmp/vf_to_$pid" ]]; then rm -f "/tmp/vf_to_$pid"; return 124; fi
+  return "$rc"
+}
+
 # codex — 90s per-CLI timeout so aggregator never sits on its 600s global wait.
 if command -v codex >/dev/null 2>&1; then
-  CODEX_OUT="$( { build_memory_block codex; build_review_prompt; } | timeout 90 codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
+  CODEX_OUT="$( { build_memory_block codex; build_review_prompt; } | vf_run_timeout 90 codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
@@ -336,7 +369,7 @@ fi
 # gemini — same shape. Shares build_review_prompt so both CLIs see
 # the same PRIMARY + EVIDENCE framing.
 if command -v gemini >/dev/null 2>&1; then
-  GEMINI_OUT="$( { build_memory_block gemini; build_review_prompt; } | timeout 90 gemini --model "$geminiModel" 2>&1)"
+  GEMINI_OUT="$( { build_memory_block gemini; build_review_prompt; } | vf_run_timeout 90 gemini --model "$geminiModel" 2>&1)"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
@@ -611,8 +644,8 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
     # Inject PRIOR_SUMMARY into the review prompt (≤500 tok / reviewer).
   fi
 
-  # … run codex (timeout 90) → append_cli_verdict with $round
-  # … run gemini (timeout 90) → append_cli_verdict with $round
+  # … run codex (vf_run_timeout 90) → append_cli_verdict with $round
+  # … run gemini (vf_run_timeout 90) → append_cli_verdict with $round
   # … fork claude-reviewer (its SubagentStop fires aggregator)
 
   # Aggregator has now written verdict.json with rounds[round-1]

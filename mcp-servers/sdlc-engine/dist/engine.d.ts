@@ -14,6 +14,13 @@ export interface AdvancePhaseInput {
      * subsequent SessionStart calls.
      */
     readonly humanOverrideNote?: string;
+    /**
+     * Sprint 26-B: when true, advance also enforces the TARGET phase's
+     * entryCriteria (not just the source's exitCriteria). Sourced from
+     * `gates.enforceEntryCriteria`; the tools layer injects it. Default
+     * off ⇒ unchanged behaviour.
+     */
+    readonly enforceEntryCriteria?: boolean;
 }
 export interface RecordConsensusInput {
     readonly projectId: string;

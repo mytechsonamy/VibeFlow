@@ -189,6 +189,22 @@ export const LoopAuditConfigSchema = z
 
 export type LoopAuditConfig = z.infer<typeof LoopAuditConfigSchema>;
 
+/**
+ * Sprint 26-B: phase-gate strictness. `enforceEntryCriteria` is an
+ * opt-in (default OFF) that makes `sdlc_advance_phase` also require the
+ * TARGET phase's `entryCriteria` to be satisfied — e.g. no entering
+ * DEPLOYMENT without a recorded `release.decision.go`. Default off keeps
+ * existing advances unchanged; consumers that want the stricter gate
+ * turn it on.
+ */
+export const GatesConfigSchema = z
+  .object({
+    enforceEntryCriteria: z.boolean().default(false),
+  })
+  .default({ enforceEntryCriteria: false });
+
+export type GatesConfig = z.infer<typeof GatesConfigSchema>;
+
 export const EngineConfigSchema = z.object({
   project: z.string().min(1),
   stateStore: z
@@ -202,6 +218,7 @@ export const EngineConfigSchema = z.object({
   reviewerMemory: ReviewerMemoryConfigSchema,
   learningApply: LearningApplyConfigSchema,
   loopAudit: LoopAuditConfigSchema,
+  gates: GatesConfigSchema,
 });
 
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
@@ -229,6 +246,7 @@ export function resolveConfig(cwd: string = process.cwd()): EngineConfig {
     reviewerMemory: fileConfig.reviewerMemory ?? {},
     learningApply: fileConfig.learningApply ?? {},
     loopAudit: fileConfig.loopAudit ?? {},
+    gates: fileConfig.gates ?? {},
   });
 }
 
@@ -297,6 +315,14 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
         loopAudit = parsed.data;
       }
     }
+    // Sprint 26-B: phase-gate strictness, same silent-fallback pattern.
+    let gates: GatesConfig | undefined;
+    if (typeof raw.gates === "object" && raw.gates !== null) {
+      const parsed = GatesConfigSchema.safeParse(raw.gates);
+      if (parsed.success) {
+        gates = parsed.data;
+      }
+    }
     return {
       ...(typeof project === "string" ? { project } : {}),
       ...(dir ? { stateStore: { dir } } : {}),
@@ -306,6 +332,7 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
       ...(reviewerMemory ? { reviewerMemory } : {}),
       ...(learningApply ? { learningApply } : {}),
       ...(loopAudit ? { loopAudit } : {}),
+      ...(gates ? { gates } : {}),
     };
   } catch {
     return {};

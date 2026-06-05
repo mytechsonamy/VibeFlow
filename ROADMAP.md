@@ -26,6 +26,8 @@ MyVibe Framework (SDLC orchestration) + TruthLayer (requirements-first validatio
 | 11 | No compact recovery | FIXED | hooks/scripts/compact-recovery.sh (reads live state.db, not cached snapshot) |
 | 12 | Git hooks not atomic | FIXED | hooks/scripts/commit-guard.sh (phase gate + conventional-commit enforcement, exits 2 on block) |
 | 13 | sdlc_get_state crash on read-after-write | FIXED | sdlc-engine/src/engine.ts (Sprint 4 / S4-09): getOrInit was wrapping its read inside store.transact, which on an existing project failed the mutator's revision-must-bump assertion. Fast-path read fix; regression test in engine.test.ts; cross-process reproducer scheduled in Sprint 5 / S5-01. |
+| 14 | consensus codex/gemini broken on macOS (no `timeout` binary) | FIXED | Sprint 26-F: `consensus-orchestrator/SKILL.md` `timeout 90 …` failed `command not found` (rc 127) on stock macOS → every CLI recorded cli_error/REJECTED. New portable `vf_run_timeout` (timeout → gtimeout → pure-bash watchdog that returns 124 + preserves the piped prompt). FlowBridge-surfaced. |
+| 15 | `codex exec` argument form hangs indefinitely | FIXED | Sprint 26-G: the documented `codex exec "$(cat …)"` example left stdin open → codex blocked on stdin EOF (51-min hangs observed). Fixed to the pipe form (stdin EOF) + warning. FlowBridge-surfaced. |
 
 ---
 
@@ -115,6 +117,7 @@ the short index. Details in each sprint's doc + the matching
 | 23 | v2.11.0 (2026-06-04) | Bounded auto-apply with auto-revert: opt-in allowlisted config auto-tuning (default off) + snapshot + aggregator auto-revert on next-round regression + cooldown | [SPRINT-23.md](SPRINT-23.md) |
 | 24 | v2.12.0 (2026-06-05) | Self-correcting auto-apply: per-key outcome telemetry + `auto-tune-ineffective` meta-learning detector + lifetime self-demote + multi-key transactional revert | [SPRINT-24.md](SPRINT-24.md) |
 | 25 | v2.13.0 (2026-06-05) | Autonomous-loop observability: read-only `loop-audit.sh` reader + `/vibeflow:status` Autonomous Loop section (per-key revert rates, cooldowns, armed watch, learning findings) | [SPRINT-25.md](SPRINT-25.md) |
+| 26 | v2.14.0 (2026-06-05) | TESTING→DEPLOYMENT consumer hardening: `release.decision.go` wiring + opt-in entry-gate; FlowBridge-surfaced macOS-no-timeout + codex-stdin-hang fixes | [SPRINT-26.md](SPRINT-26.md) |
 
 ---
 

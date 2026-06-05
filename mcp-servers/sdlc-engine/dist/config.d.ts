@@ -227,6 +227,22 @@ export declare const LoopAuditConfigSchema: z.ZodDefault<z.ZodObject<{
     window?: number | undefined;
 }>>;
 export type LoopAuditConfig = z.infer<typeof LoopAuditConfigSchema>;
+/**
+ * Sprint 26-B: phase-gate strictness. `enforceEntryCriteria` is an
+ * opt-in (default OFF) that makes `sdlc_advance_phase` also require the
+ * TARGET phase's `entryCriteria` to be satisfied — e.g. no entering
+ * DEPLOYMENT without a recorded `release.decision.go`. Default off keeps
+ * existing advances unchanged; consumers that want the stricter gate
+ * turn it on.
+ */
+export declare const GatesConfigSchema: z.ZodDefault<z.ZodObject<{
+    enforceEntryCriteria: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    enforceEntryCriteria: boolean;
+}, {
+    enforceEntryCriteria?: boolean | undefined;
+}>>;
+export type GatesConfig = z.infer<typeof GatesConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -365,6 +381,13 @@ export declare const EngineConfigSchema: z.ZodObject<{
     }, {
         window?: number | undefined;
     }>>;
+    gates: z.ZodDefault<z.ZodObject<{
+        enforceEntryCriteria: z.ZodDefault<z.ZodBoolean>;
+    }, "strip", z.ZodTypeAny, {
+        enforceEntryCriteria: boolean;
+    }, {
+        enforceEntryCriteria?: boolean | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
@@ -411,6 +434,9 @@ export declare const EngineConfigSchema: z.ZodObject<{
     loopAudit: {
         window: number;
     };
+    gates: {
+        enforceEntryCriteria: boolean;
+    };
 }, {
     project: string;
     stateStore?: {
@@ -456,6 +482,9 @@ export declare const EngineConfigSchema: z.ZodObject<{
     } | undefined;
     loopAudit?: {
         window?: number | undefined;
+    } | undefined;
+    gates?: {
+        enforceEntryCriteria?: boolean | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
