@@ -121,6 +121,33 @@ the short index. Details in each sprint's doc + the matching
 
 ---
 
+## Remaining Backlog (Sprint 27+ candidates)
+
+The core mission is feature-complete as of v2.14.0 (7 phases, full
+consensus + L3 learning/autonomy loop, observability, consumer
+hardening; bug tracker #1–15 all FIXED). **No mandatory work remains.**
+The items below are open-ended *enhancements* — each is additive and
+optional. Rough sizing; consumer-driven fixes (like the FlowBridge
+bugs) may interleave.
+
+| # | Item | Size | Notes |
+|---|------|------|-------|
+| B1 | **Template-route autonomy** (auto-fork the phase specialist) | 🔴 Large | Completes the "act" arc for template/PRD/source rewrites (currently operator-initiated via Sprint 22-C routing). Riskiest — source/template changes, not just config. Recurring #1 deferral (S22→S26). |
+| B2 | **Cross-project meta-learning** | 🟠 Med-Large | Shared auto-tune-effectiveness store across repos (e.g. `~/.vibeflow`). Breaks the single-project assumption; external-state complexity. |
+| B3 | **Embedding-based excerption / memory** | 🟠 Medium | Replace lexical (Jaccard + finding-density) scoring with true semantic vectors. Needs an embeddings dependency; trades away the deterministic/no-external-dep posture. |
+| B4 | **Live TUI / `/vibeflow:loop-status` dashboard** | 🟡 Medium | The Sprint-21 progress ledger + Sprint-25 status section already exist; a real redrawing terminal UI needs a host-side renderer (skills are prose+bash). |
+| B5 | **Auto-run TESTING skills from phase-runner without operator confirm** | 🟢 Small-Med | Currently operator-initiated under normal skill dispatch; an autonomy-posture change. |
+
+**Intentionally deferred (design decision, NOT backlog):** auto-satisfy
+for `design.approved` / `accessibility.verified` / `sprint.planned` —
+kept operator-driven per the Sprint 18 decision (human-judgement
+rituals; rationale in `docs/AUTO-SATISFY.md`).
+
+**Bottom line:** mandatory = 0; full vision-completion of B1–B5 ≈ 3–5
+sprints (optional); thereafter maintenance + consumer-driven fixes.
+
+---
+
 ---
 
 ## Skill Inventory (30 Total)
