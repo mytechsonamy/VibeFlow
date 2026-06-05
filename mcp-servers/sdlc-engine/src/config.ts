@@ -160,6 +160,12 @@ export const LearningApplyConfigSchema = z
     maxRelativeStep: z.number().min(0).max(1).default(0.5),
     minObservations: z.number().int().min(1).max(20).default(3),
     autoApply: AutoApplyConfigSchema,
+    // Sprint 27-A: template-route autonomy. When true, a
+    // `recurring-suggestion-theme` finding auto-forks the matching phase
+    // specialist to produce a diff-first patch (propose-only — the
+    // operator still applies it via apply-arbiter-patch). Default OFF ⇒
+    // template-route stays recommend-only (Sprint 22-C).
+    autoForkSpecialist: z.boolean().default(false),
   })
   .default({
     enabled: true,
@@ -171,6 +177,7 @@ export const LearningApplyConfigSchema = z
       revertOnRegression: true,
       regressionDelta: 0.05,
     },
+    autoForkSpecialist: false,
   });
 
 export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;

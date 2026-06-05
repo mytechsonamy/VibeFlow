@@ -118,10 +118,11 @@ the short index. Details in each sprint's doc + the matching
 | 24 | v2.12.0 (2026-06-05) | Self-correcting auto-apply: per-key outcome telemetry + `auto-tune-ineffective` meta-learning detector + lifetime self-demote + multi-key transactional revert | [SPRINT-24.md](SPRINT-24.md) |
 | 25 | v2.13.0 (2026-06-05) | Autonomous-loop observability: read-only `loop-audit.sh` reader + `/vibeflow:status` Autonomous Loop section (per-key revert rates, cooldowns, armed watch, learning findings) | [SPRINT-25.md](SPRINT-25.md) |
 | 26 | v2.14.0 (2026-06-05) | TESTING→DEPLOYMENT consumer hardening: `release.decision.go` wiring + opt-in entry-gate; FlowBridge-surfaced macOS-no-timeout + codex-stdin-hang fixes | [SPRINT-26.md](SPRINT-26.md) |
+| 27 | v2.15.0 (2026-06-05) | Template-route autonomy (backlog B1): opt-in propose-only specialist auto-fork — `learningApply.autoForkSpecialist` forks the phase specialist on a recurring-theme finding → diff-first patch, operator-confirmed | [SPRINT-27.md](SPRINT-27.md) |
 
 ---
 
-## Remaining Backlog (Sprint 27+ candidates)
+## Remaining Backlog (Sprint 28+ candidates)
 
 The core mission is feature-complete as of v2.14.0 (7 phases, full
 consensus + L3 learning/autonomy loop, observability, consumer
@@ -132,7 +133,7 @@ bugs) may interleave.
 
 | # | Item | Size | Notes |
 |---|------|------|-------|
-| B1 | **Template-route autonomy** (auto-fork the phase specialist) | 🔴 Large | Completes the "act" arc for template/PRD/source rewrites (currently operator-initiated via Sprint 22-C routing). Riskiest — source/template changes, not just config. Recurring #1 deferral (S22→S26). |
+| ~~B1~~ | ~~**Template-route autonomy** (auto-fork the phase specialist)~~ | ✅ **DONE** | Shipped v2.15.0 (Sprint 27) as opt-in propose-only auto-fork (`learningApply.autoForkSpecialist`) — specialist forks on a recurring-theme finding → diff-first patch, operator-confirmed via apply-arbiter-patch. |
 | B2 | **Cross-project meta-learning** | 🟠 Med-Large | Shared auto-tune-effectiveness store across repos (e.g. `~/.vibeflow`). Breaks the single-project assumption; external-state complexity. |
 | B3 | **Embedding-based excerption / memory** | 🟠 Medium | Replace lexical (Jaccard + finding-density) scoring with true semantic vectors. Needs an embeddings dependency; trades away the deterministic/no-external-dep posture. |
 | B4 | **Live TUI / `/vibeflow:loop-status` dashboard** | 🟡 Medium | The Sprint-21 progress ledger + Sprint-25 status section already exist; a real redrawing terminal UI needs a host-side renderer (skills are prose+bash). |

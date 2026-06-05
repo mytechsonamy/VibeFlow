@@ -17835,7 +17835,13 @@ var LearningApplyConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true),
   maxRelativeStep: external_exports.number().min(0).max(1).default(0.5),
   minObservations: external_exports.number().int().min(1).max(20).default(3),
-  autoApply: AutoApplyConfigSchema
+  autoApply: AutoApplyConfigSchema,
+  // Sprint 27-A: template-route autonomy. When true, a
+  // `recurring-suggestion-theme` finding auto-forks the matching phase
+  // specialist to produce a diff-first patch (propose-only — the
+  // operator still applies it via apply-arbiter-patch). Default OFF ⇒
+  // template-route stays recommend-only (Sprint 22-C).
+  autoForkSpecialist: external_exports.boolean().default(false)
 }).default({
   enabled: true,
   maxRelativeStep: 0.5,
@@ -17845,7 +17851,8 @@ var LearningApplyConfigSchema = external_exports.object({
     keys: [],
     revertOnRegression: true,
     regressionDelta: 0.05
-  }
+  },
+  autoForkSpecialist: false
 });
 var LoopAuditConfigSchema = external_exports.object({
   window: external_exports.number().int().min(1).max(1e3).default(20)

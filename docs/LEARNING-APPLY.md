@@ -18,7 +18,7 @@ operator-confirmed, never writes config or source directly.**
 | Lane | What it does |
 |------|--------------|
 | **config-tune** | Recommendation names a typed `vibeflow.config.json` key → a diff-first patch under `.vibeflow/state/patches/learning-<ts>/`. |
-| **template-route** | A `recurring-suggestion-theme` → a `/vibeflow:consensus-specialist` dispatch recommendation (operator initiates). |
+| **template-route** | A `recurring-suggestion-theme` → routes to the matching phase specialist: a `/vibeflow:consensus-specialist` dispatch *recommendation* (default), or — with `learningApply.autoForkSpecialist` (Sprint 27) — an **auto-fork** producing a diff-first patch the operator confirms via apply-arbiter-patch (propose-only). See [TEMPLATE-AUTONOMY.md](TEMPLATE-AUTONOMY.md). |
 | **escalate** | Everything else → recommend `/vibeflow:decision-recommender`. |
 
 The config-key map and per-field clamp ranges are in

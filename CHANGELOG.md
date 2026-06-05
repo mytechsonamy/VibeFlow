@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.15.0] — 2026-06-05
+
+Sprint 27 (backlog B1) — template-route autonomy, propose-only. The
+learning loop's template lane was manual; v2.15.0 auto-forks the
+specialist on a recurring-theme finding.
+
+- **Config (S27-A).** `LearningApplyConfigSchema` += `autoForkSpecialist`
+  (default **false**) — nested in `learningApply`, no extra wiring.
+- **Auto-fork lane (S27-B).** `learning-apply` Step 4: with
+  `autoForkSpecialist` on, a `recurring-suggestion-theme` finding writes a
+  learning-fork brief to `.vibeflow/state/patches/learning-fork-<ts>/`,
+  forks the matching phase specialist, and records the diff-first patch —
+  **never applying it** (operator confirms via apply-arbiter-patch). Off
+  ⇒ recommend-only (Sprint 22-C) unchanged.
+- **Specialist bridge (S27-C).** The six phase-specialist agents accept a
+  learning-fork brief (a `recurring-suggestion-theme` finding) as an
+  equivalent trigger to a consensus session; new
+  `agents/_shared/learning-fork-brief.md` documents the format. Diff-first
+  / never-write-source unchanged.
+
+Docs: `docs/TEMPLATE-AUTONOMY.md` + ACTION-GAP / LEARNING-APPLY refreshes.
+Tests: sdlc-engine 194→196, new `sprint-27.sh` (44). Total baseline
+2740 → 2786. **Backlog B1 done.**
+
+- `.claude-plugin/plugin.json`: 2.14.0 → 2.15.0
+- `@vibeflow/sdlc-engine`: 1.12.0 → 1.13.0
+
+---
+
 ## [2.14.0] — 2026-06-05
 
 Sprint 26 — TESTING→DEPLOYMENT consumer hardening. A real consumer's

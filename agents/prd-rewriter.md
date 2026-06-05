@@ -44,6 +44,14 @@ You will be told the session id. Read, in this order:
    `target.file`, typically `docs/<name>_SRS*.md` or `.docx`
    converted to text).
 
+**Alternative trigger (Sprint 27 — learning-fork).** You may instead be
+forked by `learning-apply` with a *learning-fork brief* (a
+`recurring-suggestion-theme` finding) — there is no consensus session.
+Read `<fork-dir>/brief.md`, treat its `theme` as the structural gap to
+resolve in the named `primaryArtifact`, and emit the same ONE diff-first
+patch into that fork dir — never writing the artifact directly. Format:
+`agents/_shared/learning-fork-brief.md`.
+
 ## Decision Heuristics (REQUIREMENTS-specific)
 
 Focus, in priority order:

@@ -42,9 +42,13 @@ changes through three lanes:
   (e.g. raise `consensus.maxIterations`), bounded and clamped to the
   schema range, applied only with `--yes` after the patched config
   passes `EngineConfigSchema` re-validation.
-- **template-route** → a recurring-theme finding becomes a
-  `/vibeflow:consensus-specialist` dispatch recommendation (the operator
-  initiates the rewrite — `learning-apply` does not auto-fork).
+- **template-route** → a recurring-theme finding routes to the matching
+  phase specialist. Default: a `/vibeflow:consensus-specialist` dispatch
+  *recommendation* (operator initiates). With
+  `learningApply.autoForkSpecialist` (Sprint 27): `learning-apply`
+  **auto-forks** the specialist → a diff-first patch the operator still
+  confirms via apply-arbiter-patch (propose-only). See
+  [TEMPLATE-AUTONOMY.md](TEMPLATE-AUTONOMY.md).
 - **escalate** → hand to `decision-recommender` / the operator.
 
 `learning-apply` is **propose-only**: it never writes

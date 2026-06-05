@@ -420,6 +420,21 @@ describe("LearningApplyConfigSchema (Sprint 22-D)", () => {
     expect(cfg.learningApply.enabled).toBe(true);
   });
 
+  it("defaults autoForkSpecialist to false (Sprint 27-A)", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.learningApply.autoForkSpecialist).toBe(false);
+  });
+
+  it("accepts autoForkSpecialist:true and keeps sibling defaults (Sprint 27-A)", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      learningApply: { autoForkSpecialist: true },
+    });
+    expect(cfg.learningApply.autoForkSpecialist).toBe(true);
+    expect(cfg.learningApply.maxRelativeStep).toBe(0.5);
+    expect(cfg.learningApply.autoApply.enabled).toBe(false);
+  });
+
   it("rejects out-of-range maxRelativeStep and minObservations", () => {
     expect(
       LearningApplyConfigSchema.safeParse({ maxRelativeStep: 1.5 }).success,

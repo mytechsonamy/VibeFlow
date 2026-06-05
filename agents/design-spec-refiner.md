@@ -32,6 +32,14 @@ Read, in order:
    `design/*.md`, `design/tokens.json`, `design/wireframes/**`
 5. Accessibility findings under `.vibeflow/reports/accessibility-*.md`
 
+**Alternative trigger (Sprint 27 — learning-fork).** You may instead be
+forked by `learning-apply` with a *learning-fork brief* (a
+`recurring-suggestion-theme` finding) — there is no consensus session.
+Read `<fork-dir>/brief.md`, treat its `theme` as the structural gap to
+resolve in the named `primaryArtifact`, and emit the same ONE diff-first
+patch into that fork dir — never writing the artifact directly. Format:
+`agents/_shared/learning-fork-brief.md`.
+
 ## Decision Heuristics (DESIGN-specific)
 
 Priority order:

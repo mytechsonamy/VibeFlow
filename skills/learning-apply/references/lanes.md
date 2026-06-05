@@ -49,9 +49,17 @@ affected artifact's phase to its Sprint 17-E specialist:
 | TESTING | `coverage-gap-filler` |
 | DEPLOYMENT | `runbook-editor` |
 
+With `learningApply.autoForkSpecialist` **false** (default),
 `learning-apply` writes the `/vibeflow:consensus-specialist` dispatch
-recommendation into the decisions report. It does **not** fork the
-specialist — the rewrite stays operator-initiated.
+recommendation into the decisions report — recommend-only, the rewrite
+stays operator-initiated (Sprint 22-C).
+
+With `autoForkSpecialist` **true** (Sprint 27), it **auto-forks** the
+matching specialist with a learning-fork brief
+(`agents/_shared/learning-fork-brief.md`) → the specialist emits a
+diff-first patch under `.vibeflow/state/patches/learning-fork-<ts>/`.
+**Propose-only**: learning-apply never applies the patch — the operator
+confirms via `/vibeflow:apply-arbiter-patch`.
 
 ## Lane 3 — escalate
 

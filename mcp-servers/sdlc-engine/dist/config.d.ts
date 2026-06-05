@@ -187,6 +187,7 @@ export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
         demoteAfterReverts?: number | undefined;
         transactional?: boolean | undefined;
     }>>;
+    autoForkSpecialist: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     enabled: boolean;
     minObservations: number;
@@ -199,6 +200,7 @@ export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
         demoteAfterReverts: number;
         transactional: boolean;
     };
+    autoForkSpecialist: boolean;
 }, {
     enabled?: boolean | undefined;
     minObservations?: number | undefined;
@@ -211,6 +213,7 @@ export declare const LearningApplyConfigSchema: z.ZodDefault<z.ZodObject<{
         demoteAfterReverts?: number | undefined;
         transactional?: boolean | undefined;
     } | undefined;
+    autoForkSpecialist?: boolean | undefined;
 }>>;
 export type LearningApplyConfig = z.infer<typeof LearningApplyConfigSchema>;
 /**
@@ -349,6 +352,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
             demoteAfterReverts?: number | undefined;
             transactional?: boolean | undefined;
         }>>;
+        autoForkSpecialist: z.ZodDefault<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         enabled: boolean;
         minObservations: number;
@@ -361,6 +365,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
             demoteAfterReverts: number;
             transactional: boolean;
         };
+        autoForkSpecialist: boolean;
     }, {
         enabled?: boolean | undefined;
         minObservations?: number | undefined;
@@ -373,6 +378,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
             demoteAfterReverts?: number | undefined;
             transactional?: boolean | undefined;
         } | undefined;
+        autoForkSpecialist?: boolean | undefined;
     }>>;
     loopAudit: z.ZodDefault<z.ZodObject<{
         window: z.ZodDefault<z.ZodNumber>;
@@ -430,6 +436,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
             demoteAfterReverts: number;
             transactional: boolean;
         };
+        autoForkSpecialist: boolean;
     };
     loopAudit: {
         window: number;
@@ -479,6 +486,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
             demoteAfterReverts?: number | undefined;
             transactional?: boolean | undefined;
         } | undefined;
+        autoForkSpecialist?: boolean | undefined;
     } | undefined;
     loopAudit?: {
         window?: number | undefined;

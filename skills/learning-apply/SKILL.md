@@ -105,10 +105,58 @@ specialist via the Sprint 17-E `consensus-specialist` table:
 | TESTING | `coverage-gap-filler` |
 | DEPLOYMENT | `runbook-editor` |
 
-Write a **dispatch recommendation** into the decisions report — the
+Behaviour depends on `learningApply.autoForkSpecialist` (Sprint 27-A,
+default **false**):
+
+```bash
+AUTO_FORK="$(jq -r '.learningApply.autoForkSpecialist // false' vibeflow.config.json)"
+```
+
+**`autoForkSpecialist` false (default) — recommend-only.** Write a
+**dispatch recommendation** into the decisions report: the
 `/vibeflow:consensus-specialist` invocation the operator should run on
-the affected artifact. `learning-apply` **does NOT fork the specialist
-itself**: the deep rewrite stays operator-initiated (propose-only).
+the affected artifact. `learning-apply` does NOT fork the specialist;
+the deep rewrite stays operator-initiated (the Sprint 22-C behaviour).
+
+**`autoForkSpecialist` true — propose-only auto-fork (Sprint 27-B).**
+Automatically fork the matching phase specialist, but **never apply** its
+patch — the operator still confirms via `apply-arbiter-patch`. For each
+`recurring-suggestion-theme` finding that clears `minObservations`:
+
+1. **Write a learning-fork brief** so the specialist knows what to fix
+   (it normally reads a consensus session; here the brief stands in):
+
+```bash
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; FORK=".vibeflow/state/patches/learning-fork-$TS"
+mkdir -p "$FORK"
+cat > "$FORK/brief.md" <<EOF
+# Learning-Fork Brief (Sprint 27)
+- theme: <recurring suggestion theme title>
+- primaryArtifact: <affected artifact path>
+- seenCount: <how many artifacts/sprints the theme recurred across>
+- rationale: <one line — why this is a systemic gap, not a one-off>
+- evidence: .vibeflow/reports/consensus-learning-report.md
+Treat the theme as the structural gap to resolve in primaryArtifact.
+Emit ONE diff-first patch under this directory. Do NOT write source.
+EOF
+```
+
+2. **Fork the matching phase specialist** (per the table above /
+   `references/lanes.md`) pointing it at `$FORK/brief.md` + the artifact.
+   The specialist emits its diff-first patch into `$FORK/` exactly as it
+   would from a consensus session — **never writing the artifact
+   directly** (its Sprint 17-D contract is unchanged; see
+   `agents/_shared/learning-fork-brief.md`).
+
+3. **Record + stop.** In the decisions report:
+   `Specialist forked: <agent> on <artifact> → patch at $FORK/; apply
+   with /vibeflow:apply-arbiter-patch`. **learning-apply NEVER applies
+   the patch** — propose-only holds for templates exactly as it does for
+   non-allowlisted config keys.
+
+Guardrails: one fork per theme per run; honours `learningApply.enabled`;
+auto-fork is **template-route only** — config-tune and escalate lanes are
+unchanged.
 
 ## Step 5 — Write the decisions report
 
@@ -266,8 +314,11 @@ recommends removing it from the allowlist — `docs/META-LEARNING.md`).
   (`autoApply.enabled`, default off), allowlisted, snapshotted, and
   auto-reverted on regression. It never touches non-allowlisted keys,
   source, or templates. See `docs/AUTO-APPLY.md`.
-- **No template rewriting** — that's the phase specialists' job;
-  learning-apply only routes to them.
+- **No template rewriting by learning-apply itself** — the phase
+  specialists do the rewrite. learning-apply routes to them (recommend),
+  or with `autoForkSpecialist` *forks* them (Sprint 27) — but the
+  resulting diff-first patch is **always operator-confirmed via
+  apply-arbiter-patch**. learning-apply never applies a template patch.
 
 ## See also
 
