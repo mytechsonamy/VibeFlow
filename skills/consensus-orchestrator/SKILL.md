@@ -211,11 +211,30 @@ LOG="$CONS_DIR/$SESSION_ID.jsonl"
 # Cleaned up alongside the round marker at the end of Step 5.
 printf '%s\n' "$PRIMARY" > "$CONS_DIR/$SESSION_ID.primary.txt"
 
+# Extract a JSON object from prose/markdown-wrapped CLI output. codex/gemini
+# often wrap the verdict JSON in a ```json fence or prose, so a whole-output
+# `fromjson` fails and the structured criticalIssues + suggestions are lost
+# (the reviewer's dissent becomes an actionless NEEDS_REVISION). Try the
+# whole output → strip code fences → grab the first-`{`…last-`}` span.
+vf_extract_json() {
+  local raw; raw="$(cat)"
+  if printf '%s' "$raw" | jq -e . >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
+  local nf; nf="$(printf '%s\n' "$raw" | sed '/^[[:space:]]*```/d')"
+  if printf '%s' "$nf" | jq -e . >/dev/null 2>&1; then printf '%s' "$nf"; return 0; fi
+  local span; span="$(printf '%s' "$nf" | tr '\n' ' ' | sed -E 's/^[^{]*(\{.*\}).*$/\1/')"
+  if printf '%s' "$span" | jq -e . >/dev/null 2>&1; then printf '%s' "$span"; return 0; fi
+  return 1
+}
+
 append_cli_verdict() {
   local reviewer="$1" raw="$2" note="${3:-}"
-  local verdict critical structured
-  # Prefer structured JSON output: {"verdict":"...","criticalIssues":N, "suggestions":[...]}
-  structured="$(printf '%s' "$raw" | jq -Rsr 'try (fromjson | .verdict) catch empty' 2>/dev/null || true)"
+  local verdict critical critical_items json structured
+  # Unwrap the verdict JSON FIRST (Sprint 31 fix), so a fenced/prose-wrapped
+  # reviewer reply still yields criticalIssues + suggestions, not just a
+  # keyword-grep verdict with empty rationale.
+  json="$(printf '%s' "$raw" | vf_extract_json 2>/dev/null || true)"
+  [[ -n "$json" ]] || json='{}'
+  structured="$(printf '%s' "$json" | jq -r 'try .verdict catch empty' 2>/dev/null || true)"
   case "$structured" in
     APPROVED|NEEDS_REVISION|REJECTED) verdict="$structured" ;;
     *)
@@ -227,14 +246,14 @@ append_cli_verdict() {
       fi
       ;;
   esac
-  critical="$(printf '%s' "$raw" | jq -Rsr 'try (fromjson | .criticalIssues | if type=="array" then length else . end) catch 0' 2>/dev/null || echo 0)"
+  critical="$(printf '%s' "$json" | jq -r 'try (.criticalIssues | if type=="array" then length else . end) catch 0' 2>/dev/null || echo 0)"
   [[ "$critical" =~ ^[0-9]+$ ]] || critical=0
 
   # Sprint 17-B: preserve the structured `criticalIssues[]` array (if
   # the reviewer emitted one) so the aggregator can dedup across
   # reviewers by {file, line_range} + Jaccard(title). Legacy integer
   # shape gets an empty array.
-  critical_items="$(printf '%s' "$raw" | jq -Rsr 'try (fromjson | .criticalIssues | if type=="array" then tojson else "[]" end) catch "[]"' 2>/dev/null || echo "[]")"
+  critical_items="$(printf '%s' "$json" | jq -c 'try (.criticalIssues | if type=="array" then . else [] end) catch []' 2>/dev/null || echo "[]")"
 
   # Sprint 17-A: read current round from marker; default 1.
   local round=1
@@ -252,7 +271,7 @@ append_cli_verdict() {
     --argjson criticalItems "$critical_items" \
     --arg note "$note" \
     --argjson round "$round" \
-    --argjson raw "$(printf '%s' "$raw" | jq -Rsr 'try fromjson catch {}' 2>/dev/null || echo '{}')" \
+    --argjson raw "$json" \
     '{recordedAt:$ts, reviewer:$reviewer, verdict:$verdict, criticalIssues:$critical, criticalItems:$criticalItems, round:$round, note:$note, suggestions:($raw.suggestions // [])}' \
     >> "$LOG"
 }

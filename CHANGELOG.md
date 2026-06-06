@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.20.2] — 2026-06-06
+
+### Fixed
+- **Reviewer rationale silently dropped when codex/gemini wrap their verdict
+  JSON in prose or a ```` ```json ```` fence** (the FlowBridge / AntOS
+  "codex gives NEEDS_REVISION with no rationale → specialist→apply runs
+  blind → consensus never converges" trap). `append_cli_verdict` parsed the
+  verdict by running `fromjson` over the CLI's **whole** stdout, so any
+  surrounding prose/markdown made the parse fail — collapsing a structured
+  dissent (with `criticalIssues` + `suggestions`) into a bare keyword-grep
+  `NEEDS_REVISION` with empty rationale. New `vf_extract_json` helper unwraps
+  the JSON first (whole output → strip code fences → first-`{`…last-`}` span),
+  so the reviewer's actual findings + suggestions now flow into the jsonl →
+  reviewer-memory → the specialist that has to act on them. Fixed in
+  `consensus-run.sh` (headless) and the `consensus-orchestrator` prose
+  (interactive 3-AI). Pinned by `tests/integration/sprint-31.sh [S31-C]`
+  (static + a runtime probe feeding fenced+prose codex output → asserts
+  `suggestions`/`criticalItems` are captured). Pure-prose replies still fall
+  back to keyword-grep classification; pure-JSON replies are unchanged.
+
+---
+
 ## [2.20.1] — 2026-06-06
 
 ### Fixed

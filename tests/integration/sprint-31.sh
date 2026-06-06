@@ -115,6 +115,14 @@ assert_no_grep "[S31-C] consensus-run no longer records a cli_error:RC REJECTED 
   'cli_error:' "$CRUN"
 assert_grep "[S31-C] onboard config template defers models (default)" \
   '"openai": "default"' "$ONBOARD"
+# JSON unwrap: reviewer CLIs wrap the verdict in prose/```json; the parser must
+# extract it so criticalIssues + suggestions survive (codex-no-rationale bug).
+assert_grep "[S31-C] consensus-run has vf_extract_json (unwraps fenced/prose JSON)" \
+  'vf_extract_json' "$CRUN"
+assert_grep "[S31-C] consensus-run no longer requires whole-output fromjson" \
+  'printf .* "\$json" \| jq' "$CRUN"
+assert_grep "[S31-C] orchestrator also unwraps wrapped reviewer JSON" \
+  'vf_extract_json' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
 
 # Aggregator gained the additive --finalize mode without breaking the
 # SubagentStop path.
@@ -245,6 +253,45 @@ if command -v jq >/dev/null 2>&1; then
     fail "[S31-C] runtime: a failing reviewer CLI doesn't abort the run (rc=$RC3)"
   fi
   rm -rf "$T3"
+
+  # JSON-unwrap probe: a codex reply that wraps its verdict JSON in a ```json
+  # fence + prose must still land criticalItems + suggestions in the jsonl
+  # (pre-fix: whole-output fromjson failed → empty rationale → the FlowBridge/
+  # AntOS "codex gives no actionable dissent" convergence trap).
+  T4="$(mktemp -d)"; B4="$T4/bin"; mkdir -p "$B4" "$T4/proj/docs" "$T4/proj/.vibeflow/state"
+  printf '# PRD\n\nx.\n' > "$T4/proj/docs/PRD.md"
+  printf '{"project":"p","currentPhase":"REQUIREMENTS","models":{"openai":"default","gemini":"default"}}\n' \
+    > "$T4/proj/vibeflow.config.json"
+  printf '{"primaryArtifact":"docs/PRD.md","evidence":[],"createdBy":"x"}\n' \
+    > "$T4/proj/.vibeflow/state/consensus-needed.json"
+  # codex: markdown-fenced JSON wrapped in prose, with criticalIssues +
+  # suggestions. Written via a QUOTED heredoc so the backticks stay literal
+  # (an unquoted heredoc would treat ```…``` as command substitution).
+  cat > "$B4/codex" <<'CODEXSH'
+#!/bin/bash
+cat >/dev/null
+printf 'Here is my review:\n\n```json\n'
+printf '%s\n' '{"verdict":"NEEDS_REVISION","criticalIssues":[{"title":"Risk scale undefined"}],"suggestions":[{"id":"s1","rationale":"define risk scale"}]}'
+printf '```\n\nHope this helps.\n'
+CODEXSH
+  printf '#!/bin/bash\ncat >/dev/null\nprintf %s "{\\"verdict\\":\\"APPROVED\\",\\"criticalIssues\\":[]}"\n' > "$B4/gemini"
+  chmod +x "$B4/codex" "$B4/gemini"
+  ( cd "$T4/proj" && PATH="$B4:$PATH" VIBEFLOW_CWD="$T4/proj" bash "$CRUN" .vibeflow/state/consensus-needed.json >/dev/null 2>&1 )
+  CODEX_LINE="$(cat "$T4/proj/.vibeflow/state/consensus/"*archived*.jsonl 2>/dev/null | jq -c 'select(.reviewer=="codex")' 2>/dev/null | head -1)"
+  if [[ -n "$CODEX_LINE" ]]; then
+    assert_eq "[S31-C] runtime: fenced codex verdict parsed (NEEDS_REVISION)" \
+      "NEEDS_REVISION" "$(printf '%s' "$CODEX_LINE" | jq -r '.verdict')"
+    SUG="$(printf '%s' "$CODEX_LINE" | jq -r '.suggestions | length')"
+    CIT="$(printf '%s' "$CODEX_LINE" | jq -r '.criticalItems | length')"
+    if [[ "$SUG" == "1" && "$CIT" == "1" ]]; then
+      pass "[S31-C] runtime: wrapped codex rationale captured (suggestions=1, criticalItems=1)"
+    else
+      fail "[S31-C] runtime: wrapped codex rationale captured (got suggestions=$SUG criticalItems=$CIT)"
+    fi
+  else
+    fail "[S31-C] runtime: fenced codex verdict produced a jsonl line"
+  fi
+  rm -rf "$T4"
 fi
 
 # ---------------------------------------------------------------------------
