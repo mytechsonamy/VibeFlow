@@ -1,8 +1,8 @@
 ---
 name: apply-arbiter-patch
-description: Reads the patch manifest produced by consensus-arbiter, shows a git-style diff summary, asks for explicit operator confirmation (unless --yes), and applies via `git apply`. Updates `arbiter-decisions.md` with applied:true + timestamp. Optional `--run-tests` runs the project's test command afterward and reminds the operator how to revert if they break.
+description: Reads the patch manifest produced by consensus-arbiter, shows a git-style diff summary, snapshots every target file to a git-independent backup, asks for explicit operator confirmation (unless --yes), and applies via `git apply`. Updates `arbiter-decisions.md` with applied:true + timestamp. Optional `--run-tests` runs the project's test command afterward and reminds the operator how to revert if they break.
 disable-model-invocation: true
-allowed-tools: Read Write Edit Bash(git *) Bash(jq *) Bash(npm *) Bash(vitest *) Bash(jest *) Bash(pytest *) Bash(dotnet *) Bash(rm *)
+allowed-tools: Read Write Edit Bash(git *) Bash(jq *) Bash(npm *) Bash(vitest *) Bash(jest *) Bash(pytest *) Bash(dotnet *) Bash(rm *) Bash(cp *) Bash(mkdir *)
 context: fork
 ---
 
@@ -65,7 +65,8 @@ MANIFEST=$(vf_state_dir)/patches/$SESSION/manifest.json
 Read the manifest. For each patch, compute `+N/-N` line counts via
 `git apply --numstat <patch>`. Collect:
 
-- Target files (unique)
+- **Target files (unique)** → keep this list as `TARGET_FILES` (a bash
+  array); Step 3.5 snapshots exactly these paths before applying.
 - Total +/-
 - Per-patch: file, short description, sources (reviewer ids), +/-
 
@@ -97,6 +98,39 @@ Apply all 3? [y/N]
 - If `--yes`: log "apply confirmed via --yes" and proceed.
 - Otherwise: ask. Accept `y`/`yes` (case-insensitive). Anything else
   aborts with "apply cancelled by operator".
+
+### Step 3.5: Snapshot the target files (git-independent safety net)
+
+**MANDATORY — run this after confirmation, before the first `git apply`.**
+The rollback story below leans on `git checkout HEAD -- <file>`, which
+only works when the project is a git repo **and** the target file is
+committed. Many projects in REQUIREMENTS are just a PRD with no repo yet
+(or an uncommitted doc), so `git apply` would rewrite the artifact in
+place with **no way back**. Snapshot first so rollback always works,
+regardless of git:
+
+```bash
+SNAP_DIR=".vibeflow/state/arbiter-backups/$SESSION"
+mkdir -p "$SNAP_DIR"
+# Target files = the unique list collected in Step 2 (git apply --numstat).
+for f in "${TARGET_FILES[@]}"; do
+  [ -f "$f" ] || continue                       # new-file patch → nothing to back up
+  mkdir -p "$SNAP_DIR/$(dirname "$f")"
+  cp -p "$f" "$SNAP_DIR/$f"
+done
+```
+
+Emit a one-line confirmation naming the restore command so the operator
+always has it in scrollback:
+
+```
+Backed up <N> file(s) to .vibeflow/state/arbiter-backups/$SESSION/ before applying.
+Revert anytime:  cp -R .vibeflow/state/arbiter-backups/$SESSION/. .
+```
+
+The snapshot is the **primary** rollback path (works without git); the
+`git checkout` commands below remain available as a secondary path when
+the project IS a committed git repo.
 
 ### Step 4: Apply
 
@@ -146,7 +180,8 @@ On non-zero exit:
 
 ```
 Tests failed after arbiter apply. To revert the patches:
-  git checkout HEAD -- <list of touched files>
+  cp -R .vibeflow/state/arbiter-backups/<session>/. .   # git-independent (Step 3.5 snapshot)
+  git checkout HEAD -- <list of touched files>          # only if a committed git repo
 Or cherry-pick the offending patch and re-run:
   /vibeflow:consensus-arbiter <session>   # regenerates against current tree
 ```
@@ -333,13 +368,21 @@ just reads the latest and points the next round at the
 
 ## Output
 
+- `.vibeflow/state/arbiter-backups/<session>/` — pre-apply snapshot of every
+  target file (Step 3.5), the git-independent rollback source
 - Modified source / doc files (via `git apply`)
 - `.vibeflow/reports/arbiter-decisions.md` updated in place
 - `.vibeflow/state/patches/applied/<session>.json`
 
 ## Rollback
 
-Every git apply is a single commit-less change; use:
+**Primary (always works — Step 3.5 git-independent snapshot):**
+
+```
+cp -R .vibeflow/state/arbiter-backups/<session>/. .   # restore every touched file
+```
+
+**Secondary (only when the project is a committed git repo):**
 
 ```
 git checkout HEAD -- <file>                # revert one file
@@ -347,10 +390,14 @@ git reset --hard HEAD                      # nuke all uncommitted changes
 git stash                                  # keep them for later
 ```
 
+The snapshot path is what makes rollback reliable for non-git / REQUIREMENTS
+projects (e.g. a bare PRD), where `git checkout` has nothing to restore from.
+
 The skill does not auto-revert on test failure — it only prints the
 command the operator should run. This is intentional: a tests-green
 post-apply state is the only signal we trust; guessing at recovery
-could compound the damage.
+could compound the damage. (The snapshot is kept on disk so the operator
+can revert deliberately at any time.)
 
 ## Downstream Dependencies
 

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.20.1] — 2026-06-06
+
+### Fixed
+- **`apply-arbiter-patch` had no rollback safety net off git.** Its entire
+  revert story was `git checkout HEAD -- <file>`, which only works when the
+  project is a git repo *and* the target file is committed. Projects in
+  REQUIREMENTS are often just a PRD with no repo yet, so applying a
+  specialist patch rewrote the artifact in place with no way back. The skill
+  now **snapshots every target file to `.vibeflow/state/arbiter-backups/<session>/`
+  before the first `git apply`** (new Step 3.5) and prints the
+  git-independent restore command (`cp -R .vibeflow/state/arbiter-backups/<session>/. .`).
+  The snapshot is the primary rollback path; `git checkout` stays as the
+  secondary path for committed git repos. Pinned by
+  `tests/integration/sprint-15.sh [S15-G]`.
+
+---
+
 ## [2.20.0] — 2026-06-06
 
 Built-in command-collision audit + the second (and last) rename it found.

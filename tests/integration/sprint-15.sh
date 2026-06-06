@@ -195,6 +195,17 @@ if grep -q "git checkout HEAD" "$APPLY"; then
 else
   fail "[S15-G] apply skill documents rollback command"
 fi
+# v2.20.1: git-independent pre-apply snapshot (rollback works without git).
+if grep -q "arbiter-backups" "$APPLY"; then
+  pass "[S15-G] apply skill snapshots target files before applying (git-independent backup)"
+else
+  fail "[S15-G] apply skill snapshots target files before applying (git-independent backup)"
+fi
+if grep -qE "Step 3\.5|Snapshot the target files" "$APPLY"; then
+  pass "[S15-G] apply skill has the Step 3.5 snapshot step"
+else
+  fail "[S15-G] apply skill has the Step 3.5 snapshot step"
+fi
 
 # ---------------------------------------------------------------------------
 echo "== [S15-H] user docs =="
