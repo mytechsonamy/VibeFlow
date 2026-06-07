@@ -125,10 +125,15 @@ assert_grep "[S31-C] orchestrator also unwraps wrapped reviewer JSON" \
   'vf_extract_json' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
 # v2.20.3: balanced-brace first-object extraction (greedy span over-captured
 # codex 0.135.0's duplicate-object output → invalid JSON → rationale lost).
-assert_grep "[S31-C] consensus-run uses balanced-object extraction (_vf_first_json_object)" \
-  '_vf_first_json_object' "$CRUN"
-assert_grep "[S31-C] orchestrator uses balanced-object extraction" \
-  '_vf_first_json_object' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
+assert_grep "[S31-C] consensus-run walks all balanced objects (_vf_json_objects)" \
+  '_vf_json_objects' "$CRUN"
+assert_grep "[S31-C] orchestrator walks all balanced objects" \
+  '_vf_json_objects' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
+# v2.20.4: pick the first VALID object WITH a .verdict (skips codex's echoed
+# schema template {verdict:APPROVED|…}, which is the first balanced object but
+# invalid JSON).
+assert_grep "[S31-C] consensus-run picks the first valid object that has a verdict" \
+  'has\("verdict"\)' "$CRUN"
 
 # Aggregator gained the additive --finalize mode without breaking the
 # SubagentStop path.
@@ -344,6 +349,57 @@ CODEXSH
     fail "[S31-C] runtime: duplicate-object codex produced a jsonl line"
   fi
   rm -rf "$T5"
+
+  # prompt-echo probe (v2.20.4): codex `exec` (with 2>&1) echoes the review
+  # prompt, whose schema template `{verdict:APPROVED|NEEDS_REVISION|REJECTED,…}`
+  # is the FIRST balanced object but INVALID JSON. The extractor must skip it
+  # and return codex's first VALID object that has a `.verdict`.
+  T6="$(mktemp -d)"; B6="$T6/bin"; mkdir -p "$B6" "$T6/proj/docs" "$T6/proj/.vibeflow/state"
+  printf '# PRD\n\nx.\n' > "$T6/proj/docs/PRD.md"
+  printf '{"project":"p","currentPhase":"REQUIREMENTS","models":{"openai":"default","gemini":"default"}}\n' \
+    > "$T6/proj/vibeflow.config.json"
+  printf '{"primaryArtifact":"docs/PRD.md","evidence":[],"createdBy":"x"}\n' \
+    > "$T6/proj/.vibeflow/state/consensus-needed.json"
+  cat > "$B6/codex" <<'CODEXSH'
+#!/bin/bash
+cat >/dev/null
+cat <<'OUT'
+OpenAI Codex v0.135.0
+Reading prompt from stdin...
+Output ONLY valid JSON matching: {verdict:APPROVED|NEEDS_REVISION|REJECTED,
+score:0-100, criticalIssues:[{id, target:{file, line_range:[s,e]}, title, rationale}],
+summary:string, suggestions:[{id, type, rationale}]}
+
+PRIMARY ARTIFACT UNDER REVIEW (docs/PRD.md):
+[... echoed prompt ...]
+
+{
+  "verdict": "NEEDS_REVISION",
+  "score": 82,
+  "criticalIssues": [{"id":"C-001","title":"license gate"},{"id":"C-002","title":"advice framing"}],
+  "suggestions": [{"id":"s1"},{"id":"s2"},{"id":"s3"},{"id":"s4"},{"id":"s5"}]
+}
+tokens used
+20379
+{"verdict":"NEEDS_REVISION","criticalIssues":[{"id":"C-001"}],"suggestions":[{"id":"s1"}]}
+OUT
+CODEXSH
+  printf '#!/bin/bash\ncat >/dev/null\nprintf %s "{\\"verdict\\":\\"APPROVED\\",\\"criticalIssues\\":[]}"\n' > "$B6/gemini"
+  chmod +x "$B6/codex" "$B6/gemini"
+  ( cd "$T6/proj" && PATH="$B6:$PATH" VIBEFLOW_CWD="$T6/proj" bash "$CRUN" .vibeflow/state/consensus-needed.json >/dev/null 2>&1 )
+  CL6="$(cat "$T6/proj/.vibeflow/state/consensus/"*archived*.jsonl 2>/dev/null | jq -c 'select(.reviewer=="codex")' 2>/dev/null | head -1)"
+  if [[ -n "$CL6" ]]; then
+    SUG6="$(printf '%s' "$CL6" | jq -r '.suggestions | length')"
+    CIT6="$(printf '%s' "$CL6" | jq -r '.criticalItems | length')"
+    if [[ "$SUG6" == "5" && "$CIT6" == "2" ]]; then
+      pass "[S31-C] runtime: prompt-echo schema template skipped, codex's real verdict captured (suggestions=5, criticalItems=2)"
+    else
+      fail "[S31-C] runtime: prompt-echo schema template skipped (got suggestions=$SUG6 criticalItems=$CIT6)"
+    fi
+  else
+    fail "[S31-C] runtime: prompt-echo codex produced a jsonl line"
+  fi
+  rm -rf "$T6"
 fi
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.20.4] — 2026-06-07
+
+### Fixed
+- **codex's prompt-echo defeated v2.20.3's "first balanced object" extraction.**
+  `consensus-run.sh` captures codex with `2>&1`, and codex `exec` echoes the
+  review prompt — which contains the JSON **schema template**
+  `{verdict:APPROVED|NEEDS_REVISION|REJECTED, score:0-100, …}`. That template
+  is the **first** balanced `{…}` in the merged stream but is **invalid JSON**
+  (unquoted keys, `|`, `0-100`), so v2.20.3's `_vf_first_json_object` stopped
+  there → invalid → keyword fallback → codex's real `criticalIssues` +
+  `suggestions` discarded (0/0) — deterministically, every run. `vf_extract_json`
+  now walks **every** top-level balanced object (`_vf_json_objects`, FS-delimited)
+  and returns the **first that is valid JSON with a `.verdict` key**, skipping
+  the echoed schema template. Fixed in `consensus-run.sh` + the
+  `consensus-orchestrator` prose. Pinned by `tests/integration/sprint-31.sh
+  [S31-C]` (adds a prompt-echo runtime probe: schema template + duplicate
+  trailer + real answer → asserts codex's 2 criticals / 5 suggestions are
+  captured). Diagnosed in a live AntOS run — codex was never content-free; it
+  had been raising substantive compliance objections the parser was hiding.
+
+---
+
 ## [2.20.3] — 2026-06-07
 
 ### Fixed

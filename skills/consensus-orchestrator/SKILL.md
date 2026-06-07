@@ -211,11 +211,12 @@ LOG="$CONS_DIR/$SESSION_ID.jsonl"
 # Cleaned up alongside the round marker at the end of Step 5.
 printf '%s\n' "$PRIMARY" > "$CONS_DIR/$SESSION_ID.primary.txt"
 
-# Emit the FIRST balanced `{…}` object from stdin (brace-counting, ignores
-# braces inside JSON strings, handles escapes). Robust where a greedy
-# first-`{`…last-`}` span over-captures — codex 0.135.0 `exec` prints the
-# verdict JSON twice with a `tokens used\nN` line between.
-_vf_first_json_object() {
+# Emit EVERY top-level balanced `{…}` object from stdin, FS-delimited (\034).
+# brace-counting that ignores braces inside JSON strings + handles escapes.
+# codex 0.135.0 prints the verdict twice AND echoes the prompt, whose schema
+# template `{verdict:APPROVED|…}` is the FIRST balanced object but invalid JSON,
+# so the caller must scan all candidates rather than stop at the first.
+_vf_json_objects() {
   awk '
     { buf = buf $0 "\n" }
     END {
@@ -228,24 +229,31 @@ _vf_first_json_object() {
         if (instr) { if (c == "\"") instr = 0 ; continue }
         if (c == "\"") { instr = 1; continue }
         if (c == "{") depth++
-        else if (c == "}") { depth--; if (depth == 0) { print substr(s, start, i - start + 1); exit } }
+        else if (c == "}") { depth--; if (depth == 0) { printf "%s\034", substr(s, start, i - start + 1); start = 0 } }
       }
     }'
 }
 
-# Extract a JSON object from prose/markdown-wrapped CLI output. codex/gemini
-# often wrap the verdict JSON in a ```json fence or prose (and codex 0.135.0
-# emits it twice), so a whole-output `fromjson` fails and the structured
-# criticalIssues + suggestions are lost (the reviewer's dissent becomes an
-# actionless NEEDS_REVISION). Try the whole output → strip code fences → take
-# the first BALANCED object.
+# Extract the reviewer's verdict JSON from prose/markdown-wrapped CLI output.
+# codex/gemini wrap it in a ```json fence or prose, codex 0.135.0 emits it
+# twice, AND codex echoes the prompt — whose schema template
+# `{verdict:APPROVED|…}` is the first balanced object (invalid JSON). Try the
+# whole output → strip code fences → walk EVERY balanced object and return the
+# first that is valid JSON with a `.verdict` key (skips the schema template).
 vf_extract_json() {
-  local raw; raw="$(cat)"
-  if printf '%s' "$raw" | jq -e . >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
-  local nf; nf="$(printf '%s\n' "$raw" | sed '/^[[:space:]]*```/d')"
-  if printf '%s' "$nf" | jq -e . >/dev/null 2>&1; then printf '%s' "$nf"; return 0; fi
-  local obj; obj="$(printf '%s' "$nf" | _vf_first_json_object)"
-  if [[ -n "$obj" ]] && printf '%s' "$obj" | jq -e . >/dev/null 2>&1; then printf '%s' "$obj"; return 0; fi
+  local raw nf obj
+  raw="$(cat)"
+  if printf '%s' "$raw" | jq -e 'has("verdict")' >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
+  nf="$(printf '%s\n' "$raw" | sed '/^[[:space:]]*```/d')"
+  if printf '%s' "$nf" | jq -e 'has("verdict")' >/dev/null 2>&1; then printf '%s' "$nf"; return 0; fi
+  while IFS= read -r -d $'\034' obj; do
+    [[ -n "$obj" ]] || continue
+    if printf '%s' "$obj" | jq -e 'has("verdict")' >/dev/null 2>&1; then printf '%s' "$obj"; return 0; fi
+  done < <(printf '%s' "$nf" | _vf_json_objects)
+  while IFS= read -r -d $'\034' obj; do
+    [[ -n "$obj" ]] || continue
+    if printf '%s' "$obj" | jq -e . >/dev/null 2>&1; then printf '%s' "$obj"; return 0; fi
+  done < <(printf '%s' "$nf" | _vf_json_objects)
   return 1
 }
 

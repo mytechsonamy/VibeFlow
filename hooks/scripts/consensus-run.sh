@@ -185,14 +185,13 @@ Your verdict is about the PRIMARY, not the evidence reports.
 PROMPT
 }
 
-# Emit the FIRST balanced `{…}` object from stdin — brace-counting that
-# ignores braces inside JSON strings + handles escapes. Robust where a greedy
-# first-`{`…last-`}` span over-captures: codex CLI 0.135.0 `exec` mode prints
-# the verdict JSON TWICE (body + trailing echo) with a `tokens used\nN` line
-# wedged between, and the greedy span swallowed both objects + that junk →
-# invalid JSON → the rationale was discarded anyway. Balanced extraction takes
-# just the first complete object.
-_vf_first_json_object() {
+# Emit EVERY top-level balanced `{…}` object from stdin, FS-delimited (\034) so
+# the caller can pick the right one. brace-counting that ignores braces inside
+# JSON strings + handles escapes. (Resets after each close instead of exiting,
+# so all candidates are emitted — codex 0.135.0 prints the verdict twice AND
+# echoes the prompt, whose schema template `{verdict:APPROVED|…}` is the FIRST
+# balanced object but is INVALID JSON.)
+_vf_json_objects() {
   awk '
     { buf = buf $0 "\n" }
     END {
@@ -205,26 +204,37 @@ _vf_first_json_object() {
         if (instr) { if (c == "\"") instr = 0 ; continue }
         if (c == "\"") { instr = 1; continue }
         if (c == "{") depth++
-        else if (c == "}") { depth--; if (depth == 0) { print substr(s, start, i - start + 1); exit } }
+        else if (c == "}") { depth--; if (depth == 0) { printf "%s\034", substr(s, start, i - start + 1); start = 0 } }
       }
     }'
 }
 
-# Extract a JSON object from a reviewer CLI's raw output. codex/gemini wrap the
-# verdict JSON in prose or a ```json fence (and codex 0.135.0 emits it twice),
-# so a whole-output `fromjson` FAILS and the structured verdict (criticalIssues
-# + suggestions) is silently lost — the reviewer's dissent collapses to an
-# actionless keyword-grep NEEDS_REVISION (the FlowBridge/AntOS "codex gives no
-# rationale, the specialist→apply loop runs blind" bug). Strategy: try the
-# whole output → strip code fences → take the first BALANCED object. Emits the
-# JSON on stdout (empty + rc1 if nothing parseable).
+# Extract the reviewer's verdict JSON from raw CLI output. codex/gemini wrap it
+# in prose / a ```json fence, codex 0.135.0 prints it twice, AND codex echoes
+# the review prompt — which contains the *schema template*
+# `{verdict:APPROVED|NEEDS_REVISION|REJECTED, …}` as its FIRST balanced object
+# (invalid JSON). Taking the first balanced object grabbed that template →
+# invalid → keyword fallback → codex's real criticalIssues + suggestions were
+# discarded (the FlowBridge/AntOS "codex runs blind" bug). Strategy: whole
+# output → strip code fences → walk EVERY balanced object and return the first
+# that is valid JSON with a `.verdict` key. Emits JSON on stdout (empty + rc1
+# if nothing parseable).
 vf_extract_json() {
-  local raw; raw="$(cat)"
-  if printf '%s' "$raw" | jq -e . >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
-  local nf; nf="$(printf '%s\n' "$raw" | sed '/^[[:space:]]*```/d')"
-  if printf '%s' "$nf" | jq -e . >/dev/null 2>&1; then printf '%s' "$nf"; return 0; fi
-  local obj; obj="$(printf '%s' "$nf" | _vf_first_json_object)"
-  if [[ -n "$obj" ]] && printf '%s' "$obj" | jq -e . >/dev/null 2>&1; then printf '%s' "$obj"; return 0; fi
+  local raw nf obj
+  raw="$(cat)"
+  if printf '%s' "$raw" | jq -e 'has("verdict")' >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
+  nf="$(printf '%s\n' "$raw" | sed '/^[[:space:]]*```/d')"
+  if printf '%s' "$nf" | jq -e 'has("verdict")' >/dev/null 2>&1; then printf '%s' "$nf"; return 0; fi
+  # first VALID object that carries a verdict (skips the echoed schema template)
+  while IFS= read -r -d $'\034' obj; do
+    [[ -n "$obj" ]] || continue
+    if printf '%s' "$obj" | jq -e 'has("verdict")' >/dev/null 2>&1; then printf '%s' "$obj"; return 0; fi
+  done < <(printf '%s' "$nf" | _vf_json_objects)
+  # fallback: first valid JSON object at all (back-compat for odd shapes)
+  while IFS= read -r -d $'\034' obj; do
+    [[ -n "$obj" ]] || continue
+    if printf '%s' "$obj" | jq -e . >/dev/null 2>&1; then printf '%s' "$obj"; return 0; fi
+  done < <(printf '%s' "$nf" | _vf_json_objects)
   return 1
 }
 
