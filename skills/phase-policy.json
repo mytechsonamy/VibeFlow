@@ -11,6 +11,10 @@
       "phases": ["REQUIREMENTS"],
       "description": "Scores PRD testability and surfaces ambiguity; only meaningful before DESIGN."
     },
+    "design-bootstrap": {
+      "phases": ["DESIGN"],
+      "description": "Sprint 34. The DESIGN-phase guide: asks the operator for a design source (Claude-native / existing Figma via design-bridge / from-scratch via the official Figma MCP), produces design/ artifacts (spec + tokens + wireframes), and arms the DESIGN consensus marker."
+    },
     "business-rule-validator": {
       "phases": ["ARCHITECTURE", "PLANNING"],
       "description": "Extracts and validates business rules; depends on approved PRD."

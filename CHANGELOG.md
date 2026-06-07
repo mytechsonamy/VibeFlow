@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.22.0] — 2026-06-08
+
+### Added
+- **`/vibeflow:design-bootstrap` — the DESIGN-phase guide.** DESIGN was the one
+  SDLC phase with no skill (phase-runner just said "operator writes design").
+  The new skill authors the design artifacts that DESIGN consensus reviews, and
+  — **every run, no forced default** — asks the operator which design source to
+  use:
+  1. **Claude-native** (zero setup): generates an attractive, accessible UI
+     spec + a real design-token system (semantic palette + dark mode, type /
+     spacing scale) + wireframes from the PRD, tuned to the domain.
+  2. **Figma (existing file)**: pulls the file via VibeFlow's `design-bridge`
+     MCP (`db_fetch_design` / `db_extract_tokens` / `db_generate_styles`) →
+     `design/design-tokens.json` + `design/styles.css` + a spec; walks the
+     operator through the `figma_token` / `FIGMA_TOKEN` setup if needed.
+  3. **Figma (from scratch)**: drives the **official** Figma MCP (`use_figma`)
+     against a design system, then syncs screenshots + a spec back.
+
+  All paths produce `design/design-spec.md` (the primary the panel reviews) +
+  tokens + evidence, then arm `consensus-needed.json` and emit
+  `▶ Next: /vibeflow:phase-runner`. `design.approved` + `accessibility.verified`
+  stay operator-confirmed. Registered in `phase-policy.json` (DESIGN);
+  phase-runner's DESIGN row now points at it. Docs: `docs/DESIGN-PHASE.md`
+  (incl. both Figma connection guides). Pinned by
+  `tests/integration/sprint-34.sh`.
+
+---
+
 ## [2.21.0] — 2026-06-07
 
 ### Added

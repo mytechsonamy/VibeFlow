@@ -48,17 +48,22 @@ registrations + the Sprint 19-A `docs/PRIMARY-ARTIFACT.md` table.
 | Phase | Analyzer skills (sequential) | Primary (resolved by marker v2) |
 |---|---|---|
 | REQUIREMENTS | `prd-quality-analyzer` | `<PRD path from argument or docs/>` |
-| DESIGN | _(none — operator writes design + runs orchestrator directly)_ | `design/**` |
+| DESIGN | `design-bootstrap` (operator-interactive — produces the design spec; not auto-forked) | `design/design-spec.md` |
 | ARCHITECTURE | `architecture-validator` | `docs/architecture.md` |
 | PLANNING | `test-strategy-planner`, `traceability-engine` | `.vibeflow/reports/test-strategy.md` |
 | DEVELOPMENT | `quality-gates` | `git diff HEAD~1..HEAD` (staged/committed work) |
 | TESTING | _(generate coverage — Step 2a)_ → `coverage-analyzer`, `mutation-test-runner` | `.vibeflow/reports/coverage-report.md` |
 | DEPLOYMENT | `release-decision-engine`, `deploy-verifier` | `release-notes/<version>.md` |
 
-When the analyzer list is empty (DESIGN), the skill announces the
-manual-criterion reminder from `docs/AUTO-SATISFY.md` and runs the
-headless consensus (Step 3, `consensus-run.sh`) directly on the design
-spec path from config (`design.sourceDir` fallback `design/`).
+DESIGN's analyzer (`design-bootstrap`) is **operator-interactive** — it asks
+which design source to use (Claude-native / Figma) — so phase-runner does NOT
+auto-fork it. If `design/design-spec.md` does not exist yet, stop and emit the
+breadcrumb `▶ Next: /vibeflow:design-bootstrap` (it authors the spec + arms the
+consensus marker). Once the spec exists, phase-runner runs the headless
+consensus (Step 3, `consensus-run.sh`) on `design/design-spec.md` (the
+marker's primary, or `design.sourceDir` fallback `design/`) and announces the
+manual-criterion reminder from `docs/AUTO-SATISFY.md` (`design.approved` +
+`accessibility.verified` stay operator-confirmed).
 
 ## Process
 

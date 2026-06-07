@@ -104,10 +104,13 @@ assert_grep "[S32-C] audit doc names the flow-status rename" \
   "flow-status" "$REPO_ROOT/docs/COMMAND-COLLISIONS.md"
 assert_grep "[S32-C] CLAUDE.md Key Commands lists flow-status" \
   "vibeflow:flow-status" "$REPO_ROOT/CLAUDE.md"
-if ! grep -q "vibeflow:review" "$REPO_ROOT/CLAUDE.md"; then
-  pass "[S32-C] stale /vibeflow:review removed from CLAUDE.md"
+# The Key Commands section must not list a `/vibeflow:review` command bullet
+# (the ledger may *document* the removal, mentioning the old name in prose —
+# that's allowed; only an actual command-listing bullet is stale).
+if ! grep -qE '^- `/vibeflow:review`' "$REPO_ROOT/CLAUDE.md"; then
+  pass "[S32-C] no stale /vibeflow:review command bullet in CLAUDE.md Key Commands"
 else
-  fail "[S32-C] stale /vibeflow:review removed from CLAUDE.md"
+  fail "[S32-C] no stale /vibeflow:review command bullet in CLAUDE.md Key Commands"
 fi
 
 # ---------------------------------------------------------------------------
