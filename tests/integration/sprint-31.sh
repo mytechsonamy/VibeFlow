@@ -123,6 +123,12 @@ assert_grep "[S31-C] consensus-run no longer requires whole-output fromjson" \
   'printf .* "\$json" \| jq' "$CRUN"
 assert_grep "[S31-C] orchestrator also unwraps wrapped reviewer JSON" \
   'vf_extract_json' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
+# v2.20.3: balanced-brace first-object extraction (greedy span over-captured
+# codex 0.135.0's duplicate-object output → invalid JSON → rationale lost).
+assert_grep "[S31-C] consensus-run uses balanced-object extraction (_vf_first_json_object)" \
+  '_vf_first_json_object' "$CRUN"
+assert_grep "[S31-C] orchestrator uses balanced-object extraction" \
+  '_vf_first_json_object' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
 
 # Aggregator gained the additive --finalize mode without breaking the
 # SubagentStop path.
@@ -292,6 +298,52 @@ CODEXSH
     fail "[S31-C] runtime: fenced codex verdict produced a jsonl line"
   fi
   rm -rf "$T4"
+
+  # codex 0.135.0 duplicate-object probe (v2.20.3): exec mode prints the
+  # verdict JSON TWICE with a `tokens used\nN` line between. The pre-2.20.3
+  # greedy first-{…last-} span swallowed both + the junk → invalid → rationale
+  # lost. The balanced first-object extractor must take just the first object.
+  T5="$(mktemp -d)"; B5="$T5/bin"; mkdir -p "$B5" "$T5/proj/docs" "$T5/proj/.vibeflow/state"
+  printf '# PRD\n\nx.\n' > "$T5/proj/docs/PRD.md"
+  printf '{"project":"p","currentPhase":"REQUIREMENTS","models":{"openai":"default","gemini":"default"}}\n' \
+    > "$T5/proj/vibeflow.config.json"
+  printf '{"primaryArtifact":"docs/PRD.md","evidence":[],"createdBy":"x"}\n' \
+    > "$T5/proj/.vibeflow/state/consensus-needed.json"
+  cat > "$B5/codex" <<'CODEXSH'
+#!/bin/bash
+cat >/dev/null
+cat <<'OUT'
+codex exec — gpt-5.5
+{
+  "verdict": "NEEDS_REVISION",
+  "criticalIssues": [{"title": "Risk scale undefined", "rationale": "no {x} bounds"}],
+  "suggestions": [{"id": "s1", "rationale": "define a 1-5 scale"}]
+}
+tokens used
+20,379
+{
+  "verdict": "NEEDS_REVISION",
+  "criticalIssues": [{"title": "Risk scale undefined"}],
+  "suggestions": [{"id": "s1"}]
+}
+OUT
+CODEXSH
+  printf '#!/bin/bash\ncat >/dev/null\nprintf %s "{\\"verdict\\":\\"APPROVED\\",\\"criticalIssues\\":[]}"\n' > "$B5/gemini"
+  chmod +x "$B5/codex" "$B5/gemini"
+  ( cd "$T5/proj" && PATH="$B5:$PATH" VIBEFLOW_CWD="$T5/proj" bash "$CRUN" .vibeflow/state/consensus-needed.json >/dev/null 2>&1 )
+  CL="$(cat "$T5/proj/.vibeflow/state/consensus/"*archived*.jsonl 2>/dev/null | jq -c 'select(.reviewer=="codex")' 2>/dev/null | head -1)"
+  if [[ -n "$CL" ]]; then
+    SUG="$(printf '%s' "$CL" | jq -r '.suggestions | length')"
+    CIT="$(printf '%s' "$CL" | jq -r '.criticalItems | length')"
+    if [[ "$SUG" == "1" && "$CIT" == "1" ]]; then
+      pass "[S31-C] runtime: codex 0.135.0 duplicate-object rationale captured (suggestions=1, criticalItems=1)"
+    else
+      fail "[S31-C] runtime: codex 0.135.0 duplicate-object rationale captured (got suggestions=$SUG criticalItems=$CIT)"
+    fi
+  else
+    fail "[S31-C] runtime: duplicate-object codex produced a jsonl line"
+  fi
+  rm -rf "$T5"
 fi
 
 # ---------------------------------------------------------------------------

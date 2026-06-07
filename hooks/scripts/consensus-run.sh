@@ -185,21 +185,46 @@ Your verdict is about the PRIMARY, not the evidence reports.
 PROMPT
 }
 
-# Extract a JSON object from a reviewer CLI's raw output. codex/gemini
-# frequently wrap the verdict JSON in prose or a ```json fence, so a
-# whole-output `fromjson` FAILS and the structured verdict (criticalIssues +
-# suggestions) is silently lost — the reviewer's dissent collapses to an
-# actionless keyword-grep NEEDS_REVISION (the FlowBridge/AntOS "codex gives
-# no rationale, the specialist→apply loop runs blind" bug). Strategy: try the
-# whole output, then strip code fences, then grab the first-`{` … last-`}`
-# span. Emits the JSON on stdout (empty + rc1 if nothing parseable).
+# Emit the FIRST balanced `{…}` object from stdin — brace-counting that
+# ignores braces inside JSON strings + handles escapes. Robust where a greedy
+# first-`{`…last-`}` span over-captures: codex CLI 0.135.0 `exec` mode prints
+# the verdict JSON TWICE (body + trailing echo) with a `tokens used\nN` line
+# wedged between, and the greedy span swallowed both objects + that junk →
+# invalid JSON → the rationale was discarded anyway. Balanced extraction takes
+# just the first complete object.
+_vf_first_json_object() {
+  awk '
+    { buf = buf $0 "\n" }
+    END {
+      s = buf; n = length(s); depth = 0; instr = 0; esc = 0; start = 0
+      for (i = 1; i <= n; i++) {
+        c = substr(s, i, 1)
+        if (start == 0) { if (c == "{") { start = i; depth = 1 } ; continue }
+        if (esc) { esc = 0; continue }
+        if (c == "\\") { esc = 1; continue }
+        if (instr) { if (c == "\"") instr = 0 ; continue }
+        if (c == "\"") { instr = 1; continue }
+        if (c == "{") depth++
+        else if (c == "}") { depth--; if (depth == 0) { print substr(s, start, i - start + 1); exit } }
+      }
+    }'
+}
+
+# Extract a JSON object from a reviewer CLI's raw output. codex/gemini wrap the
+# verdict JSON in prose or a ```json fence (and codex 0.135.0 emits it twice),
+# so a whole-output `fromjson` FAILS and the structured verdict (criticalIssues
+# + suggestions) is silently lost — the reviewer's dissent collapses to an
+# actionless keyword-grep NEEDS_REVISION (the FlowBridge/AntOS "codex gives no
+# rationale, the specialist→apply loop runs blind" bug). Strategy: try the
+# whole output → strip code fences → take the first BALANCED object. Emits the
+# JSON on stdout (empty + rc1 if nothing parseable).
 vf_extract_json() {
   local raw; raw="$(cat)"
   if printf '%s' "$raw" | jq -e . >/dev/null 2>&1; then printf '%s' "$raw"; return 0; fi
   local nf; nf="$(printf '%s\n' "$raw" | sed '/^[[:space:]]*```/d')"
   if printf '%s' "$nf" | jq -e . >/dev/null 2>&1; then printf '%s' "$nf"; return 0; fi
-  local span; span="$(printf '%s' "$nf" | tr '\n' ' ' | sed -E 's/^[^{]*(\{.*\}).*$/\1/')"
-  if printf '%s' "$span" | jq -e . >/dev/null 2>&1; then printf '%s' "$span"; return 0; fi
+  local obj; obj="$(printf '%s' "$nf" | _vf_first_json_object)"
+  if [[ -n "$obj" ]] && printf '%s' "$obj" | jq -e . >/dev/null 2>&1; then printf '%s' "$obj"; return 0; fi
   return 1
 }
 

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.20.3] — 2026-06-07
+
+### Fixed
+- **v2.20.2's JSON unwrap didn't handle codex CLI 0.135.0's duplicate-object
+  output.** codex `exec` mode prints the verdict JSON **twice** (body +
+  trailing echo) with a `tokens used\nN` line wedged between. v2.20.2's
+  `vf_extract_json` used a greedy first-`{`…last-`}` span, which swallowed
+  **both** objects + the junk between → invalid JSON → it fell back to keyword
+  grep and discarded codex's `criticalIssues`/`suggestions` anyway (the same
+  "codex gives no rationale → specialist runs blind" trap v2.20.2 set out to
+  fix). Replaced the greedy span with a **balanced-brace first-object
+  extractor** (`_vf_first_json_object`, an awk state machine that respects
+  braces inside JSON strings + escapes), so only the first complete `{…}`
+  object is taken. Fixed in `consensus-run.sh` and the `consensus-orchestrator`
+  prose. Verified against codex 0.135.0's duplicate-object shape, the
+  Markdown-fenced shape (v2.20.2 case), pure JSON, pure prose, and
+  braces-in-strings. Pinned by `tests/integration/sprint-31.sh [S31-C]` (adds
+  a duplicate-object runtime probe asserting `suggestions`/`criticalItems`
+  survive). Credit: diagnosed in a live AntOS run.
+
+---
+
 ## [2.20.2] — 2026-06-06
 
 ### Fixed
