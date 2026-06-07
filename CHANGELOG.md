@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.21.0] — 2026-06-07
+
+### Added
+- **`consensus.cliTimeoutSeconds` config knob (default 90).** The per-reviewer-CLI
+  timeout in the headless runner + orchestrator was hardcoded at 90s. On a large
+  primary (an 87KB PRD, in the field) a reviewer can exceed it, and a timed-out
+  reviewer is recorded as a conservative `REJECTED` — which can flip an otherwise
+  healthy panel to REJECTED / agreement 0 (a flaky false-rejection). The budget
+  is now config-driven: bump `consensus.cliTimeoutSeconds` for big artifacts
+  (or shrink the prompt via `consensus.excerptTokenBudget`). Added to
+  `ConsensusConfigSchema` (range 10–900, default 90; unit-tested) and read by
+  `consensus-run.sh` / the orchestrator via `vf_config_get`. Pinned by
+  `tests/integration/sprint-31.sh [S31-C]`. Surfaced in a live AntOS run where
+  gemini hit the 90s wall once on an 87KB PRD.
+
+---
+
 ## [2.20.4] — 2026-06-07
 
 ### Fixed

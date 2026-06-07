@@ -149,6 +149,24 @@ describe("ConsensusConfigSchema (Sprint 17-F)", () => {
     expect(cfg.consensus.approvalThreshold).toBe(0.9);
     expect(cfg.consensus.iteration.enabled).toBe(true);
     expect(cfg.consensus.quorum).toBeUndefined();
+    expect(cfg.consensus.cliTimeoutSeconds).toBe(90);
+  });
+
+  it("Sprint 33: accepts a custom cliTimeoutSeconds, rejects out-of-range", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      consensus: { cliTimeoutSeconds: 180 },
+    });
+    expect(cfg.consensus.cliTimeoutSeconds).toBe(180);
+    expect(
+      ConsensusConfigSchema.safeParse({ cliTimeoutSeconds: 9 }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ cliTimeoutSeconds: 901 }).success,
+    ).toBe(false);
+    expect(
+      ConsensusConfigSchema.safeParse({ cliTimeoutSeconds: 90 }).success,
+    ).toBe(true);
   });
 
   it("accepts a partial consensus object and fills the rest", () => {

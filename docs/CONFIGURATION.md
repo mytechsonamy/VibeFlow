@@ -66,6 +66,7 @@ checked into git. Every hook and skill reads it for context.
 | `criticalPaths` | string[] | — | `[]` | File or directory globs marked as critical. Coverage-analyzer enforces 100% on these; mutation-test-runner weights them 2×. |
 | `models.claude` / `.openai` / `.gemini` | string | — | built-in defaults | Model ids passed to the consensus orchestrator. |
 | `consensus.quorum` | integer ≥ 1 | — | CLI-detected | Overrides the expected reviewer count used by `consensus-aggregator.sh`. Default is `1` (claude-reviewer) + `1` per detected CLI (codex, gemini). Set this explicitly in CI or when a CLI is offline. |
+| `consensus.cliTimeoutSeconds` | integer 10–900 | 90 | 90 | Per-reviewer-CLI timeout for headless consensus + the orchestrator. A reviewer that exceeds it is recorded as a conservative `REJECTED`, which can flip the aggregate — so **bump this for large artifacts** (e.g. an 87KB PRD where gemini needs > 90s), or shrink the prompt via `consensus.excerptTokenBudget`. |
 | `defaultPipeline` | `"new-feature"` / `"pre-pr"` / `"staging-uat"` / `"release"` / `"hotfix"` / `"weekly-learning"` / `"production-feedback"` | — | `"new-feature"` | The pipeline `/vibeflow:run-pipeline` defaults to. |
 
 ### Domain → thresholds (built-in, cannot be loosened)

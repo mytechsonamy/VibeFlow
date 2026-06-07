@@ -101,6 +101,13 @@ case "$openaiModel" in ""|default) : ;; *) CODEX_MFLAG="-m $openaiModel" ;; esac
 GEMINI_MFLAG=""
 case "$geminiModel" in ""|default) : ;; *) GEMINI_MFLAG="--model $geminiModel" ;; esac
 
+# Sprint 33: per-reviewer-CLI timeout (seconds), config-driven (default 90).
+# Was hardcoded at 90; a large primary (e.g. an 87KB PRD) can push a reviewer
+# past it, and a timed-out reviewer is recorded as a conservative REJECTED
+# that flips the aggregate. Bump `consensus.cliTimeoutSeconds` for big docs.
+CLI_TIMEOUT="$(vf_config_get '.consensus.cliTimeoutSeconds' 2>/dev/null || echo 90)"
+[[ "$CLI_TIMEOUT" =~ ^[0-9]+$ ]] && (( CLI_TIMEOUT >= 10 )) || CLI_TIMEOUT=90
+
 SESSION_ID="${CLAUDE_SESSION_ID:-headless-$(date -u +%s)-$$}"
 STATE_DIR="$(vf_state_dir)"
 CONS_DIR="$STATE_DIR/consensus"
@@ -293,10 +300,10 @@ warn_cli_error() {  # <name> <rc> <model-label> <config-key> <output>
 }
 
 if command -v codex >/dev/null 2>&1; then
-  CODEX_OUT="$( build_review_prompt | vf_run_timeout 90 codex exec $CODEX_MFLAG --skip-git-repo-check --ephemeral 2>&1 )"
+  CODEX_OUT="$( build_review_prompt | vf_run_timeout "$CLI_TIMEOUT" codex exec $CODEX_MFLAG --skip-git-repo-check --ephemeral 2>&1 )"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
-    echo "consensus-run: codex timed out after 90s (model: ${openaiModel:-<CLI default>})" >&2
+    echo "consensus-run: codex timed out after ${CLI_TIMEOUT}s (model: ${openaiModel:-<CLI default>})" >&2
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
   elif (( CODEX_RC != 0 )); then
     ERRORS=$((ERRORS + 1))
@@ -306,10 +313,10 @@ if command -v codex >/dev/null 2>&1; then
   fi
 fi
 if command -v gemini >/dev/null 2>&1; then
-  GEMINI_OUT="$( build_review_prompt | vf_run_timeout 90 gemini $GEMINI_MFLAG 2>&1 )"
+  GEMINI_OUT="$( build_review_prompt | vf_run_timeout "$CLI_TIMEOUT" gemini $GEMINI_MFLAG 2>&1 )"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
-    echo "consensus-run: gemini timed out after 90s (model: ${geminiModel:-<CLI default>})" >&2
+    echo "consensus-run: gemini timed out after ${CLI_TIMEOUT}s (model: ${geminiModel:-<CLI default>})" >&2
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
   elif (( GEMINI_RC != 0 )); then
     ERRORS=$((ERRORS + 1))

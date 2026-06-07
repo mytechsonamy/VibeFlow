@@ -1,6 +1,6 @@
 ---
 name: consensus-orchestrator
-description: Orchestrates multi-AI review process. Coordinates Claude, ChatGPT (codex CLI), and Gemini (gemini CLI) reviews. Each CLI's verdict is appended to the session jsonl the aggregator reads, per-CLI 90s timeout so the aggregator never falls through to its 600s global wait. On NEEDS_REVISION verdicts the skill auto-invokes consensus-arbiter to decide which reviewer suggestions are applicable to the current phase.
+description: Orchestrates multi-AI review process. Coordinates Claude, ChatGPT (codex CLI), and Gemini (gemini CLI) reviews. Each CLI's verdict is appended to the session jsonl the aggregator reads, per-CLI timeout (consensus.cliTimeoutSeconds, default 90) so the aggregator never falls through to its 600s global wait. On NEEDS_REVISION verdicts the skill auto-invokes consensus-arbiter to decide which reviewer suggestions are applicable to the current phase.
 disable-model-invocation: true
 allowed-tools: Read Write Bash(codex *) Bash(gemini *) Bash(jq *) Bash(timeout *) Bash(gtimeout *) Bash(sleep *) Bash(kill *) Bash(touch *) Bash(rm *) Bash(mkdir *) Grep Glob
 ---
@@ -439,9 +439,15 @@ vf_run_timeout() {   # vf_run_timeout <seconds> <cmd...>   (forwards stdin)
   return "$rc"
 }
 
-# codex — 90s per-CLI timeout so aggregator never sits on its 600s global wait.
+# Sprint 33: per-CLI timeout is config-driven (`consensus.cliTimeoutSeconds`,
+# default 90) so a large primary can lift the budget instead of a slow reviewer
+# being recorded as a conservative REJECTED that flips the aggregate.
+CLI_TIMEOUT="$(vf_config_get '.consensus.cliTimeoutSeconds' 2>/dev/null || echo 90)"
+[[ "$CLI_TIMEOUT" =~ ^[0-9]+$ ]] && (( CLI_TIMEOUT >= 10 )) || CLI_TIMEOUT=90
+
+# codex — per-CLI timeout so aggregator never sits on its 600s global wait.
 if command -v codex >/dev/null 2>&1; then
-  CODEX_OUT="$( { build_memory_block codex; build_review_prompt; } | vf_run_timeout 90 codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
+  CODEX_OUT="$( { build_memory_block codex; build_review_prompt; } | vf_run_timeout "$CLI_TIMEOUT" codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
@@ -455,7 +461,7 @@ fi
 # gemini — same shape. Shares build_review_prompt so both CLIs see
 # the same PRIMARY + EVIDENCE framing.
 if command -v gemini >/dev/null 2>&1; then
-  GEMINI_OUT="$( { build_memory_block gemini; build_review_prompt; } | vf_run_timeout 90 gemini --model "$geminiModel" 2>&1)"
+  GEMINI_OUT="$( { build_memory_block gemini; build_review_prompt; } | vf_run_timeout "$CLI_TIMEOUT" gemini --model "$geminiModel" 2>&1)"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"

@@ -24,6 +24,7 @@ export declare const ConsensusConfigSchema: z.ZodDefault<z.ZodObject<{
     }>>;
     excerptTokenBudget: z.ZodDefault<z.ZodNumber>;
     excerptStrategy: z.ZodDefault<z.ZodEnum<["semantic", "headtail"]>>;
+    cliTimeoutSeconds: z.ZodDefault<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     maxIterations: number;
     approvalThreshold: number;
@@ -32,6 +33,7 @@ export declare const ConsensusConfigSchema: z.ZodDefault<z.ZodObject<{
     };
     excerptTokenBudget: number;
     excerptStrategy: "semantic" | "headtail";
+    cliTimeoutSeconds: number;
     quorum?: number | undefined;
 }, {
     quorum?: number | undefined;
@@ -42,6 +44,7 @@ export declare const ConsensusConfigSchema: z.ZodDefault<z.ZodObject<{
     } | undefined;
     excerptTokenBudget?: number | undefined;
     excerptStrategy?: "semantic" | "headtail" | undefined;
+    cliTimeoutSeconds?: number | undefined;
 }>>;
 export type ConsensusConfig = z.infer<typeof ConsensusConfigSchema>;
 /**
@@ -285,6 +288,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
         }>>;
         excerptTokenBudget: z.ZodDefault<z.ZodNumber>;
         excerptStrategy: z.ZodDefault<z.ZodEnum<["semantic", "headtail"]>>;
+        cliTimeoutSeconds: z.ZodDefault<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
         maxIterations: number;
         approvalThreshold: number;
@@ -293,6 +297,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
         };
         excerptTokenBudget: number;
         excerptStrategy: "semantic" | "headtail";
+        cliTimeoutSeconds: number;
         quorum?: number | undefined;
     }, {
         quorum?: number | undefined;
@@ -303,6 +308,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
         } | undefined;
         excerptTokenBudget?: number | undefined;
         excerptStrategy?: "semantic" | "headtail" | undefined;
+        cliTimeoutSeconds?: number | undefined;
     }>>;
     phaseRunner: z.ZodDefault<z.ZodObject<{
         autoAdvance: z.ZodDefault<z.ZodBoolean>;
@@ -431,6 +437,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
         };
         excerptTokenBudget: number;
         excerptStrategy: "semantic" | "headtail";
+        cliTimeoutSeconds: number;
         quorum?: number | undefined;
     };
     phaseRunner: {
@@ -485,6 +492,7 @@ export declare const EngineConfigSchema: z.ZodObject<{
         } | undefined;
         excerptTokenBudget?: number | undefined;
         excerptStrategy?: "semantic" | "headtail" | undefined;
+        cliTimeoutSeconds?: number | undefined;
     } | undefined;
     phaseRunner?: {
         autoAdvance?: boolean | undefined;

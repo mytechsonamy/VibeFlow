@@ -17785,13 +17785,21 @@ var ConsensusConfigSchema = external_exports.object({
   // "semantic" falls back to head/tail when the doc has no detectable
   // section structure, so it is never worse than the legacy path.
   excerptTokenBudget: external_exports.number().int().min(1e3).max(2e5).default(3e4),
-  excerptStrategy: external_exports.enum(["semantic", "headtail"]).default("semantic")
+  excerptStrategy: external_exports.enum(["semantic", "headtail"]).default("semantic"),
+  // Sprint 33: per-reviewer-CLI timeout (seconds) for the headless
+  // consensus runner + orchestrator. Was hardcoded at 90; a large primary
+  // (e.g. an 87KB PRD) could push gemini/codex past it, and a timed-out
+  // reviewer is recorded as a conservative REJECTED that can flip the whole
+  // aggregate. Bump this for big artifacts. Read by consensus-run.sh via
+  // `vf_config_get '.consensus.cliTimeoutSeconds'` (default 90).
+  cliTimeoutSeconds: external_exports.number().int().min(10).max(900).default(90)
 }).default({
   maxIterations: 5,
   approvalThreshold: 0.9,
   iteration: { enabled: true },
   excerptTokenBudget: 3e4,
-  excerptStrategy: "semantic"
+  excerptStrategy: "semantic",
+  cliTimeoutSeconds: 90
 });
 var PhaseRunnerConfigSchema = external_exports.object({
   autoAdvance: external_exports.boolean().default(true),

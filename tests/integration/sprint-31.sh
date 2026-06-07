@@ -86,7 +86,7 @@ assert_file "[S31-C] consensus-run.sh exists" "$CRUN"
 if [[ -x "$CRUN" ]]; then pass "[S31-C] consensus-run.sh is executable"; else fail "[S31-C] consensus-run.sh is executable"; fi
 bash -n "$CRUN" 2>/dev/null && pass "[S31-C] consensus-run.sh parses" || fail "[S31-C] consensus-run.sh parses"
 assert_grep "[S31-C] consensus-run.sh runs the codex CLI" "codex exec" "$CRUN"
-assert_grep "[S31-C] consensus-run.sh runs the gemini CLI" "vf_run_timeout 90 gemini" "$CRUN"
+assert_grep "[S31-C] consensus-run.sh runs the gemini CLI" 'vf_run_timeout "\$CLI_TIMEOUT" gemini' "$CRUN"
 assert_grep "[S31-C] consensus-run.sh finalises via aggregator --finalize" \
   "consensus-aggregator.sh.*--finalize|--finalize" "$CRUN"
 assert_grep "[S31-C] consensus-run.sh drains consensus-needed.json" \
@@ -134,6 +134,20 @@ assert_grep "[S31-C] orchestrator walks all balanced objects" \
 # invalid JSON).
 assert_grep "[S31-C] consensus-run picks the first valid object that has a verdict" \
   'has\("verdict"\)' "$CRUN"
+# Sprint 33: per-CLI timeout is config-driven (consensus.cliTimeoutSeconds),
+# so a large primary can lift the budget instead of a slow reviewer flipping
+# the aggregate via a conservative timeout-REJECTED.
+assert_grep "[S31-C] consensus-run reads consensus.cliTimeoutSeconds" \
+  'consensus.cliTimeoutSeconds' "$CRUN"
+assert_grep "[S31-C] consensus-run runs reviewers with \$CLI_TIMEOUT (not hardcoded 90)" \
+  'vf_run_timeout "\$CLI_TIMEOUT"' "$CRUN"
+if grep -qE 'vf_run_timeout 90 (codex|gemini)' "$CRUN"; then
+  fail "[S31-C] consensus-run no longer hardcodes vf_run_timeout 90 on a reviewer"
+else
+  pass "[S31-C] consensus-run no longer hardcodes vf_run_timeout 90 on a reviewer"
+fi
+assert_grep "[S31-C] orchestrator timeout is also config-driven" \
+  'vf_run_timeout "\$CLI_TIMEOUT"' "$REPO_ROOT/skills/consensus-orchestrator/SKILL.md"
 
 # Aggregator gained the additive --finalize mode without breaking the
 # SubagentStop path.

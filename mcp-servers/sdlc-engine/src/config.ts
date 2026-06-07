@@ -33,6 +33,13 @@ export const ConsensusConfigSchema = z
     // section structure, so it is never worse than the legacy path.
     excerptTokenBudget: z.number().int().min(1000).max(200000).default(30000),
     excerptStrategy: z.enum(["semantic", "headtail"]).default("semantic"),
+    // Sprint 33: per-reviewer-CLI timeout (seconds) for the headless
+    // consensus runner + orchestrator. Was hardcoded at 90; a large primary
+    // (e.g. an 87KB PRD) could push gemini/codex past it, and a timed-out
+    // reviewer is recorded as a conservative REJECTED that can flip the whole
+    // aggregate. Bump this for big artifacts. Read by consensus-run.sh via
+    // `vf_config_get '.consensus.cliTimeoutSeconds'` (default 90).
+    cliTimeoutSeconds: z.number().int().min(10).max(900).default(90),
   })
   .default({
     maxIterations: 5,
@@ -40,6 +47,7 @@ export const ConsensusConfigSchema = z
     iteration: { enabled: true },
     excerptTokenBudget: 30000,
     excerptStrategy: "semantic",
+    cliTimeoutSeconds: 90,
   });
 
 export type ConsensusConfig = z.infer<typeof ConsensusConfigSchema>;
