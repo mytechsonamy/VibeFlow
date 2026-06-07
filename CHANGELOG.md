@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.25.0] — 2026-06-08
+
+### Added
+- **`/vibeflow:architecture-bootstrap` — the ARCHITECTURE-phase author-side
+  guide** (the counterpart to `design-bootstrap`). `architecture-validator`
+  *validates* `docs/architecture.md` (its hard precondition is that the doc
+  exists) but **nothing authored it** — so a greenfield ARCHITECTURE phase
+  stalled, and operators authored it by hand. The new skill **asks the
+  technology / deployment baseline** (propose sensible defaults / specify the
+  stack / stack-agnostic — each consequential and expensive-to-change, so never
+  invented silently), then authors `docs/architecture.md` (logical/component
+  architecture with boundaries, data model, integration contracts, a
+  **domain-policy-aware** security & privacy architecture, NFRs, deployment
+  baseline, requirements trace) + one revisitable `docs/adr/ADR-NNN-<slug>.md`
+  per decision, and arms the consensus marker. For `financial` it covers the
+  policy areas `architecture-validator` checks (at-rest encryption, PII
+  redaction, WORM audit, RLS, NTP, secrets, kill-switch) head-on, so the
+  validator finds an architecture that addresses them rather than one that's
+  silent. Registered in `phase-policy.json`; `phase-runner`'s ARCHITECTURE row
+  points at it. Docs: `docs/ARCHITECTURE-PHASE.md`.
+
+### Fixed
+- **phase-runner now runs analyzers as skills, not general agents.**
+  phase-runner's Step 2 said "invoke the skill via its slash command (Claude
+  **forks** it)" — and "fork" nudged some sessions to spawn a general-purpose /
+  Explore subagent via the Agent tool instead of running the analyzer skill.
+  The agent returned codebase *exploration*, not the analyzer's validation /
+  marker / auto-satisfy, so the automated phase-gate was silently bypassed and
+  the operator had to redo the work by hand (observed with
+  `architecture-validator` on FlowBridge). Step 2 now says explicitly: use the
+  **Skill tool** (or `/vibeflow:<analyzer>`), do NOT spawn a general/Explore
+  agent — so the PLANNING/TESTING analyzers (`test-strategy-planner`,
+  `traceability-engine`, `coverage-analyzer`, …) actually run with their gates.
+
+Pinned by `tests/integration/sprint-37.sh` (30 assertions). Both surfaced in
+live AntOS + FlowBridge ARCHITECTURE walks.
+
+---
+
 ## [2.24.0] — 2026-06-08
 
 ### Changed (design-bootstrap, Sprint 36)

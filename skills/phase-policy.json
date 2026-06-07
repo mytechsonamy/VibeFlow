@@ -15,6 +15,10 @@
       "phases": ["DESIGN"],
       "description": "Sprint 34. The DESIGN-phase guide: asks the operator for a design source (Claude-native / existing Figma via design-bridge / from-scratch via the official Figma MCP), produces design/ artifacts (spec + tokens + wireframes), and arms the DESIGN consensus marker."
     },
+    "architecture-bootstrap": {
+      "phases": ["ARCHITECTURE"],
+      "description": "Sprint 37. The ARCHITECTURE-phase author-side guide (counterpart to design-bootstrap): asks the operator the technology baseline, then authors docs/architecture.md + ADRs (domain-policy-aware security architecture) and arms the consensus marker. architecture-validator then validates it."
+    },
     "business-rule-validator": {
       "phases": ["ARCHITECTURE", "PLANNING"],
       "description": "Extracts and validates business rules; depends on approved PRD."

@@ -49,7 +49,7 @@ registrations + the Sprint 19-A `docs/PRIMARY-ARTIFACT.md` table.
 |---|---|---|
 | REQUIREMENTS | `prd-quality-analyzer` | `<PRD path from argument or docs/>` |
 | DESIGN | `design-bootstrap` (operator-interactive — produces the design spec; not auto-forked) | `design/design-spec.md` |
-| ARCHITECTURE | `architecture-validator` | `docs/architecture.md` |
+| ARCHITECTURE | `architecture-bootstrap` (operator-interactive author) → `architecture-validator` (validate, model-invocable) | `docs/architecture.md` |
 | PLANNING | `test-strategy-planner`, `traceability-engine` | `.vibeflow/reports/test-strategy.md` |
 | DEVELOPMENT | `quality-gates` | `git diff HEAD~1..HEAD` (staged/committed work) |
 | TESTING | _(generate coverage — Step 2a)_ → `coverage-analyzer`, `mutation-test-runner` | `.vibeflow/reports/coverage-report.md` |
@@ -64,6 +64,14 @@ consensus (Step 3, `consensus-run.sh`) on `design/design-spec.md` (the
 marker's primary, or `design.sourceDir` fallback `design/`) and announces the
 manual-criterion reminder from `docs/AUTO-SATISFY.md` (`design.approved` +
 `accessibility.verified` stay operator-confirmed).
+
+**ARCHITECTURE is the same shape.** `architecture-validator` only *validates*
+`docs/architecture.md` (its hard precondition is that the doc exists), and the
+**operator-interactive** `architecture-bootstrap` is what *authors* it (asking
+the technology baseline). So if `docs/architecture.md` does not exist yet, stop
+and breadcrumb `▶ Next: /vibeflow:architecture-bootstrap`. Once it exists,
+run `architecture-validator` as a **Skill** (Step 2 — not a general agent),
+then headless consensus on `docs/architecture.md`.
 
 ## Process
 
@@ -171,13 +179,30 @@ in CI / by hand and just want the analyze → consensus → advance walk.
 
 Look up the phase's analyzer list from the hardcoded map. For each:
 
-1. Invoke the skill via its slash command (Claude forks it under
-   normal skill dispatch).
+1. **Run the analyzer as a skill — use the Skill tool (or its
+   `/vibeflow:<analyzer>` slash command). Do NOT spawn a general-purpose
+   or Explore agent for it.** The analyzers (`architecture-validator`,
+   `test-strategy-planner`, `traceability-engine`, `coverage-analyzer`,
+   `quality-gates`, …) are model-invocable skills with their own logic +
+   auto-satisfy gates. The word "fork" earlier nudged some sessions to
+   spawn a general/Explore subagent via the Agent/Task tool instead —
+   which returns codebase *exploration*, not the analyzer's validation or
+   its marker / criterion, so the automated phase-gate is silently
+   bypassed and the operator has to redo the work by hand. Skill, not
+   agent.
 2. The analyzer writes its marker (v2 per Sprint 19-A) +
    auto-satisfies its criterion (per Sprint 18) + writes
    `consensus-needed.json`.
 3. `consensus-gate` hook will now block further work until
    consensus runs.
+
+If an analyzer is **operator-interactive** (it must ASK the operator
+something before it can run — `design-bootstrap` for DESIGN,
+`architecture-bootstrap` for ARCHITECTURE author the artifact and need a
+human decision) phase-runner does NOT auto-run it: if its primary artifact
+(`design/design-spec.md`, `docs/architecture.md`) doesn't exist yet, stop
+and breadcrumb `▶ Next: /vibeflow:<bootstrap>` so the operator authors it,
+then re-run phase-runner to validate + consensus it.
 
 Sequential runs so each analyzer's marker drain + re-write
 doesn't collide with the next. For PLANNING and TESTING which
