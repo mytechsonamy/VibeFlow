@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.0] — 2026-06-08
+
+### Added (design-bootstrap, Sprint 35)
+- **UI-facing classification (Step 1b).** Before the source menu,
+  `design-bootstrap` now classifies whether the DESIGN increment is UI-facing
+  (screens / pages / UI-ish platform) or backend/infra-heavy (API / Postgres /
+  K8s / RLS / ops, no screens). If it's backend-heavy it leads the menu with a
+  flag that the UI options may not apply and heavy *technical* design belongs in
+  the ARCHITECTURE phase — it still asks, never auto-decides. (Surfaced by a
+  FlowBridge backend increment where a UI-first menu was the wrong tool.)
+- **Option 4 — Both (compare).** Produces **both** a Claude-native design and a
+  Figma design into `design/candidates/`, writes a side-by-side
+  `design/design-comparison.md` (visual direction, token systems, layout/IA,
+  fidelity, a11y, trade-offs + a recommendation; `db_compare_impl` adds a
+  dimension check when both have screenshots), and lets the operator pick the
+  one to carry forward (or merge) → the chosen candidate becomes the canonical
+  `design/design-spec.md`. For when the look matters enough to weigh two
+  directions.
+- **Option 5 — Technical design.** For a low/no-UI increment, writes
+  `design-spec.md` as a TECHNICAL design (components/services, data model,
+  interfaces, sequences, infra/ops, non-functionals) instead of a UI design —
+  with an honesty check that recommends the ARCHITECTURE phase for heavy
+  architecture. No tokens/wireframes (there's no UI).
+
+Docs: `docs/DESIGN-PHASE.md` updated. Pinned by `tests/integration/sprint-35.sh`
+(25 assertions). Existing sprint-34 design-bootstrap sentinels stay green.
+
+---
+
 ## [2.22.0] — 2026-06-08
 
 ### Added

@@ -1,8 +1,8 @@
 ---
 name: design-bootstrap
-description: The DESIGN-phase guide. Produces the design artifacts (design spec, design tokens, wireframes) that DESIGN consensus reviews. At the start it ASKS the operator which design source to use — Claude-native (zero-setup; generates an attractive, accessible UI spec + tokens + wireframes), an existing Figma file (pulled via the design-bridge MCP into tokens/styles), or designing from scratch in Figma (via the official Figma MCP). Writes everything under design/ and arms the consensus marker. Use at the start of DESIGN.
+description: The DESIGN-phase guide. Produces the design artifacts (design spec, design tokens, wireframes) that DESIGN consensus reviews. It classifies whether the increment is UI-facing, then ASKS the operator which design source — Claude-native (zero-setup attractive accessible UI spec + tokens + wireframes), an existing Figma file (via the design-bridge MCP), designing from scratch in Figma (official Figma MCP), BOTH side-by-side for comparison (design-comparison.md → pick one), or a technical design (low/no-UI backend/infra increments). Writes everything under design/ and arms the consensus marker. Use at the start of DESIGN.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_extract_tokens mcp__design-bridge__db_generate_styles mcp__design-bridge__db_compare_impl
+allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cp *) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_extract_tokens mcp__design-bridge__db_generate_styles mcp__design-bridge__db_compare_impl mcp__claude_ai_Figma__use_figma mcp__claude_ai_Figma__get_design_context mcp__claude_ai_Figma__get_screenshot
 ---
 
 # Design Bootstrap
@@ -44,13 +44,36 @@ Detect what's available, to tailor the offer:
   available iff those tools resolve in this session (richer Dev-Mode +
   design-from-scratch via `use_figma`).
 
+### Step 1b: Is this increment UI-facing? (Sprint 35)
+
+VibeFlow's DESIGN phase is the **UI/UX** phase (Figma, wireframes, tokens,
+accessibility); **technical** design (data model, services, infra) is
+ARCHITECTURE's job. But a DESIGN phase entered for a **backend / infra / ops
+increment** (e.g. "Postgres + RLS + WORM + K8s hardening") has little or no UI
+to design — there, a UI-first menu is the wrong tool. So classify the increment
+before offering the menu (a heuristic — you still **ask**, never auto-decide):
+
+- **UI signals** (→ UI-facing): `platform` ∈ {web, ios, android, all}; PRD
+  mentions screens / pages / ekran / sayfa / arayüz / dashboard / user
+  journeys / wireframes / components / forms.
+- **Backend signals** (→ low/no UI): PRD/increment dominated by API / service /
+  pipeline / infra / altyapı / Postgres / K8s / RLS / WORM / ops / migration /
+  secrets, with no screen inventory.
+
+If backend signals dominate, **lead the menu with a flag**: "this increment
+looks backend/infra-heavy — option 5 (technical design) likely fits; the UI
+options (1–4) may not apply, and heavy architecture work belongs in the
+ARCHITECTURE phase." If UI signals dominate, recommend 1–4 normally.
+
 ## Step 2: ASK the operator which design source (always)
 
 Do **not** assume a default — present the choice every DESIGN run (per the
-framework's design decision). Emit this menu and wait for the answer:
+framework's design decision). Emit this menu, annotated with the Step-1b
+classification + per-option availability, and wait for the answer:
 
 ```
 DESIGN source for <project> (domain=<domain>, platform=<platform>)?
+[<Step-1b flag, if backend-heavy>]
 
   1. Claude-native   — I generate an attractive, accessible UI spec +
                        design tokens + wireframes from the PRD. Zero setup.
@@ -58,16 +81,24 @@ DESIGN source for <project> (domain=<domain>, platform=<platform>)?
                        design-bridge MCP → design tokens + styles + a spec
                        that references your frames. Needs FIGMA_TOKEN + URL.
   3. Figma (scratch) — Design from scratch in Figma using the official Figma
-                       MCP (use_figma) against a design system, then sync the
-                       result back. Needs the Figma MCP connected.
+                       MCP (use_figma) against a design system, then sync back.
+                       Needs the Figma MCP connected.
+  4. Both (compare)  — I produce BOTH a Claude-native design AND a Figma design,
+                       lay them side-by-side in design/design-comparison.md, and
+                       you pick the one to carry forward (or merge). For when the
+                       look matters enough to weigh two directions.
+  5. Technical design— This increment has little/no UI (backend/infra/ops). I
+                       write design-spec.md as a TECHNICAL design instead of a
+                       UI design (or hand the heavy parts to ARCHITECTURE).
 
-Pick 1 / 2 / 3:
+Pick 1 / 2 / 3 / 4 / 5:
 ```
 
 Annotate each option with availability from Step 1 (e.g. "(2 unavailable —
-FIGMA_TOKEN not set; I'll walk you through it if you pick it)"). Whatever the
-operator picks, the **output contract is the same** (Step 4): real files under
-`design/` + the consensus marker.
+FIGMA_TOKEN not set; I'll walk you through it if you pick it)"; "(4 needs a
+Figma path available for its Figma half)"). Whatever the operator picks, the
+**output contract is the same** (Step 4): real files under `design/` + the
+consensus marker on `design/design-spec.md`.
 
 ## Step 3: Route
 
@@ -136,6 +167,55 @@ Otherwise:
 3. Pull the result back: `get_design_context` / `get_screenshot` into
    `design/figma/` (screenshots) and distil a **`design/design-spec.md`**
    (frames, components, tokens, a11y) as the reviewable primary.
+
+### 3·D — Both (compare Claude-native vs Figma) — Sprint 35
+
+For when the look matters enough to weigh two directions before committing.
+
+1. **Produce the Claude-native candidate** (run 3·A) into
+   `design/candidates/claude-native/` — `design-spec.md` + `design-tokens.json`
+   + wireframes.
+2. **Produce the Figma candidate** — run 3·B if the operator has an existing
+   file (design-bridge → tokens/styles), else 3·C (official MCP, from scratch)
+   — into `design/candidates/figma/` (`design-spec.md` + tokens/styles +
+   screenshots). If no Figma path is available, say so and fall back to 3·A
+   only (can't compare against nothing).
+3. **Write `design/design-comparison.md`** — a side-by-side the operator can
+   actually decide from:
+   - visual direction (mood, hierarchy, domain fit),
+   - token systems (palette / type / spacing) — diff the two,
+   - layout + information-architecture approach,
+   - fidelity + accessibility coverage,
+   - effort / maintenance / hand-off trade-offs,
+   - **a recommendation** with the reasoning.
+   When both candidates have screenshots, `db_compare_impl({leftPath,
+   rightPath})` adds a dimension/identity check to the qualitative compare.
+4. **Ask the operator to pick** (1 = Claude-native, 2 = Figma, or "merge —
+   take tokens from X, layout from Y"). Copy the chosen (or merged) candidate
+   to the canonical **`design/design-spec.md`** + `design/design-tokens.json`.
+   Note the choice + rationale at the top of `design-comparison.md`.
+
+The chosen spec is what consensus reviews (Step 4 / Final Step unchanged).
+
+### 3·E — Technical design (low/no-UI increment) — Sprint 35
+
+When Step 1b flagged a backend/infra/ops increment and the operator picks 5.
+First, a one-line honesty check: **if this is heavy architecture** (new
+services, data model, formal tech decisions), say so and recommend doing it in
+the **ARCHITECTURE** phase (ADRs) instead — DESIGN is for UI. If the operator
+still wants a DESIGN-phase technical note (e.g. a light increment, or they're
+treating DESIGN as their technical-design step), write **`design/design-spec.md`**
+as a TECHNICAL design:
+
+- components / services + responsibilities, and their boundaries;
+- data model + key interfaces / contracts (request/response, events);
+- primary sequences / flows (not screens — call paths);
+- infra / ops considerations for the increment (deploy, config, migration);
+- non-functional: security, performance, observability, failure modes;
+- open questions → ARCHITECTURE.
+
+No `design-tokens.json` / wireframes (there's no UI). The same consensus +
+operator-confirmed criteria apply — the panel reviews the technical spec.
 
 ## Step 4: Output contract (all paths)
 

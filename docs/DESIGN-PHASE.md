@@ -18,6 +18,13 @@ It asks you which design source to use — **every run**, no forced default:
 | 1 | **Claude-native** | Generates an attractive, accessible UI spec + design tokens + wireframes from the PRD | nothing (zero setup) |
 | 2 | **Figma (existing file)** | Pulls your Figma file via VibeFlow's `design-bridge` MCP → design tokens + `styles.css` + a spec referencing your frames | `FIGMA_TOKEN` + file URL |
 | 3 | **Figma (from scratch)** | Designs from scratch in Figma via the **official** Figma MCP (`use_figma`) against a design system, then syncs back | the Figma MCP connected |
+| 4 | **Both (compare)** | Produces **both** a Claude-native and a Figma design into `design/candidates/`, lays them side-by-side in `design/design-comparison.md`, and you pick the one to carry forward (or merge) | a Figma path for the Figma half |
+| 5 | **Technical design** | For a low/no-UI increment (backend / infra / ops): writes `design-spec.md` as a **technical** design instead of a UI design (or hands the heavy parts to ARCHITECTURE) | nothing |
+
+It also **classifies the increment first**: if the work looks backend/infra-heavy
+(no screens in the PRD, `platform` not UI-ish, lots of API/infra/Postgres/K8s),
+it leads the menu with a flag that option 5 likely fits and the UI options may
+not — heavy *technical* design belongs in the ARCHITECTURE phase, not DESIGN.
 
 Whichever you pick, the **output is the same**: real files under `design/`
 (`design-spec.md` is the primary the panel reviews) plus the consensus marker.
