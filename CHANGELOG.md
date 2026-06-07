@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.24.0] — 2026-06-08
+
+### Changed (design-bootstrap, Sprint 36)
+- **The compare-both path now compares rendered-vs-rendered, not
+  wireframe-vs-image.** A markdown/ASCII wireframe always loses to a Figma
+  `.png` on looks *because it isn't rendered* — not because the design is
+  worse (both candidates share the same tokens). So in option 4 (Both/compare)
+  the Claude-native candidate now also emits **self-contained HTML/CSS mockups**
+  of the hero screens (`design/candidates/claude-native/mockups/<screen>.html`,
+  inline CSS driven by `design-tokens.json`, real content + states, responsive,
+  accessible) — openable in a browser, screenshot-able to `.png` when a tool is
+  available — and `design/design-comparison.md` puts the two **rendered**
+  designs side by side. The Claude-native path (option 1) likewise prefers a
+  rendered HTML mockup per hero screen over an ASCII sketch alone, so you can
+  *see* the design, not just read it.
+- The skill now also spells out **what "merge" means** at the pick step
+  (operators kept asking): the candidates are the *same* design in two media
+  (same tokens / screens / gating) — nothing to reconcile — so "merge" = keep
+  both, each in its strongest role (Claude spec canonical + diff-able; Figma /
+  HTML mockups as the living visual + Dev-Mode hand-off).
+
+Docs: `docs/DESIGN-PHASE.md`. Pinned by `tests/integration/sprint-36.sh`
+(17 assertions). sprint-34/35 stay green.
+
+---
+
 ## [2.23.0] — 2026-06-08
 
 ### Added (design-bootstrap, Sprint 35)

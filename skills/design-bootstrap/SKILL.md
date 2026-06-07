@@ -126,9 +126,14 @@ skeleton. Apply modern, accessible UI craft:
   palette (base + semantic roles + **dark mode**), a typographic scale
   (families, sizes, weights, line-heights), spacing scale, radii, shadows,
   and motion durations/easings. Domain-tuned. Valid JSON.
-- **`design/wireframes/<screen>.md`** — ASCII/markdown wireframes (or, when
-  the operator wants something clickable, a single-file HTML mockup under
-  `design/mockups/`) for the top 3–5 screens, showing layout + states.
+- **`design/wireframes/<screen>.md`** — ASCII/markdown wireframes for the top
+  3–5 screens, showing layout + states. **Prefer also emitting a rendered
+  visual (Sprint 36):** a self-contained **HTML/CSS mockup** per hero screen
+  under `design/mockups/<screen>.html`, inline CSS driven by
+  `design-tokens.json`, real content + key states, responsive + accessible —
+  so the operator can *see* the design (open in a browser / screenshot),
+  not just read an ASCII sketch. A wireframe alone reads as low-fidelity even
+  when the design is strong; the HTML mockup shows the real thing.
 
 Keep tokens and wireframes consistent with the spec.
 
@@ -175,25 +180,49 @@ For when the look matters enough to weigh two directions before committing.
 1. **Produce the Claude-native candidate** (run 3·A) into
    `design/candidates/claude-native/` — `design-spec.md` + `design-tokens.json`
    + wireframes.
+   - **Render the hero screens (Sprint 36 — fair-fidelity).** When the Figma
+     candidate will produce **rendered visuals** (`.png` exports), a markdown /
+     ASCII wireframe is an **unfair comparison** — Figma always "looks nicer"
+     because it's rendered, not because the design is better (both share the
+     same tokens). So for the top 3–5 hero screens, also emit **self-contained
+     HTML/CSS mockups** under `design/candidates/claude-native/mockups/<screen>.html`:
+     one file per screen, **inline CSS driven by `design-tokens.json`**
+     (the actual palette / type / spacing), real content (not lorem), every
+     key state, responsive, and accessible (semantic HTML, focus styles, ARIA).
+     Opening the file in a browser shows the real UI at Figma-comparable
+     fidelity. **If a screenshot tool is available** in the session (e.g. a
+     browser/Chrome MCP), capture each mockup to
+     `design/candidates/claude-native/mockups/<screen>.png` so the comparison
+     is image-vs-image; otherwise note "open the .html to view / screenshot".
 2. **Produce the Figma candidate** — run 3·B if the operator has an existing
    file (design-bridge → tokens/styles), else 3·C (official MCP, from scratch)
    — into `design/candidates/figma/` (`design-spec.md` + tokens/styles +
    screenshots). If no Figma path is available, say so and fall back to 3·A
    only (can't compare against nothing).
 3. **Write `design/design-comparison.md`** — a side-by-side the operator can
-   actually decide from:
+   actually decide from, **visual-vs-visual** (Sprint 36): embed/link the
+   Claude HTML-mockup renders (or .png screenshots) next to the Figma `.png`
+   exports for the same hero screens, so the operator judges two **rendered**
+   designs, not a wireframe against a picture. Then cover:
    - visual direction (mood, hierarchy, domain fit),
    - token systems (palette / type / spacing) — diff the two,
    - layout + information-architecture approach,
    - fidelity + accessibility coverage,
    - effort / maintenance / hand-off trade-offs,
    - **a recommendation** with the reasoning.
-   When both candidates have screenshots, `db_compare_impl({leftPath,
-   rightPath})` adds a dimension/identity check to the qualitative compare.
+   When both sides have `.png`, `db_compare_impl({leftPath, rightPath})` adds a
+   dimension/identity check to the qualitative compare.
 4. **Ask the operator to pick** (1 = Claude-native, 2 = Figma, or "merge —
    take tokens from X, layout from Y"). Copy the chosen (or merged) candidate
    to the canonical **`design/design-spec.md`** + `design/design-tokens.json`.
    Note the choice + rationale at the top of `design-comparison.md`.
+
+> **What "merge" means here** (operators ask): the two candidates express the
+> **same** design (same tokens, screens, gating) in different media — there is
+> nothing conflicting to reconcile. "Merge" = keep both, each in its strongest
+> role: the **Claude spec** stays canonical (most complete, in-repo, diff-able)
+> and the **Figma file / HTML mockups** stay as the living visual + Dev-Mode
+> hand-off. Pick 1/2 only when you want a single medium.
 
 The chosen spec is what consensus reviews (Step 4 / Final Step unchanged).
 

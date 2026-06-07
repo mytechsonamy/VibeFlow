@@ -79,6 +79,15 @@ a concrete WCAG 2.2 AA accessibility section — tuned to your domain (e.g.
 calm + high-legibility for `financial`). It's the fastest path to a reviewable,
 attractive design, and you can hand the spec + tokens to a designer later.
 
+**You can *see* it, not just read it.** Beyond the ASCII wireframes, Claude
+emits a **rendered HTML/CSS mockup** per hero screen
+(`design/mockups/<screen>.html`, styled from the design tokens) — open it in a
+browser to view the real UI. This matters for **option 4 (compare)**: a
+markdown wireframe always loses to a Figma `.png` on looks *because it's not
+rendered*, not because the design is worse. So in compare mode the Claude
+candidate also renders its hero screens, and `design-comparison.md` puts
+**rendered-vs-rendered** side by side — a fair call.
+
 ## Where it fits
 
 ```
