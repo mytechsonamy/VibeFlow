@@ -102,8 +102,10 @@ assert_grep "[S26-F] orchestrator defines vf_run_timeout" "vf_run_timeout\\(\\)"
 assert_grep "[S26-F] prefers gtimeout when timeout absent" "gtimeout" "$ORCH"
 assert_grep "[S26-F] pure-bash watchdog returns 124" "return 124" "$ORCH"
 assert_grep "[S26-F] watchdog preserves piped stdin (no /dev/null)" '< "\$_in"|drain the piped prompt|stdin from a temp' "$ORCH"
-assert_grep "[S26-F] codex uses vf_run_timeout, not bare timeout" "vf_run_timeout 90 codex" "$ORCH"
-assert_grep "[S26-F] gemini uses vf_run_timeout, not bare timeout" "vf_run_timeout 90 gemini" "$ORCH"
+# Sprint 33 made the per-CLI budget config-driven (vf_run_timeout "$CLI_TIMEOUT");
+# match either the literal 90 or the config var — the point is vf_run_timeout.
+assert_grep "[S26-F] codex uses vf_run_timeout, not bare timeout" 'vf_run_timeout (90|"\$CLI_TIMEOUT") codex' "$ORCH"
+assert_grep "[S26-F] gemini uses vf_run_timeout, not bare timeout" 'vf_run_timeout (90|"\$CLI_TIMEOUT") gemini' "$ORCH"
 assert_absent "[S26-F] no bare 'timeout 90 codex' left" "[^_]timeout 90 codex" "$ORCH"
 assert_absent "[S26-F] no bare 'timeout 90 gemini' left" "[^_]timeout 90 gemini" "$ORCH"
 assert_grep "[S26-F] allowed-tools include gtimeout" "Bash\\(gtimeout" "$ORCH"

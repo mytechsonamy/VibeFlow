@@ -1,7 +1,6 @@
 ---
 name: deploy-verifier
 description: Verify a completed deployment by cross-checking the CI pipeline status (dev-ops MCP) + service health dashboard (observability MCP) + optional smoke-test endpoints. Auto-satisfies the DEPLOYMENT phase's `deployment.verified` and `health.checks.passed` exit criteria when every declared check returns green. Writes a consensus-needed marker so the third DEPLOYMENT criterion (`consensus.deployment.approved`) still gates through multi-AI review.
-disable-model-invocation: true
 allowed-tools: Read Write Bash(curl *) Bash(jq *)
 ---
 

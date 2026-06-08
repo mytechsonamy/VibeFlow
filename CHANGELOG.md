@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.29.0] — 2026-06-08
+
+### Fixed
+- **Three auto-satisfy analyzers were `disable-model-invocation: true`, so
+  phase-runner couldn't run them.** `quality-gates` (DEVELOPMENT),
+  `release-decision-engine` + `deploy-verifier` (DEPLOYMENT) are mechanical
+  auto-satisfy analyzers — their own descriptions say they exist to satisfy a
+  phase's exit criterion "without manual MCP calls" — but `disable-model-invocation: true`
+  made them un-forkable, so `phase-runner` couldn't run them and the operator
+  had to do the lint/typecheck/tests (or the release decision) by hand. Removed
+  `disable-model-invocation: true` from all three; the human stays in control via
+  the visible decision output, the `consensus.<phase>.approved` gates, and the
+  deploy being a separate manual action. (Same misconfiguration class as the
+  v2.26.0 `agent: Explore` fix.)
+- **phase-runner's DEVELOPMENT diff was a hardcoded `git diff HEAD~1..HEAD`** —
+  which **exits 128** when the project isn't a git repo or has fewer than two
+  commits (no `HEAD~1`), and only reviewed the **last commit** even though a
+  DEVELOPMENT increment usually spans several commits. Step 2 now resolves the
+  base robustly: a git-repo guard, then the merge-base with the default branch
+  (so the **whole increment** is reviewed), falling back to `HEAD~1`, then to the
+  empty tree (so the very first commit is reviewable). `git diff <base>..HEAD`
+  no longer crashes and reviews the full increment.
+
+Pinned by `tests/integration/sprint-41.sh` (the three analyzers are invocable +
+a runtime probe of the base resolver over single-commit / two-commit / non-git
+repos). Both surfaced in a live AntOS DEVELOPMENT run.
+
+---
+
 ## [2.28.0] — 2026-06-08
 
 ### Added

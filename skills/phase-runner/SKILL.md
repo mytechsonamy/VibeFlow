@@ -51,7 +51,7 @@ registrations + the Sprint 19-A `docs/PRIMARY-ARTIFACT.md` table.
 | DESIGN | `design-bootstrap` (operator-interactive — produces the design spec; not auto-forked) | `design/design-spec.md` |
 | ARCHITECTURE | `architecture-bootstrap` (operator-interactive author) → `architecture-validator` (validate, model-invocable) | `docs/architecture.md` |
 | PLANNING | `test-strategy-planner`, `traceability-engine` | `.vibeflow/reports/test-strategy.md` |
-| DEVELOPMENT | `quality-gates` | `git diff HEAD~1..HEAD` (staged/committed work) |
+| DEVELOPMENT | `quality-gates` | the increment diff — `git diff <base>..HEAD`, base resolved robustly (see below; **not** a hardcoded `HEAD~1..HEAD`) |
 | TESTING | _(generate coverage — Step 2a)_ → `coverage-analyzer`, `mutation-test-runner` | `.vibeflow/reports/coverage-report.md` |
 | DEPLOYMENT | `release-decision-engine`, `deploy-verifier` | `release-notes/<version>.md` |
 
@@ -72,6 +72,36 @@ the technology baseline). So if `docs/architecture.md` does not exist yet, stop
 and breadcrumb `▶ Next: /vibeflow:architecture-bootstrap`. Once it exists,
 run `architecture-validator` as a **Skill** (Step 2 — not a general agent),
 then headless consensus on `docs/architecture.md`.
+
+**DEVELOPMENT — resolve the diff robustly (don't hardcode `HEAD~1..HEAD`).**
+The analyzer-map lists the primary as "the diff", but a literal
+`git diff HEAD~1..HEAD` is fragile: it **fails with exit 128** when the project
+isn't a git repo or has fewer than two commits (no `HEAD~1`), and it only
+reviews the **last commit** — a DEVELOPMENT increment usually spans several
+commits (sprints / slices). Resolve the base first:
+
+```bash
+# 1) must be a git repo
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "DEVELOPMENT review needs a git repo (the primary is the work diff)."
+  echo "▶ Next: git init + commit your work, then re-run /vibeflow:phase-runner"
+  exit 0; }
+# 2) prefer the increment base (merge-base with the default branch) so the WHOLE
+#    increment is reviewed, not just the last commit
+BASE="$(git merge-base HEAD origin/main 2>/dev/null \
+     || git merge-base HEAD main 2>/dev/null \
+     || git merge-base HEAD origin/master 2>/dev/null || echo '')"
+# 3) fallbacks: ≥2 commits → HEAD~1 ; exactly 1 commit (initial) → the empty tree
+if [ -z "$BASE" ]; then
+  if git rev-parse HEAD~1 >/dev/null 2>&1; then BASE="HEAD~1"
+  else BASE="$(git hash-object -t tree /dev/null)"; fi   # empty tree → first commit IS reviewable
+fi
+DIFF_RANGE="$BASE..HEAD"          # the DEVELOPMENT primary
+```
+
+Use `$DIFF_RANGE` as the primary the `quality-gates` analyzer + consensus
+review. `quality-gates` runs lint/typecheck/tests (mechanical — invoke it as a
+**Skill**, not a general agent); consensus on the diff satisfies `code.reviewed`.
 
 ## Process
 

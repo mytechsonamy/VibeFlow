@@ -1,7 +1,6 @@
 ---
 name: quality-gates
 description: Run the project's lint + typecheck + unit-test commands (resolved from vibeflow.config.json.tech.*) and auto-satisfy the DEVELOPMENT phase's `quality.gates.passed` exit criterion when all three exit 0. Pairs with consensus-orchestrator, which satisfies `code.reviewed` on APPROVED verdicts. Together they unblock DEVELOPMENT → TESTING advance without manual MCP calls.
-disable-model-invocation: true
 allowed-tools: Read Write Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(mypy *) Bash(tsc *) Bash(eslint *) Bash(prettier *) Bash(pytest *) Bash(dotnet *) Bash(ruff *) Bash(black *) Bash(cargo *) Bash(go *)
 ---
 

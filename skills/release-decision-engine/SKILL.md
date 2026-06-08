@@ -1,7 +1,6 @@
 ---
 name: release-decision-engine
 description: Aggregates all quality signals into a deterministic release decision (GO/CONDITIONAL/BLOCKED). Uses domain-specific weighted scoring. Always runs LAST in staging-uat and release-decision pipelines. Use when deciding whether a release is safe.
-disable-model-invocation: true
 allowed-tools: Read Write Grep Glob
 context: fork
 ---
