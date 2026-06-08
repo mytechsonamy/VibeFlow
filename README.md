@@ -168,17 +168,35 @@ offline/network-failure/large-input sentinels.
 ## Getting started
 
 VibeFlow installs as a **Claude Code plugin** — minutes, no infrastructure.
+The MCP servers ship pre-bundled, so there's nothing to build.
 
-```bash
-git clone https://github.com/mytechsonamy/VibeFlow.git
-cd VibeFlow
-# build the MCP servers
-npm install && npm run build
+**Install (inside a Claude Code session):**
+
+```
+/plugin marketplace add github:mytechsonamy/VibeFlow
+/plugin install vibeflow@vibeflow
 ```
 
-Then register it with Claude Code per [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md).
-Optional integrations (Figma, GitHub/GitLab) and the non-Claude reviewers
-(`codex`, `gemini`) activate only when their tokens / CLIs are present.
+> Using the interactive `/plugin` menu instead? In the **Add Marketplace**
+> field enter `mytechsonamy/VibeFlow` (bare `owner/repo` — **no `github:`
+> prefix**, the menu rejects it); the `github:` form is only for the slash
+> command above.
+
+Then **restart Claude Code** and verify with `/vibeflow:flow-status` (it
+should report "project not initialized"). Start your first project with:
+
+```
+/vibeflow:onboard
+```
+
+**Prerequisites:** Claude Code, Node 18+, Git, and **`jq`** (the hooks need
+it). For multi-AI consensus install at least one of the **`codex`** / **`gemini`**
+CLIs (authenticated). Optional: a Figma token (DESIGN) and a GitHub/GitLab
+token (DEPLOYMENT) — these integrations activate only when present.
+
+Full walkthrough: [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md).
+Developing the plugin itself? Clone it and run with
+`claude --plugin-dir ./` (see GETTING-STARTED, Option B).
 
 > A runnable demo lives in [`examples/demo-app`](examples/demo-app).
 
@@ -194,8 +212,9 @@ Optional integrations (Figma, GitHub/GitLab) and the non-Claude reviewers
 
 ## Status & scope
 
-- **v2.18.0** — 30 engineering sprints; the autonomous-learning arc is
-  feature-complete.
+- **v2.26.0** — 38 engineering sprints; the autonomous-learning arc is
+  feature-complete, plus guided DESIGN + ARCHITECTURE phases (Figma /
+  Claude-native design, ADR authoring) and a hardened consensus pipeline.
 - This is a **governance layer and a reference architecture**, not a SaaS
   product. It is a plugin: your machines, your files, your Git.
 - It depends on the Claude Code runtime and, for non-Claude reviewers, on
