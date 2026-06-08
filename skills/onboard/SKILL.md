@@ -88,19 +88,29 @@ If source files are absent, skip this step entirely.
 
 ### Step 5: Confirm + Hand Off
 
-Show the user a short summary of the configuration. The
-`prd-quality-analyzer` command produces
-`.vibeflow/reports/prd-quality-report.md` and determines whether the
-REQUIREMENTS exit criteria (`prd.approved` + `testability.score>=60`)
-can be satisfied.
+Show the user a short summary of the configuration, then close with the
+breadcrumb as the **literal last line** of your output (the `▶ Next:` prefix
+is the project-wide next-step convention — keep it verbatim). **Branch on
+greenfield vs brownfield** (from Step 4):
 
-Then close with the breadcrumb as the **literal last line** of your
-output (the `▶ Next:` prefix is the project-wide next-step convention —
-keep it verbatim so operators always know the one command to run next):
+- **Brownfield** (source files already exist) — the operator has a codebase,
+  not a PRD. Point them at the brownfield on-ramp, which fingerprints the repo
+  and helps them define the increment (describe it / a doc / guided Q&A / an
+  issue) into a scoped requirements doc:
 
-```
-▶ Next: /vibeflow:prd-quality-analyzer docs/<your-prd>.md
-```
+  ```
+  ▶ Next: /vibeflow:brownfield-intake
+  ```
+
+- **Greenfield** (no source yet) — they bring a PRD; score it directly:
+
+  ```
+  ▶ Next: /vibeflow:prd-quality-analyzer docs/<your-prd>.md
+  ```
+
+Either path leads into REQUIREMENTS (`prd-quality-analyzer` produces
+`.vibeflow/reports/prd-quality-report.md` and gates `prd.approved` +
+`testability.score>=60`).
 
 Do **not** offer to scaffold tests, generate code, or advance the phase
 from this skill. Each of those actions belongs in a later phase and has

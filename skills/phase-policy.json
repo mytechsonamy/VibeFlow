@@ -11,6 +11,10 @@
       "phases": ["REQUIREMENTS"],
       "description": "Scores PRD testability and surfaces ambiguity; only meaningful before DESIGN."
     },
+    "brownfield-intake": {
+      "phases": ["REQUIREMENTS"],
+      "description": "Sprint 39. The brownfield on-ramp: after onboard on an existing codebase, fingerprints the repo (codebase-intel) and asks how to define the increment (describe / doc / guided Q&A / GitHub-GitLab issue), then synthesizes a code-anchored, increment-scoped requirements doc for prd-quality-analyzer."
+    },
     "design-bootstrap": {
       "phases": ["DESIGN"],
       "description": "Sprint 34. The DESIGN-phase guide: asks the operator for a design source (Claude-native / existing Figma via design-bridge / from-scratch via the official Figma MCP), produces design/ artifacts (spec + tokens + wireframes), and arms the DESIGN consensus marker."

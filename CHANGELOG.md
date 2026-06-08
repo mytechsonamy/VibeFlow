@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.0] — 2026-06-08
+
+### Added
+- **`/vibeflow:brownfield-intake` — the brownfield on-ramp.** VibeFlow's SDLC
+  starts at REQUIREMENTS, which assumes a PRD to score — but a brownfield
+  project already has code and is doing an *increment*, not building the whole
+  product. The new skill: (1) **understands the code first** — fingerprints the
+  repo via the `codebase-intel` MCP (`ci_analyze_structure` /
+  `ci_dependency_graph` / `ci_find_hotspots` / `ci_tech_debt_scan`) so you don't
+  explain the architecture; (2) **asks how to define the work — 4 ways**:
+  describe it in plain language, point to an existing requirements/spec doc,
+  answer guided questions, or pull a GitHub/GitLab issue (`gh`/`glab` by
+  number/URL, or pasted text); (3) **synthesizes a code-anchored,
+  increment-scoped requirements doc** (`docs/<increment>-requirements.md`) —
+  goal, explicit in/out scope, the modules it touches (from the dependency
+  graph), a **change-type classification** (UI / backend / infra) with the phase
+  implications, acceptance criteria, compatibility constraints, risks; (4) hands
+  off to `prd-quality-analyzer` → `phase-runner`, scoped to the increment.
+  `onboard` now **branches**: on an existing codebase it breadcrumbs to
+  `brownfield-intake` (not straight to `prd-quality-analyzer`, which expects a
+  PRD). The change-type classification feeds `design-bootstrap` (UI vs
+  technical) and `architecture-bootstrap` (incremental). Registered in
+  `phase-policy.json`. Docs: `docs/BROWNFIELD.md`. Pinned by
+  `tests/integration/sprint-39.sh` (32 assertions).
+
+---
+
 ## [2.26.0] — 2026-06-08
 
 ### Fixed
