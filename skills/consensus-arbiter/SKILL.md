@@ -4,7 +4,6 @@ description: Reads the verdict + reviewer suggestions from a consensus session, 
 disable-model-invocation: true
 allowed-tools: Read Write Grep Glob Bash(jq *) Bash(mkdir *) Bash(rm *)
 context: fork
-agent: Explore
 ---
 
 # Consensus Arbiter

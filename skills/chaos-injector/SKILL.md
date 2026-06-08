@@ -3,7 +3,6 @@ name: chaos-injector
 description: Injects controlled failures (network, dependency, clock, resource) into a running test environment at one of three intensity profiles (gentle/moderate/brutal), observes whether the system degrades gracefully, and computes a resilience score. Every injection has a mandatory recovery step; blast-radius overflow aborts the run. Gate contract — production is forbidden, every injection must have a verified recovery, no cascading failures on the gentle profile. PIPELINE-3 step 2.
 allowed-tools: Read Write Bash(docker *) Bash(tc *) Bash(curl *) Bash(kill *) Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Chaos Injector

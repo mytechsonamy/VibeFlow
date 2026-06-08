@@ -3,7 +3,6 @@ name: regression-test-runner
 description: Runs the project's existing test suite at the scope appropriate for the trigger (smoke on PR, full on release, incremental on file change), diffs results against regression-baseline.json, classifies every test as passing / new-failure / still-failing / fixed / flaky, and enforces a P0 pass-rate gate. Gate contract — P0 pass rate must be exactly 100% before a run can update the baseline. PIPELINE-2 step 4 / PIPELINE-5 step 2.
 allowed-tools: Read Write Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(git *) Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Regression Test Runner

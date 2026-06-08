@@ -3,7 +3,6 @@ name: component-test-writer
 description: Generates component-level unit tests from source files and (optionally) a scenario-set.md. Framework-aware (vitest | jest) via repo-fingerprint, never guesses. Enforces strict Arrange-Act-Assert structure, preserves every scenario as a test case, and refuses to overwrite existing tests. PIPELINE-1 step 4.
 allowed-tools: Read Grep Glob Write
 context: fork
-agent: Explore
 ---
 
 # Component Test Writer

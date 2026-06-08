@@ -4,7 +4,6 @@ description: Aggregates all quality signals into a deterministic release decisio
 disable-model-invocation: true
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Release Decision Engine

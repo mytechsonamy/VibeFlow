@@ -3,7 +3,6 @@ name: coverage-analyzer
 description: Parses vitest/jest/istanbul coverage JSON, rolls up line/branch/function coverage to the requirement level via RTM, ranks uncovered gaps by risk, and enforces domain-specific thresholds. Gate contract — every P0 requirement has 100% coverage of its mapped lines, overall coverage meets the domain threshold, and no unjustified exclusions. PIPELINE-5 step 5 / PIPELINE-6 step 4.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Coverage Analyzer

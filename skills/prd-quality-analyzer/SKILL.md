@@ -3,7 +3,6 @@ name: prd-quality-analyzer
 description: Analyzes PRD documents for ambiguity, conflicts, and missing flows. Produces testability score (0-100). Writes a report to .vibeflow/reports/prd-quality-report.md and a cost-avoidance breakdown to .vibeflow/reports/prd-cost-avoidance.md. Use when reviewing requirements, validating PRDs, or before starting development. Blocks development if testability score < 60.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # PRD Quality Analyzer

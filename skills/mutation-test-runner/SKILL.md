@@ -3,7 +3,6 @@ name: mutation-test-runner
 description: Generates code mutations from a fixed operator catalog, runs the test suite against each mutant, and computes the mutation score. A surviving mutant points directly at an assertion that doesn't actually check what it claims. Gate contract — zero surviving mutants in P0 code + domain-specific mutation score threshold. PIPELINE-2 step 2 (conditional) / PIPELINE-6 step 2.
 allowed-tools: Read Write Bash(npx *) Bash(node *) Bash(git *) Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Mutation Test Runner

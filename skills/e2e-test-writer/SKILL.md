@@ -3,7 +3,6 @@ name: e2e-test-writer
 description: Generates end-to-end tests from scenario-set.md. Web target → Playwright; mobile target → Detox. Every test imports a Page Object (never touches raw selectors), uses a named auth strategy, waits on observable conditions (never sleeps), and preserves scenario ids as trace anchors. Gate contract — zero raw selectors in the test body, zero sleep-based waits, zero xpath selectors. PIPELINE-3 step 2.
 allowed-tools: Read Grep Glob Write
 context: fork
-agent: Explore
 ---
 
 # E2E Test Writer

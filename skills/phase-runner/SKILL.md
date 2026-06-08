@@ -180,16 +180,17 @@ in CI / by hand and just want the analyze → consensus → advance walk.
 Look up the phase's analyzer list from the hardcoded map. For each:
 
 1. **Run the analyzer as a skill — use the Skill tool (or its
-   `/vibeflow:<analyzer>` slash command). Do NOT spawn a general-purpose
-   or Explore agent for it.** The analyzers (`architecture-validator`,
-   `test-strategy-planner`, `traceability-engine`, `coverage-analyzer`,
-   `quality-gates`, …) are model-invocable skills with their own logic +
-   auto-satisfy gates. The word "fork" earlier nudged some sessions to
-   spawn a general/Explore subagent via the Agent/Task tool instead —
-   which returns codebase *exploration*, not the analyzer's validation or
-   its marker / criterion, so the automated phase-gate is silently
-   bypassed and the operator has to redo the work by hand. Skill, not
-   agent.
+   `/vibeflow:<analyzer>` slash command).** The analyzers
+   (`architecture-validator`, `test-strategy-planner`, `traceability-engine`,
+   `coverage-analyzer`, `quality-gates`, …) are model-invocable skills with
+   their own logic + auto-satisfy gates. If an analyzer comes back as a
+   bare *codebase exploration* / summary (no report written, no
+   marker / criterion), that is the **Sprint 38 bug** — those skills used
+   to carry `agent: Explore` in their frontmatter, which routed them to the
+   read-only Explore agent that **cannot Write** their report, so they
+   couldn't execute and the phase-gate was silently bypassed. v2.26.0
+   removed `agent: Explore` from all of them; if you still see exploration,
+   the installed plugin is stale — update it.
 2. The analyzer writes its marker (v2 per Sprint 19-A) +
    auto-satisfies its criterion (per Sprint 18) + writes
    `consensus-needed.json`.

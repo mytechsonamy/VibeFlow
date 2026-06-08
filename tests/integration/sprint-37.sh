@@ -67,8 +67,8 @@ assert_grep "[S37-B] phase-runner breadcrumbs to architecture-bootstrap" \
 # The Skill-not-Agent fix (FlowBridge: validator returned exploration).
 assert_grep "[S37-B] Step 2 says run analyzers via the Skill tool, not a general agent" \
   "use the Skill tool|Skill, not agent|Do NOT spawn a general-purpose" "$RUNNER"
-assert_grep "[S37-B] Step 2 warns Explore/general agent returns exploration not validation" \
-  "exploration.*not the analyzer|general/Explore subagent|returns codebase" "$RUNNER"
+assert_grep "[S37-B] Step 2 explains the exploration symptom (Sprint 38 agent:Explore root cause)" \
+  "codebase exploration|agent: Explore|Explore agent that .*cannot Write" "$RUNNER"
 
 # ---------------------------------------------------------------------------
 echo "== [S37-C] docs/ARCHITECTURE-PHASE.md =="

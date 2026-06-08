@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.26.0] — 2026-06-08
+
+### Fixed
+- **27 skills silently ran on the read-only Explore agent and couldn't
+  execute** — the real root cause behind the recurring "the validator
+  returned a codebase exploration, not its report" bug
+  (`architecture-validator`, `release-decision-engine`, …). Those skills
+  carried **`agent: Explore`** in their frontmatter, which runs them on the
+  Explore agent — a read-only search agent whose toolset **excludes `Write`**.
+  So a skill with `allowed-tools: Read Write …` could not actually write its
+  report, auto-satisfy its criterion, or do its validation; it came back as a
+  bare codebase summary and the automated phase-gate was silently bypassed.
+  (v2.25.0 misdiagnosed this as the *model* spawning an Explore agent and only
+  hardened phase-runner's prose — the skills' own frontmatter was the cause.)
+  **Removed `agent: Explore` from all 27 skills** (`context: fork` is kept —
+  `apply-arbiter-patch` proves a forked skill writes fine without the Explore
+  routing). The analyzers/validators now execute and write their reports.
+  Pinned by `tests/integration/sprint-38.sh` (a regression guard that no skill
+  frontmatter carries `agent: Explore`). Surfaced in a live AntOS ARCHITECTURE
+  run where `architecture-validator` returned exploration despite being invoked
+  via the Skill tool.
+
+---
+
 ## [2.25.0] — 2026-06-08
 
 ### Added

@@ -3,7 +3,6 @@ name: test-data-manager
 description: Generates deterministic test data factories and fixtures from TypeScript types, Zod schemas, or JSON Schema. Seeded RNG means same seed → same data on every machine. Injects edge cases (boundary values, nulls, unicode, empty collections) from a canonical catalog and respects declared invariants. Produces <domain>.factory.ts + fixtures/<domain>.json. PIPELINE-1 step 4.
 allowed-tools: Read Grep Glob Write
 context: fork
-agent: Explore
 ---
 
 # Test Data Manager

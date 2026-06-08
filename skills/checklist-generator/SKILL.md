@@ -3,7 +3,6 @@ name: checklist-generator
 description: Emits context-aware review checklists (PR review, release, feature sign-off, accessibility) driven by platform (web / mobile / backend / all) and enriched with scenario-set.md coverage gaps. Every item must be verifiable (action + source of truth + binary outcome) — vague prose is rejected. PIPELINE-2 step 3.
 allowed-tools: Read Grep Glob Write
 context: fork
-agent: Explore
 ---
 
 # Checklist Generator

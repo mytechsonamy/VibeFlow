@@ -3,7 +3,6 @@ name: invariant-formalizer
 description: Turns natural-language invariants from business-rules.md / the PRD into machine-checkable predicates (Zod refinements, runtime guards, Z3 SMT constraints, property-based generators). Emits invariant-matrix.md + invariants.ts. Gate contract — zero unformalized P0 invariants. PIPELINE-3 step 2.
 allowed-tools: Read Grep Glob Write
 context: fork
-agent: Explore
 ---
 
 # Invariant Formalizer

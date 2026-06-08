@@ -3,7 +3,6 @@ name: environment-orchestrator
 description: Produces env-setup.md — a reproducible, teardown-safe environment recipe for a given test profile (unit/integration/e2e/uat/perf) and platform. Assembles components from a catalog, pins image versions, declares healthchecks, and never inlines secrets. Gate contract — every component has a healthcheck, every setup has a teardown, secrets flow through references only. PIPELINE-3 step 1.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Environment Orchestrator

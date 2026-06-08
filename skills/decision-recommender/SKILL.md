@@ -3,7 +3,6 @@ name: decision-recommender
 description: Produces structured decision packages (problem statement + options + trade-offs + recommendation + effort estimate) from any findings report. Used when a decision needs framing, not auto-gating. Consumes learning-loop-engine recommendations + L2 skill reports + team context, and emits decision-package.md. Gate contract — every recommendation cites specific findings, every option has trade-offs in both directions, every recommendation carries an effort estimate, 'do nothing' is always included as option zero. PIPELINE-4 step 2 (conditional).
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Decision Recommender

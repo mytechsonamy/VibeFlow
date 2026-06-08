@@ -3,7 +3,6 @@ name: contract-test-writer
 description: Generates consumer + provider contract tests from an OpenAPI (2.x/3.x) or GraphQL SDL file, and diffs the current spec against the previous one to classify breaking changes (MAJOR/MINOR/PATCH). Emits contract.test.ts + contract-report.md. MAJOR diffs block the release gate. PIPELINE-1 step 4.
 allowed-tools: Read Grep Glob Write
 context: fork
-agent: Explore
 ---
 
 # Contract Test Writer

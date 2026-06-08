@@ -3,7 +3,6 @@ name: architecture-validator
 description: Validates a proposed software architecture against domain policies, the approved PRD, and (optionally) the current codebase's import graph. Writes .vibeflow/reports/architecture-report.md and one .vibeflow/reports/adr-NNN-<slug>.md per accepted decision. Blocks advance if any criticalPolicyViolations > 0. PIPELINE-1 step 2.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Architecture Validator

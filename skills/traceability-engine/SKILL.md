@@ -3,7 +3,6 @@ name: traceability-engine
 description: Maps PRD requirements to test scenarios to source code. Detects untested requirements, orphan tests, and stale traces. Writes the Requirements Traceability Matrix to .vibeflow/reports/rtm.md and a gap summary to .vibeflow/reports/traceability-gaps.md. Use for coverage gap analysis, requirement validation, and audit trails.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Traceability Engine

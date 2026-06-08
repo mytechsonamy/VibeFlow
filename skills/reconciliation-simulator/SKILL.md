@@ -3,7 +3,6 @@ name: reconciliation-simulator
 description: Simulates concurrent ledger operations against a canonical set of financial invariants (double-entry, conservation, sign convention, monetary precision), detects balance drift under contention, and generates reproducible reconciliation test cases. Financial-domain-only — blocks for every other domain. Gate contract — zero invariant violations across every tested concurrency pattern, deterministic simulation (same seed → same outcome), every violation traces to a specific operation sequence. PIPELINE-3 step 4 (financial-only).
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Reconciliation Simulator

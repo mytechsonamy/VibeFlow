@@ -3,7 +3,6 @@ name: test-priority-engine
 description: Ranks the test suite by risk so the highest-leverage tests run first. Consumes changed files + regression-baseline.json + ob_track_flaky history, applies a deterministic risk model, and emits priority-plan.md. Gate contract — every affected P0 test appears in the plan, regardless of mode budget. PIPELINE-2 step 1 / PIPELINE-5 step 1.
 allowed-tools: Read Write Bash(git *) Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Test Priority Engine

@@ -3,7 +3,6 @@ name: learning-loop-engine
 description: Consumes the full history of reports from every L2 skill, detects recurring patterns, traces production bugs back to missed test opportunities, detects quality drift across sprint baselines, mines the cross-session consensus telemetry for slow-converging phases and recurring reviewer themes, and recommends the next maturity-stage improvements. Operates in four modes — test-history / production-feedback / drift-analysis / consensus-history — each with its own pattern-detection flow. Gate contract — every recommendation must be actionable, every pattern must carry ≥ 3 supporting observations, every production bug must trace to a specific test gap or be marked irreducible with justification. PIPELINE-6 step 1 / PIPELINE-7 step 1.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Learning Loop Engine

@@ -3,7 +3,6 @@ name: uat-executor
 description: Executes UAT scenarios against a live staging environment, walks automated steps via a runner (playwright/detox) and human-in-the-loop steps via prompts, collects evidence (screenshots + timings + console) on every step, and emits uat-raw-report.md. Gate contract — every failed step must carry evidence, every P0 scenario must be executed. PIPELINE-3 step 3.
 allowed-tools: Read Write Bash(playwright *) Bash(detox *) Bash(curl *) Grep Glob
 context: fork
-agent: Explore
 ---
 
 # UAT Executor

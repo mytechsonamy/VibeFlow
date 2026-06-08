@@ -3,7 +3,6 @@ name: visual-ai-analyzer
 description: Uses Claude vision to inspect screenshots for layout regressions, accessibility issues, typography drift, and design fidelity. Complementary to design-bridge's db_compare_impl (which does dimension + byte identity) — this skill actually SEES the images and describes what changed. Gate contract — zero critical visual regressions in P0 scenarios, accessibility findings require remediation, design-diff above tolerance needs human review. PIPELINE-5 step 7 / PIPELINE-6 step 6.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Visual AI Analyzer

@@ -3,7 +3,6 @@ name: test-result-analyzer
 description: Classifies test failures into bug / flaky / environment / test-defect, links each failure back to its RTM requirement, and generates ready-to-import backlog tickets for the real bugs. Consumes uat-raw-report.md or raw runner JSON via ob_collect_metrics. Gate contract — every failure is classified (no UNCLASSIFIED leaks to downstream), every 'bug' classification has a confidence ≥ 0.7, every generated ticket traces back to a scenario id. PIPELINE-5 step 4 / PIPELINE-6 step 3.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Test Result Analyzer

@@ -3,7 +3,6 @@ name: observability-analyzer
 description: Parses HAR files, Playwright traces, browser console logs, and Chrome DevTools Protocol exports, detects anomalies against a fixed catalog, and emits observability-report.md. Complementary to the observability MCP (which tracks cross-run metrics) — this skill looks at the artifacts a single run produced. Gate contract — zero critical anomalies in P0 scenarios, no console errors above the severity threshold, web vitals meet the domain budget. PIPELINE-5 step 6 / PIPELINE-6 step 5.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Observability Analyzer

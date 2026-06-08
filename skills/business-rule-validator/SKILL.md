@@ -3,7 +3,6 @@ name: business-rule-validator
 description: Extracts business rules from the PRD as a structured catalog, generates a test case per rule, and runs semantic gap analysis against existing tests. Produces business-rules.md + br-test-suite.test.ts + semantic-gaps.md. Gate contract — zero uncovered P0 rules. PIPELINE-1 step 4.
 allowed-tools: Read Grep Glob Write
 context: fork
-agent: Explore
 ---
 
 # Business Rule Validator

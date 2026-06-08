@@ -3,7 +3,6 @@ name: test-strategy-planner
 description: Creates comprehensive test strategy, scenario set, and requirements traceability matrix from PRD. Writes .vibeflow/reports/scenario-set.md (universal input for ALL downstream test skills) and .vibeflow/reports/test-strategy.md. Must run before any test writing skill.
 allowed-tools: Read Write Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Test Strategy Planner

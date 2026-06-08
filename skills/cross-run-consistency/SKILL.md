@@ -3,7 +3,6 @@ name: cross-run-consistency
 description: Runs the same test N times in one session, diffs the outputs, and classifies non-determinism by root cause. Complements observability's historical flake tracking with an immediate "does this test agree with itself right now?" answer. Gate contract — P0 scenarios must be strict-consistent (same output on N/N runs), no tolerance fuzzing, no silent averaging. PIPELINE-5 step 3.
 allowed-tools: Read Write Bash(npx *) Bash(npm *) Bash(git *) Grep Glob
 context: fork
-agent: Explore
 ---
 
 # Cross-Run Consistency
