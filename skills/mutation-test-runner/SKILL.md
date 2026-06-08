@@ -375,10 +375,19 @@ sdlc-engine MCP unavailable — satisfy manually:
 mcp__sdlc-engine__sdlc_satisfy_criterion {projectId:…, criterion:'mutation.score.acceptable'}
 ```
 
-## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C / 18-D)
+## Final Step: Auto-Consensus Marker (only on PASS — Sprint 15-B / 16-C / 18-D / 43)
 
-After the mutation report + auto-satisfy step, Write the
-auto-consensus marker at `.vibeflow/state/consensus-needed.json`:
+**Arm-on-pass gate (Sprint 43).** Write the marker **only if `VERDICT == "PASS"`**.
+On `NEEDS_REVISION` or `BLOCKED` (a P0 mutant survived, the score is under
+threshold, or no mutation runner is installed) there is **nothing to send to
+consensus yet** — the artifact isn't ready. Arming the marker anyway would make
+`consensus-gate` block the operator's *next* tool call, i.e. block the very work
+needed to fix the gap (writing tests, installing the runner). So on a non-PASS
+verdict: do **not** write the marker, emit the advisory naming the gap +
+`▶ Next:` the fix, and stop. Only a PASS arms consensus.
+
+When `VERDICT == "PASS"`, Write the auto-consensus marker at
+`.vibeflow/state/consensus-needed.json`:
 
 ```json
 {

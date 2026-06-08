@@ -380,11 +380,20 @@ The other TESTING exit criteria — `mutation.score.acceptable`
 `consensus.testing.approved` (satisfied by consensus-orchestrator)
 — are handled by their respective skills.
 
-## Final Step: Auto-Consensus Marker (MANDATORY — Sprint 15-B / 16-C)
+## Final Step: Auto-Consensus Marker (only on PASS — Sprint 15-B / 16-C / 43)
 
-After your output files are written to `.vibeflow/reports/`, your
-**final action** is to Write the auto-consensus marker at
-`.vibeflow/state/consensus-needed.json` with:
+**Arm-on-pass gate (Sprint 43).** Write the marker **only if `VERDICT == "PASS"`**.
+On `NEEDS_REVISION` or `BLOCKED` (overall coverage under threshold, or a P0 file
+has an uncovered gap) there is **nothing to send to consensus yet** — the
+coverage isn't met. Arming the marker anyway would make `consensus-gate` block
+the operator's *next* tool call, i.e. block the very iteration needed to add the
+missing tests and re-run coverage. So on a non-PASS verdict: do **not** write the
+marker, emit the advisory naming the uncovered P0 lines + `▶ Next:` add tests &
+re-run, and stop. Only a PASS arms consensus (which then reviews the *passing*
+coverage + mutation reports together).
+
+When `VERDICT == "PASS"`, your **final action** is to Write the auto-consensus
+marker at `.vibeflow/state/consensus-needed.json` with:
 
 ```json
 {

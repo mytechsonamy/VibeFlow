@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.0] — 2026-06-08
+
+### Fixed
+- **Analyzers now arm the consensus marker only on a PASS verdict** —
+  `coverage-analyzer` and `mutation-test-runner` used to Write
+  `.vibeflow/state/consensus-needed.json` unconditionally as their Final Step,
+  *even on a NEEDS_REVISION / BLOCKED run*. Because `consensus-gate` then blocks
+  every subsequent `Bash|Write|Edit` until consensus runs, a failing analyzer
+  blocked the very iteration needed to **fix** it — adding the missing tests,
+  installing the mutation runner — so the operator had to repeatedly set
+  `VF_SKIP_CONSENSUS_GATE=1` and `rm` the marker by hand, which defeats the gate
+  entirely. Now both arm the marker **only when `VERDICT == "PASS"`**; on a
+  non-PASS verdict they emit the gap advisory + a `▶ Next:` fix breadcrumb and
+  leave the gate clear so you can iterate. Consensus still fires once the
+  coverage/mutation reports actually pass (its proper job — reviewing a *ready*
+  artifact). Marker schema unchanged on the PASS path. Surfaced in a live AntOS
+  TESTING run where coverage iteration toward 100% kept tripping the gate. Pinned
+  by `tests/integration/sprint-43.sh`.
+
+---
+
 ## [2.30.0] — 2026-06-08
 
 ### Added
