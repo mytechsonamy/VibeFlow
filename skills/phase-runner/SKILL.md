@@ -52,7 +52,7 @@ registrations + the Sprint 19-A `docs/PRIMARY-ARTIFACT.md` table.
 | ARCHITECTURE | `architecture-bootstrap` (operator-interactive author) → `architecture-validator` (validate, model-invocable) | `docs/architecture.md` |
 | PLANNING | `test-strategy-planner`, `traceability-engine` | `.vibeflow/reports/test-strategy.md` |
 | DEVELOPMENT | `quality-gates` | the increment diff — `git diff <base>..HEAD`, base resolved robustly (see below; **not** a hardcoded `HEAD~1..HEAD`) |
-| TESTING | _(generate coverage — Step 2a)_ → `coverage-analyzer`, `mutation-test-runner` | `.vibeflow/reports/coverage-report.md` |
+| TESTING | _(generate coverage — Step 2a)_ → `coverage-analyzer`, `mutation-test-runner` **+ (UI-facing increment only) the front-end battery: `input-validation-matrix`, `e2e-test-writer`, `business-rule-validator`, `traceability-engine`, `visual-ai-analyzer`, `uat-executor`** (Sprint 44) | `.vibeflow/reports/coverage-report.md` |
 | DEPLOYMENT | `release-decision-engine`, `deploy-verifier` | `release-notes/<version>.md` |
 
 DESIGN's analyzer (`design-bootstrap`) is **operator-interactive** — it asks
@@ -118,6 +118,36 @@ Cycle <id> (<title>) shipped — DEPLOYMENT GO. The PR for this cycle is ready t
 
 Until those criteria are met, DEPLOYMENT stays `in-progress` (don't mark a cycle
 complete on a CONDITIONAL/BLOCKED release decision).
+
+**TESTING — UI-conditional front-end battery (Sprint 44).** The default TESTING
+analyzers (`coverage-analyzer`, `mutation-test-runner`) measure *quality of
+tests*, not whether the **UI** is right. So when the active increment is
+**UI-facing** (the change-type classification from `brownfield-intake` /
+`design-bootstrap` is `ui` or `mixed`, or `design/design-spec.md` exists for this
+cycle), phase-runner runs the **front-end battery** in TESTING **in addition to**
+coverage + mutation — each as a **Skill** (not a general agent), arm-on-pass
+(Sprint 43), so their reports feed the TESTING consensus + the gated test suite:
+
+1. **`input-validation-matrix`** — per-field data validation (required / type /
+   boundary / format / type-mismatch / injection-safety / output-formatting).
+2. **`e2e-test-writer`** then run — functional flows end-to-end (Playwright web /
+   Detox mobile): the functions actually work.
+3. **`business-rule-validator`** — the functions meet the PRD's rules.
+4. **`traceability-engine`** — every UI requirement maps to a test (no
+   untested requirement / orphan test).
+5. **`visual-ai-analyzer`** — design conformance: each area matches
+   `design-spec.md` (layout / typography / a11y); pairs with `design-bridge
+   db_compare_impl` when a Figma file exists.
+6. **`uat-executor`** — end-to-end on staging, when a staging URL is configured
+   (else breadcrumb it as the operator's manual step).
+
+Because the validation + e2e tests are written **into the project suite**, the
+existing gates enforce them: they must pass (`regression-test-runner` /
+`quality-gates`) and count toward `coverage.met`. The battery's reports
+(`validation-matrix.md`, `rtm.md`, visual findings) become **evidence** for
+`consensus.testing.approved`. A **backend/infra** increment skips the battery
+entirely — coverage + mutation only, unchanged. `docs/FRONTEND-TESTING.md` maps
+each step to what it guarantees.
 
 ## Process
 

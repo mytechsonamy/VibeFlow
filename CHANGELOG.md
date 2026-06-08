@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.32.0] — 2026-06-08
+
+### Added
+- **A guaranteed, UI-conditional front-end test battery.** A UI increment now
+  gets comprehensive front-end testing as a TESTING gate, not just coverage +
+  mutation. New **`/vibeflow:input-validation-matrix`** builds, *for every input
+  field*, a systematic data-validation matrix — required/presence, type
+  (numeric vs alphanumeric vs email/date/currency), boundary (value + length,
+  just-inside/outside), format (regex/IBAN/phone/precision), type-mismatch,
+  injection-safety (XSS/SQL-ish escaped or rejected — weighted up for
+  financial/healthcare), output-control (formatting/masking), and cross-field
+  rules — and writes the tests **into the project suite** (so coverage +
+  `regression-test-runner`/`quality-gates` enforce them) plus a
+  `validation-matrix.md` report. `phase-runner`'s TESTING walk now, **only when
+  the active increment is UI-facing** (change-type `ui`/`mixed`, or a
+  `design/design-spec.md` exists), orchestrates the full **front-end battery** on
+  top of coverage + mutation: `input-validation-matrix` (validation) +
+  `e2e-test-writer` (functions work, Playwright/Detox) + `business-rule-validator`
+  (functions meet requirements) + `traceability-engine` (every UI requirement
+  tested) + `visual-ai-analyzer` (design conformance) + `uat-executor` (staging
+  end-to-end). A **backend/infra** increment skips the battery entirely. Because
+  the tests live in the suite + the reports become `consensus.testing.approved`
+  evidence, a UI increment can't reach GO without the battery green. A/B testing
+  is intentionally out of scope (a production experiment for the `observability`
+  MCP, not a pre-release gate). New skill registered in `phase-policy.json`.
+  Docs: `docs/FRONTEND-TESTING.md`. Pinned by `tests/integration/sprint-44.sh`
+  (34 assertions).
+
+---
+
 ## [2.31.0] — 2026-06-08
 
 ### Fixed

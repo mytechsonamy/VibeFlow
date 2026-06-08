@@ -83,6 +83,10 @@
       "phases": ["TESTING"],
       "description": "Rolls up coverage to requirement level; enforces P0 zero-uncovered rule."
     },
+    "input-validation-matrix": {
+      "phases": ["TESTING"],
+      "description": "Sprint 44. Per-field UI data-validation matrix (required/type/boundary/format/type-mismatch/injection-safety/output-formatting); writes runnable tests into the suite + validation-matrix.md. Part of the UI-conditional front-end battery the phase-runner TESTING walk orchestrates."
+    },
     "cross-run-consistency": {
       "phases": ["TESTING"],
       "description": "Runs the same test N times to detect flake."
