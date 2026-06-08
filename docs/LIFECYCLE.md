@@ -78,6 +78,28 @@ When a cycle ships, the next `phase-runner` run sees `completed` and points you
 at a fresh branch for the next increment — so new work is always tracked under
 its own PR, never mixed into the finished one.
 
+## What "completed" means (and the common trap)
+
+A cycle is `completed` **only** when its `status` field says so — and that flips
+**only** on **DEPLOYMENT GO** (`release.decision.go` = GO + `deployment.verified`
++ `consensus.deployment.approved`). These are **not** completion:
+
+- the increment branch was **merged to main**,
+- the project **reached DEPLOYMENT** (the last phase),
+- all the *code* is written and pushed.
+
+A very common shape: the code is done, the PR is merged, but `deployment.verified`
+can't pass because there's **no real CI / deploy / health infra yet**. The cycle
+correctly sits at DEPLOYMENT `in-progress`. That is *not* a finished cycle, and
+the next `phase-runner` run **resumes** it — it does **not** offer a new
+increment. When you're deliberately stopping before a real deploy, **you** close
+the cycle explicitly (set `status`, with a note like "shipped to repo; deploy
+deferred") — the framework never infers completion from a merge.
+
+> The trap to avoid: "PR merged + at DEPLOYMENT → start the next increment with
+> brownfield-intake." That silently abandons an open cycle. Resume it, finish the
+> deploy, or close it on purpose.
+
 ## Why this fixes "resume ≠ brownfield"
 
 Before Sprint 42, `onboard` keyed "brownfield" off *file presence*, so a

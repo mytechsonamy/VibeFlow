@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.34.0] — 2026-06-08
+
+### Fixed
+- **Lifecycle: a merged PR / reaching DEPLOYMENT is not cycle completion.** The
+  Sprint-42 state machine was correct — `phase-runner` resumes an `in-progress`
+  cycle (even at DEPLOYMENT) and only a `completed` cycle opens a new increment —
+  but the *guidance* let a session narrate "start the next increment with
+  `brownfield-intake`" for a cycle that had merged its PR and parked at
+  DEPLOYMENT `in-progress` (a greenfield project that wasn't finished). A merged
+  PR / reaching the last phase is **not** completion; only **DEPLOYMENT GO**
+  (`release.decision.go` + `deployment.verified` + `consensus.deployment.approved`)
+  flips `status` to `completed`. `phase-runner` Step 0 + the DEPLOYMENT-close note
+  + `onboard` Step 0 + `docs/LIFECYCLE.md` now state this loudly and add the
+  **stuck-DEPLOYMENT** case (no CI/deploy/health infra → resume + finish, or the
+  **operator** explicitly closes/defers — never auto-start a new increment, which
+  would silently abandon the open cycle). Surfaced on a live ANTOS run that
+  merged Sprint-1's PR and was nudged toward a brownfield re-intake while still
+  mid-DEPLOYMENT. Pinned by `tests/integration/sprint-46.sh`.
+
+---
+
 ## [2.33.0] — 2026-06-08
 
 ### Added

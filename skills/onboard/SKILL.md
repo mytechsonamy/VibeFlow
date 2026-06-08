@@ -44,6 +44,11 @@ test -f vibeflow.config.json && echo EXISTS
   a fresh increment:
   > Last cycle (`<title>`) is complete. New work starts a new increment.
   > ▶ Next: /vibeflow:brownfield-intake
+
+  **"completed" means the literal status field** (which flips only on DEPLOYMENT
+  GO) — **not** "the PR was merged" or "it reached DEPLOYMENT". An `in-progress`
+  cycle parked at DEPLOYMENT (code merged but not yet deployed+verified) is still
+  in-progress → it routes to **resume** above, never to a new increment.
 - **`vibeflow.config.json` exists but no lifecycle.json** (a pre-Sprint-42
   project) → backfill an `in-progress` cycle from the current `currentPhase`,
   then resume as above.

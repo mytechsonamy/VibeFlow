@@ -117,7 +117,27 @@ Cycle <id> (<title>) shipped — DEPLOYMENT GO. The PR for this cycle is ready t
 ```
 
 Until those criteria are met, DEPLOYMENT stays `in-progress` (don't mark a cycle
-complete on a CONDITIONAL/BLOCKED release decision).
+complete on a CONDITIONAL/BLOCKED release decision). **A merged PR does not
+complete the cycle** — only the GO above does.
+
+**When DEPLOYMENT can't reach GO (Sprint 46).** `deployment.verified` needs real
+CI / deploy / health infra; a project often parks at DEPLOYMENT `in-progress`
+because that infra doesn't exist yet (the code shipped to a repo, the PR merged,
+but nothing is *deployed + verified*). That is a **legitimate in-progress
+state**, not a finished cycle. The honest options are exactly two — surface both,
+pick neither for the operator:
+
+1. **Finish the deploy** — wire the CI/deploy/health pipeline, run
+   `deploy-verifier` + `release-decision-engine` to a GO; the cycle then
+   completes itself.
+2. **Explicitly close/defer the cycle** — if you're deliberately stopping before
+   a real deploy, the **operator** sets `currentCycle.status` (e.g. `completed`
+   with a `note: "shipped to repo; deploy deferred"`, or a `deferred` status).
+   This is a human decision, recorded — never inferred from a merge.
+
+**Do not** auto-start a new increment / `brownfield-intake` to "move on" from a
+stuck DEPLOYMENT — that silently abandons the open cycle. Resume, finish, or have
+the operator close it.
 
 **TESTING — UI-conditional front-end battery (Sprint 44).** The default TESTING
 analyzers (`coverage-analyzer`, `mutation-test-runner`) measure *quality of
@@ -175,13 +195,25 @@ decision); it's **"is there an open cycle to resume, or did the last one ship?"*
 
 - **`currentCycle.status == "in-progress"`** → resume; continue to Step 1 at the
   cycle's `currentPhase`. (This is the *greenfield-paused-and-resumed* case — it
-  must resume, never get re-onboarded or treated as brownfield.)
+  must resume, never get re-onboarded or treated as brownfield.) **This holds at
+  DEPLOYMENT too** — an in-progress cycle sitting at DEPLOYMENT resumes DEPLOYMENT;
+  do **not** offer a new increment for it (see the completion rule below).
 - **`currentCycle.status == "completed"`** (last cycle shipped) → there is no
   open work. Stop and breadcrumb a new increment on a fresh branch:
   > Last cycle (`<title>`) shipped (DEPLOYMENT GO). Start the next increment:
   > ▶ Next: git checkout -b increment/<slug>  &&  /vibeflow:brownfield-intake
 - **No `lifecycle.json`** (pre-Sprint-42 project) → backfill an `in-progress`
   cycle from `currentPhase`, then resume.
+
+> **What "completed" means — read this before suggesting a new increment
+> (Sprint 46).** A cycle is `completed` **only** when the `status` field says so,
+> and that flips **only** on DEPLOYMENT GO (the rule below). It is **not**
+> completion when: the increment branch was **merged to main**, the project
+> **reached DEPLOYMENT** (the last phase), or all the *code* is done. A merged PR
+> on a cycle that's still `in-progress` at DEPLOYMENT is **still in-progress** —
+> resume it. **Never narrate or breadcrumb "start the next increment /
+> brownfield-intake" for an `in-progress` cycle**, even at DEPLOYMENT, even after
+> a merge. Only a literal `status: "completed"` opens the next-increment path.
 
 Each cycle maps to **one branch / one PR** (track-and-breadcrumb — VibeFlow
 records `branch`/`prUrl` in the cycle and *suggests* the `git`/`gh` commands;
