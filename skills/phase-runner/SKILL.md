@@ -103,7 +103,46 @@ Use `$DIFF_RANGE` as the primary the `quality-gates` analyzer + consensus
 review. `quality-gates` runs lint/typecheck/tests (mechanical — invoke it as a
 **Skill**, not a general agent); consensus on the diff satisfies `code.reviewed`.
 
+**DEPLOYMENT closes the cycle (Sprint 42).** DEPLOYMENT is terminal — there is no
+phase after it. When its exit criteria are satisfied (`release.decision.go` =
+GO + `deployment.verified` + `consensus.deployment.approved`), the **cycle is
+done**: update `.vibeflow/state/lifecycle.json` — set
+`currentCycle.status = "completed"` + `completedAt`, then move it into
+`history[]`. Close with the cycle-completion breadcrumb (track-and-breadcrumb;
+the operator runs the git/gh):
+
+```
+Cycle <id> (<title>) shipped — DEPLOYMENT GO. The PR for this cycle is ready to merge.
+▶ Next: gh pr merge <branch>   then   git checkout -b increment/<next>  &&  /vibeflow:brownfield-intake
+```
+
+Until those criteria are met, DEPLOYMENT stays `in-progress` (don't mark a cycle
+complete on a CONDITIONAL/BLOCKED release decision).
+
 ## Process
+
+### Step 0: Lifecycle — resume the open cycle, or start a new increment (Sprint 42)
+
+**Run first.** A project moves through one or more **cycles** — one pass of the
+SDLC per deliverable (the initial build, then one per increment). The runtime
+question is never "greenfield or brownfield" (that was a one-time cycle-1
+decision); it's **"is there an open cycle to resume, or did the last one ship?"**
+— read from state, not from whether source files exist. Read
+`.vibeflow/state/lifecycle.json`:
+
+- **`currentCycle.status == "in-progress"`** → resume; continue to Step 1 at the
+  cycle's `currentPhase`. (This is the *greenfield-paused-and-resumed* case — it
+  must resume, never get re-onboarded or treated as brownfield.)
+- **`currentCycle.status == "completed"`** (last cycle shipped) → there is no
+  open work. Stop and breadcrumb a new increment on a fresh branch:
+  > Last cycle (`<title>`) shipped (DEPLOYMENT GO). Start the next increment:
+  > ▶ Next: git checkout -b increment/<slug>  &&  /vibeflow:brownfield-intake
+- **No `lifecycle.json`** (pre-Sprint-42 project) → backfill an `in-progress`
+  cycle from `currentPhase`, then resume.
+
+Each cycle maps to **one branch / one PR** (track-and-breadcrumb — VibeFlow
+records `branch`/`prUrl` in the cycle and *suggests* the `git`/`gh` commands;
+the operator runs them).
 
 ### Step 1: Resolve phase + config
 

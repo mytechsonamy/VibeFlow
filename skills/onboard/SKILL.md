@@ -21,6 +21,36 @@ outputs are `vibeflow.config.json`, `.vibeflow/**`, and `docs/**`.
 
 ## Steps
 
+### Step 0: Already onboarded? Resume, don't re-onboard (Sprint 42)
+
+**Run this first.** Onboarding is a once-per-project act. If
+`vibeflow.config.json` already exists, the project is initialized — do **not**
+re-onboard, and do **not** mis-read its existing source as "brownfield" (a
+greenfield project that has reached DEVELOPMENT *also* has source files; file
+presence is not the signal — lifecycle state is). Read
+`.vibeflow/state/lifecycle.json` and route:
+
+```bash
+test -f vibeflow.config.json && echo EXISTS
+[ -f .vibeflow/state/lifecycle.json ] && jq -r '.currentCycle.status' .vibeflow/state/lifecycle.json
+```
+
+- **`currentCycle.status == "in-progress"`** → an active cycle is mid-flight.
+  Stop and resume:
+  > Project already onboarded (cycle `<id>`, phase `<currentPhase>`). Resuming —
+  > nothing to re-initialize.
+  > ▶ Next: /vibeflow:phase-runner
+- **`currentCycle.status == "completed"`** → the last cycle shipped; new work is
+  a fresh increment:
+  > Last cycle (`<title>`) is complete. New work starts a new increment.
+  > ▶ Next: /vibeflow:brownfield-intake
+- **`vibeflow.config.json` exists but no lifecycle.json** (a pre-Sprint-42
+  project) → backfill an `in-progress` cycle from the current `currentPhase`,
+  then resume as above.
+
+Only when `vibeflow.config.json` does **not** exist do you continue to Step 1
+(a genuinely fresh project).
+
 ### Step 1: Gather Project Info
 Ask the user for:
 1. **Project name**: What is this project called?
@@ -85,6 +115,31 @@ fingerprint — nothing more:
 - **Do not** run `git add` or `git commit`.
 
 If source files are absent, skip this step entirely.
+
+### Step 4b: Open the first lifecycle cycle (Sprint 42)
+
+Write `.vibeflow/state/lifecycle.json` recording **cycle 1** — the project's
+first pass through the SDLC. The `kind` is `initial` (greenfield-from-PRD or
+brownfield-from-code is a cycle-1 detail; every *later* cycle is an
+`increment`). Record the branch so each cycle maps to one branch / PR:
+
+```json
+{
+  "currentCycle": {
+    "id": "cycle-1",
+    "kind": "initial",
+    "title": "<project> — initial build",
+    "phase": "REQUIREMENTS",
+    "branch": "<current git branch, or 'main'>",
+    "prUrl": null,
+    "status": "in-progress",
+    "startedAt": "<UTC ISO-8601>"
+  },
+  "history": []
+}
+```
+
+(`git rev-parse --abbrev-ref HEAD` for the branch when the dir is a git repo.)
 
 ### Step 5: Confirm + Hand Off
 

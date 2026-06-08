@@ -97,6 +97,23 @@ Keep the intent faithful to the operator's input (especially for paths 2 & 4 —
 enrich, don't redirect). Persist the increment slug to
 `vibeflow.config.json` → `requirements.activeIncrement` for traceability.
 
+**Open the increment's lifecycle cycle (Sprint 42).** Read
+`.vibeflow/state/lifecycle.json`. If `currentCycle` is `completed` (or this is a
+brand-new increment after a shipped cycle), open a **new** cycle — push the old
+one into `history[]` and set:
+
+```json
+{ "currentCycle": {
+    "id": "cycle-<N>", "kind": "increment", "title": "<increment-slug>",
+    "phase": "REQUIREMENTS", "branch": "<current branch — ideally increment/<slug>>",
+    "prUrl": null, "status": "in-progress", "startedAt": "<UTC ISO-8601>" } }
+```
+
+If `currentCycle` is the still-open `initial` cycle (cycle-1 brownfield start),
+just record the increment title on it — don't open a second cycle. Each cycle =
+one branch / PR; if the operator isn't on a dedicated branch yet, breadcrumb
+`git checkout -b increment/<slug>` in Step 4.
+
 ## Step 4: Hand off to the SDLC
 
 The increment requirements doc is now the REQUIREMENTS primary. Close with the

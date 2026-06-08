@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.30.0] — 2026-06-08
+
+### Added
+- **Project lifecycle — cycles, resume, and increments.** VibeFlow now tracks a
+  project as a sequence of **cycles** (one SDLC pass per deliverable) in
+  `.vibeflow/state/lifecycle.json`. Cycle 1 is the initial build (greenfield or
+  brownfield — the *only* place that distinction lives); every later cycle is an
+  increment. The runtime question is no longer "greenfield or brownfield?" but
+  "is there an **open cycle to resume**, or did the last one **ship**?" — read
+  from cycle state, not from whether source files exist.
+  - **`onboard` gained a resume-guard (Step 0).** On an already-onboarded
+    project it no longer re-initializes — it routes to `phase-runner` (resume an
+    in-progress cycle) or `brownfield-intake` (start a new increment if the last
+    cycle shipped). **Fixes:** a paused greenfield project that had reached
+    DEVELOPMENT (so it *has* source files) was being misread as brownfield on
+    return — file presence is no longer the signal.
+  - **`phase-runner` reads `lifecycle.json` first (Step 0):** in-progress →
+    resume from `currentPhase`; completed → breadcrumb the next increment on a
+    fresh branch. And **DEPLOYMENT closes the cycle** on GO (`release.decision.go`
+    + `deployment.verified` + `consensus.deployment.approved`) → marks the cycle
+    `completed`, moves it to `history[]`, breadcrumbs the PR merge + next
+    increment.
+  - **One cycle = one branch / one PR** (track-and-breadcrumb): VibeFlow records
+    `branch`/`prUrl` per cycle and *suggests* the `git`/`gh` commands; the
+    operator runs them, so each increment is tracked under its own PR.
+  - `brownfield-intake` opens an increment cycle when starting fresh work.
+
+Docs: `docs/LIFECYCLE.md`. Pinned by `tests/integration/sprint-42.sh` (28
+assertions incl. a runtime routing probe). Surfaced by an operator who paused a
+greenfield project and didn't want a brownfield re-intake on resume.
+
+---
+
 ## [2.29.0] — 2026-06-08
 
 ### Fixed
