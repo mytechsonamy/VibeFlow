@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.37.0] — 2026-06-08
+
+### Fixed
+- **An auto-satisfied criterion HTML-escaped in transit no longer blocks the
+  phase gate.** Exit criteria like `testability.score>=60` contain `>` / `<`; a
+  caller (the model, or a serialization layer) sometimes HTML-escaped the name,
+  so `sdlc_satisfy_criterion` stored `testability.score&gt;=60` — which never
+  matched the literal exit criterion in `phases.ts`, leaving `/vibeflow:advance`
+  blocked **despite the criterion showing as satisfied**. It bit any criterion
+  containing `>`, `<`, or `&`. The engine now **normalizes HTML entities** on the
+  single write path (`satisfyCriterion`): `&gt;`→`>`, `&lt;`→`<`, `&amp;`→`&`
+  (decoded last), `&quot;`/`&#39;`/`&apos;`→quotes, plus a trim — so the stored
+  criterion is always the canonical literal and matches the gate. (`normalizeCriterion`
+  is exported + unit-tested; sdlc-engine 201 → 202.) Surfaced on a live ANTOS
+  cycle-2 REQUIREMENTS advance. Pinned by `tests/integration/sprint-49.sh`
+  (static + a live node probe).
+
+---
+
 ## [2.36.0] — 2026-06-08
 
 ### Fixed

@@ -100,15 +100,22 @@ export class SdlcEngine {
   async satisfyCriterion(
     input: SatisfyCriterionInput,
   ): Promise<ProjectState> {
+    // Sprint 49: normalize HTML entities in the criterion name. Exit criteria
+    // like `testability.score>=60` contain `>` / `<`; a caller (model or
+    // serialization layer) sometimes HTML-escapes them, so the criterion got
+    // stored as `testability.score&gt;=60` and never matched the literal exit
+    // gate — advance stayed blocked despite "satisfied". Canonicalize on the
+    // single write path so the stored set always matches phases.ts.
+    const criterion = normalizeCriterion(input.criterion);
     return this.store.transact(input.projectId, (current) => {
       const base = current ?? this.seed(input.projectId);
-      if (base.satisfiedCriteria.includes(input.criterion)) {
+      if (base.satisfiedCriteria.includes(criterion)) {
         const bumped = bumpRevision(base);
         return { next: bumped, result: bumped };
       }
       const next: ProjectState = {
         ...base,
-        satisfiedCriteria: [...base.satisfiedCriteria, input.criterion],
+        satisfiedCriteria: [...base.satisfiedCriteria, criterion],
         updatedAt: new Date().toISOString(),
         revision: base.revision + 1,
       };
@@ -259,6 +266,24 @@ function bumpRevision(state: ProjectState): ProjectState {
     updatedAt: new Date().toISOString(),
     revision: state.revision + 1,
   };
+}
+
+/**
+ * Sprint 49: un-escape the HTML entities that can sneak into a criterion name
+ * in transit (`&gt;` → `>`, `&lt;` → `<`, `&amp;` → `&`, plus quotes), and trim,
+ * so a satisfied criterion always matches the literal exit criterion declared in
+ * phases.ts (e.g. `testability.score>=60`). `&amp;` is decoded last so a
+ * double-escaped entity collapses correctly.
+ */
+export function normalizeCriterion(criterion: string): string {
+  return criterion
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .trim();
 }
 
 export class PhaseTransitionError extends Error {

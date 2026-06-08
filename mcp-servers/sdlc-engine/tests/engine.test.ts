@@ -31,6 +31,26 @@ describe("SdlcEngine integration", () => {
     expect(state.satisfiedCriteria).toEqual([]);
   });
 
+  // Sprint 49: a criterion HTML-escaped in transit (testability.score&gt;=60)
+  // must be stored as the literal name so it matches the phases.ts exit gate.
+  it("satisfyCriterion normalizes HTML entities to match the literal exit criterion", async () => {
+    await engine.getOrInit("p1");
+    const after = await engine.satisfyCriterion({
+      projectId: "p1",
+      criterion: "testability.score&gt;=60",
+    });
+    expect(after.satisfiedCriteria).toContain("testability.score>=60");
+    expect(after.satisfiedCriteria).not.toContain("testability.score&gt;=60");
+    // Idempotent: re-satisfying the literal form is a no-op (already present).
+    const again = await engine.satisfyCriterion({
+      projectId: "p1",
+      criterion: "testability.score>=60",
+    });
+    expect(
+      again.satisfiedCriteria.filter((c) => c === "testability.score>=60"),
+    ).toHaveLength(1);
+  });
+
   // Sprint 48: sdlc_start_cycle resets a completed cycle back to REQUIREMENTS so
   // the engine can walk the next increment (the multi-cycle lifecycle gap).
   it("startCycle resets to REQUIREMENTS, clears criteria/consensus, bumps cycle", async () => {

@@ -63,6 +63,14 @@ export declare class SdlcEngine {
     }): Promise<ProjectState>;
     private seed;
 }
+/**
+ * Sprint 49: un-escape the HTML entities that can sneak into a criterion name
+ * in transit (`&gt;` → `>`, `&lt;` → `<`, `&amp;` → `&`, plus quotes), and trim,
+ * so a satisfied criterion always matches the literal exit criterion declared in
+ * phases.ts (e.g. `testability.score>=60`). `&amp;` is decoded last so a
+ * double-escaped entity collapses correctly.
+ */
+export declare function normalizeCriterion(criterion: string): string;
 export declare class PhaseTransitionError extends Error {
     readonly errors: readonly string[];
     readonly state: ProjectState;

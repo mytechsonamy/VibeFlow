@@ -20025,15 +20025,16 @@ var SdlcEngine = class {
     return this.registry.all();
   }
   async satisfyCriterion(input) {
+    const criterion = normalizeCriterion(input.criterion);
     return this.store.transact(input.projectId, (current) => {
       const base = current ?? this.seed(input.projectId);
-      if (base.satisfiedCriteria.includes(input.criterion)) {
+      if (base.satisfiedCriteria.includes(criterion)) {
         const bumped = bumpRevision(base);
         return { next: bumped, result: bumped };
       }
       const next = {
         ...base,
-        satisfiedCriteria: [...base.satisfiedCriteria, input.criterion],
+        satisfiedCriteria: [...base.satisfiedCriteria, criterion],
         updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         revision: base.revision + 1
       };
@@ -20146,6 +20147,9 @@ function bumpRevision(state) {
     updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     revision: state.revision + 1
   };
+}
+function normalizeCriterion(criterion) {
+  return criterion.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0*39;/g, "'").replace(/&apos;/g, "'").replace(/&amp;/g, "&").trim();
 }
 var PhaseTransitionError = class extends Error {
   errors;
