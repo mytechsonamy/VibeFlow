@@ -1,6 +1,6 @@
 ---
 name: apply-arbiter-patch
-description: Reads the patch manifest produced by consensus-arbiter, shows a git-style diff summary, snapshots every target file to a git-independent backup, asks for explicit operator confirmation (unless --yes), and applies via `git apply`. Updates `arbiter-decisions.md` with applied:true + timestamp. Optional `--run-tests` runs the project's test command afterward and reminds the operator how to revert if they break.
+description: Reads the patch manifest produced by consensus-arbiter, shows a git-style diff summary, archives every target file to .vibeflow/archive/ (a timestamped version trail) AND snapshots it for one-command rollback before touching anything, asks for explicit operator confirmation (unless --yes), and applies via `git apply`. Updates `arbiter-decisions.md` with applied:true + timestamp. Optional `--run-tests` runs the project's test command afterward and reminds the operator how to revert if they break.
 disable-model-invocation: true
 allowed-tools: Read Write Edit Bash(git *) Bash(jq *) Bash(npm *) Bash(vitest *) Bash(jest *) Bash(pytest *) Bash(dotnet *) Bash(rm *) Bash(cp *) Bash(mkdir *)
 context: fork
@@ -112,25 +112,38 @@ regardless of git:
 ```bash
 SNAP_DIR=".vibeflow/state/arbiter-backups/$SESSION"
 mkdir -p "$SNAP_DIR"
+# Sprint 40: a persistent, timestamped ARCHIVE of each target file BEFORE the
+# first edit — a discoverable version trail (distinct from the session rollback
+# snapshot). Filesystem-safe timestamp (no colons). Never cleaned up.
+TS="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 # Target files = the unique list collected in Step 2 (git apply --numstat).
 for f in "${TARGET_FILES[@]}"; do
   [ -f "$f" ] || continue                       # new-file patch → nothing to back up
+  # 1) rollback snapshot (one-command revert of THIS apply)
   mkdir -p "$SNAP_DIR/$(dirname "$f")"
   cp -p "$f" "$SNAP_DIR/$f"
+  # 2) persistent archive (version history, one copy per update)
+  mkdir -p ".vibeflow/archive/$(dirname "$f")"
+  cp -p "$f" ".vibeflow/archive/$f.$TS.bak"
 done
 ```
 
-Emit a one-line confirmation naming the restore command so the operator
-always has it in scrollback:
+Emit a one-line confirmation naming both locations so the operator always has
+them in scrollback:
 
 ```
-Backed up <N> file(s) to .vibeflow/state/arbiter-backups/$SESSION/ before applying.
-Revert anytime:  cp -R .vibeflow/state/arbiter-backups/$SESSION/. .
+Archived <N> file(s) to .vibeflow/archive/ (version trail) and snapshotted to
+.vibeflow/state/arbiter-backups/$SESSION/ (rollback) before applying.
+Revert this apply:  cp -R .vibeflow/state/arbiter-backups/$SESSION/. .
+Prior versions:     ls .vibeflow/archive/<path>/
 ```
 
-The snapshot is the **primary** rollback path (works without git); the
-`git checkout` commands below remain available as a secondary path when
-the project IS a committed git repo.
+Two backups, two jobs: the **`.vibeflow/archive/`** copy is the durable,
+timestamped **version trail** (one entry per update, never cleaned up — answers
+"what did the PRD look like before round 2?"); the session **snapshot** is the
+**primary rollback** path for undoing *this* apply (works without git). The
+`git checkout` commands below remain a secondary rollback path for committed
+git repos.
 
 ### Step 4: Apply
 
@@ -368,6 +381,8 @@ just reads the latest and points the next round at the
 
 ## Output
 
+- `.vibeflow/archive/<path>.<timestamp>.bak` — persistent, timestamped version
+  trail of every target file, written **before** the edit (Step 3.5, Sprint 40)
 - `.vibeflow/state/arbiter-backups/<session>/` — pre-apply snapshot of every
   target file (Step 3.5), the git-independent rollback source
 - Modified source / doc files (via `git apply`)

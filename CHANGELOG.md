@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.0] — 2026-06-08
+
+### Added
+- **`apply-arbiter-patch` now archives every artifact to `.vibeflow/archive/`
+  before editing it.** When a consensus rewrite updates the PRD (or design spec
+  / architecture doc), the prior version is now copied to a **persistent,
+  timestamped** archive — `.vibeflow/archive/<path>.<UTC-timestamp>.bak` — as
+  the first thing it does, *before* the `git apply`. This is a discoverable
+  **version trail** (one entry per update, never cleaned up — answers "what did
+  the PRD look like before round 2?"), distinct from the session rollback
+  snapshot in `.vibeflow/state/arbiter-backups/<session>/` (which stays for
+  one-command revert of *this* apply). The specialist never writes the artifact
+  directly (diff-first only), so `apply-arbiter-patch` is the single update
+  point — archiving there covers every framework-driven PRD/spec/ADR update.
+  Pinned by `tests/integration/sprint-40.sh` (static + a runtime probe of the
+  archive bash).
+
+---
+
 ## [2.27.0] — 2026-06-08
 
 ### Added
