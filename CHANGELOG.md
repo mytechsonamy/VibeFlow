@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.38.0] — 2026-06-08
+
+### Fixed
+- **`VF_SKIP_CONSENSUS_GATE=1` escape hatch now works with more than one
+  command-prefix env var.** `consensus-gate.sh` only checked the bypass as an
+  exported env var, and Claude Code reliably exports a **single** leading
+  assignment but not two — so `VF_SKIP_CONSENSUS_GATE=1 bash -c …` bypassed while
+  `VF_SKIP_CONSENSUS_GATE=1 VF_ALLOW_PHASE_WRITE=1 bash -c …` was still blocked
+  (the operator had to discover the single-var form by trial). The gate now also
+  parses the **leading env-var prefix** of the command string (the run of
+  `VAR=val` tokens before the first command word) and honors the bypass there —
+  order- and count-independent — while a mere mention of the var inside a quoted
+  string arg does **not** bypass (awk stops at the first non-assignment token).
+  Surfaced on a live ANTOS ARCHITECTURE run where the two-var prefix kept
+  tripping the gate. Pinned by `tests/integration/sprint-50.sh` (static + runtime
+  probes: single / double / reversed bypass all allow; non-bypass + quoted-mention
+  still block).
+
+---
+
 ## [2.37.0] — 2026-06-08
 
 ### Fixed

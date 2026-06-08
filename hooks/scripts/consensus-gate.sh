@@ -59,6 +59,22 @@ fi
 FILE="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""')"
 CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""')"
 
+# Sprint 50: the escape hatch must also work when VF_SKIP_CONSENSUS_GATE is set
+# as a command-prefix env var *alongside another* (e.g.
+# `VF_SKIP_CONSENSUS_GATE=1 VF_ALLOW_PHASE_WRITE=1 bash -c …`). Claude Code
+# exports a single leading assignment into the hook env (caught at line 48), but
+# with two leading assignments that export is unreliable, so the env check
+# missed it and the bypass appeared to "only work as the sole leading var".
+# Match the assignment only in the *leading* env-var prefix (the run of
+# `VAR=val` tokens before the first real command word), so the override is order-
+# and count-independent but a mere mention of the var inside a quoted string arg
+# does NOT bypass. awk stops at the first non-assignment token.
+GATE_LEADING_ENV="$(printf '%s' "$CMD" | awk '{for(i=1;i<=NF;i++){if($i ~ /^[A-Za-z_][A-Za-z0-9_]*=/){printf "%s ",$i}else{break}}}')"
+if printf '%s' "$GATE_LEADING_ENV" | grep -qE '(^|[[:space:]])VF_SKIP_CONSENSUS_GATE=(1|true)([[:space:]]|$)'; then
+  echo '{"continue":true}'
+  exit 0
+fi
+
 # Allow: Write/Edit targeting framework state (.vibeflow/**).
 # The orchestrator, arbiter, and apply skills all need to write
 # jsonl/verdict/patch/decision files while the marker is still in
