@@ -477,17 +477,29 @@ for key in name version description author homepage repository bugs license keyw
   fi
 done
 
-# Version must match the latest released X.Y.Z — post-v1.0.0 this
-# bumps with every patch release. The sprint-4 harness owns this
-# check because it's the plugin-manifest section; the release.sh
-# preflight runs it on every new release, so the expected version
-# has to be bumped here as part of the release commit.
+# Version consistency — read dynamically (no per-release hardcoded bump).
+# The real invariant is: plugin.json, marketplace.json, and the README badge
+# all agree on the same valid SemVer. A drifted pair is the actual release
+# mistake worth catching; pinning a literal version just rots (it sat at 2.7.0
+# through 2.30.0 and broke CI). EXPECTED_PLUGIN_VERSION is now the live
+# plugin.json version, reused for the [S4-K] tarball lookup below.
 PLUGIN_VERSION="$(jq -r '.version' "$PLUGIN")"
-EXPECTED_PLUGIN_VERSION="2.7.0"
-if [[ "$PLUGIN_VERSION" == "$EXPECTED_PLUGIN_VERSION" ]]; then
-  pass "plugin.json version == $EXPECTED_PLUGIN_VERSION"
+EXPECTED_PLUGIN_VERSION="$PLUGIN_VERSION"
+if [[ "$PLUGIN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  pass "plugin.json version is valid SemVer ($PLUGIN_VERSION)"
 else
-  fail "plugin.json version == $EXPECTED_PLUGIN_VERSION (got: $PLUGIN_VERSION)"
+  fail "plugin.json version is valid SemVer (got: $PLUGIN_VERSION)"
+fi
+MARKETPLACE_VERSION="$(jq -r '.plugins[0].version' "$REPO_ROOT/.claude-plugin/marketplace.json" 2>/dev/null)"
+if [[ "$MARKETPLACE_VERSION" == "$PLUGIN_VERSION" ]]; then
+  pass "marketplace.json version matches plugin.json ($PLUGIN_VERSION)"
+else
+  fail "marketplace.json version matches plugin.json (plugin=$PLUGIN_VERSION marketplace=$MARKETPLACE_VERSION)"
+fi
+if grep -q "version-v${PLUGIN_VERSION}-blue" "$REPO_ROOT/README.md" 2>/dev/null; then
+  pass "README badge matches plugin.json ($PLUGIN_VERSION)"
+else
+  fail "README badge matches plugin.json (expected version-v${PLUGIN_VERSION}-blue)"
 fi
 
 # Repository + bugs must be strings per the Claude Code plugin schema
