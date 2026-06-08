@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.36.0] — 2026-06-08
+
+### Fixed
+- **The multi-cycle lifecycle now has an engine reset — `sdlc_start_cycle`.**
+  Sprint 42 added per-cycle tracking in `lifecycle.json`, but the `sdlc-engine`
+  MCP models **one linear pass** and stayed pinned at the previous cycle's
+  terminal phase (DEPLOYMENT). So opening cycle 2 left the engine at DEPLOYMENT
+  while `lifecycle.json` / config said REQUIREMENTS, and `phase-runner` refused
+  on a phase-mismatch (the engine had no reset — `advance_phase`
+  DEPLOYMENT→REQUIREMENTS is correctly rejected as a backward transition). New
+  **`sdlc_start_cycle`** engine tool opens a new cycle: resets `currentPhase` to
+  REQUIREMENTS, clears satisfied criteria + last consensus, and bumps a
+  `ProjectState.cycle` counter — an explicit, **audited cycle boundary**, not a
+  backward rewind within a cycle. `brownfield-intake` calls it when it opens a
+  new increment cycle (so the two stores stay in sync), and `phase-runner` Step 0
+  reconciles a pre-existing drift (engine ahead of the cycle's phase) by calling
+  it once. New `ProjectState.cycle` field (optional, back-compat: absent ⇒ 1).
+  sdlc-engine unit tests 200 → 201. Docs: `docs/LIFECYCLE.md`. Surfaced on a live
+  ANTOS run starting cycle-2 (Wealth Aggregation). Pinned by
+  `tests/integration/sprint-48.sh`.
+
+---
+
 ## [2.35.0] — 2026-06-08
 
 ### Fixed

@@ -43,6 +43,7 @@ describe("MCP tool handlers", () => {
       "sdlc_list_phases",
       "sdlc_record_consensus",
       "sdlc_satisfy_criterion",
+      "sdlc_start_cycle",
     ]);
   });
 

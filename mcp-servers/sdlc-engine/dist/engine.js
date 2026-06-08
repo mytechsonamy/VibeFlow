@@ -131,12 +131,45 @@ export class SdlcEngine {
             },
         });
     }
+    /**
+     * Sprint 48: open a new SDLC cycle. The engine models one linear pass, so a
+     * completed cycle leaves `currentPhase` pinned at DEPLOYMENT — and the
+     * Sprint-42 lifecycle then wants cycle N+1 to walk from REQUIREMENTS again.
+     * This resets `currentPhase` to the first phase, clears criteria + consensus,
+     * and increments `cycle`, so `phase-runner` no longer hits a phase-mismatch
+     * (engine=DEPLOYMENT vs lifecycle=REQUIREMENTS). It is forward-safe: unlike a
+     * backward `advancePhase`, it is an explicit, audited cycle boundary, not a
+     * silent rewind within a cycle.
+     */
+    async startCycle(input) {
+        return this.store.transact(input.projectId, (current) => {
+            const base = current ?? this.seed(input.projectId);
+            const next = {
+                ...base,
+                currentPhase: this.registry.first().id,
+                satisfiedCriteria: [],
+                lastConsensus: null,
+                cycle: (base.cycle ?? 1) + 1,
+                updatedAt: new Date().toISOString(),
+                revision: base.revision + 1,
+            };
+            return { next, result: next };
+        }, {
+            context: {
+                actor: "sdlc_start_cycle",
+                note: input.note !== undefined && input.note.trim().length > 0
+                    ? input.note
+                    : undefined,
+            },
+        });
+    }
     seed(projectId) {
         return {
             projectId,
             currentPhase: this.registry.first().id,
             satisfiedCriteria: [],
             lastConsensus: null,
+            cycle: 1,
             updatedAt: new Date(0).toISOString(),
             revision: 0,
         };

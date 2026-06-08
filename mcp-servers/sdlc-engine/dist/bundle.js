@@ -20098,12 +20098,43 @@ var SdlcEngine = class {
       }
     });
   }
+  /**
+   * Sprint 48: open a new SDLC cycle. The engine models one linear pass, so a
+   * completed cycle leaves `currentPhase` pinned at DEPLOYMENT — and the
+   * Sprint-42 lifecycle then wants cycle N+1 to walk from REQUIREMENTS again.
+   * This resets `currentPhase` to the first phase, clears criteria + consensus,
+   * and increments `cycle`, so `phase-runner` no longer hits a phase-mismatch
+   * (engine=DEPLOYMENT vs lifecycle=REQUIREMENTS). It is forward-safe: unlike a
+   * backward `advancePhase`, it is an explicit, audited cycle boundary, not a
+   * silent rewind within a cycle.
+   */
+  async startCycle(input) {
+    return this.store.transact(input.projectId, (current) => {
+      const base = current ?? this.seed(input.projectId);
+      const next = {
+        ...base,
+        currentPhase: this.registry.first().id,
+        satisfiedCriteria: [],
+        lastConsensus: null,
+        cycle: (base.cycle ?? 1) + 1,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        revision: base.revision + 1
+      };
+      return { next, result: next };
+    }, {
+      context: {
+        actor: "sdlc_start_cycle",
+        note: input.note !== void 0 && input.note.trim().length > 0 ? input.note : void 0
+      }
+    });
+  }
   seed(projectId) {
     return {
       projectId,
       currentPhase: this.registry.first().id,
       satisfiedCriteria: [],
       lastConsensus: null,
+      cycle: 1,
       updatedAt: (/* @__PURE__ */ new Date(0)).toISOString(),
       revision: 0
     };
@@ -20139,6 +20170,10 @@ var AdvancePhaseInput = external_exports.object({
   // under HUMAN_APPROVAL_REQUIRED status. Written to the event log so
   // load-sdlc-context.sh can surface the override on next session.
   humanOverrideNote: external_exports.string().min(1).max(2e3).optional()
+});
+var StartCycleInput = external_exports.object({
+  projectId: external_exports.string().min(1),
+  note: external_exports.string().max(2e3).optional()
 });
 var RecordConsensusInput = external_exports.object({
   projectId: external_exports.string().min(1),
@@ -20250,6 +20285,24 @@ function buildTools(engine, gates = { enforceEntryCriteria: false }) {
           }
           throw err;
         }
+      }
+    },
+    {
+      name: "sdlc_start_cycle",
+      description: "Open a new SDLC cycle: reset currentPhase to the first phase (REQUIREMENTS), clear satisfied criteria + last consensus, and increment the cycle counter. Use when the lifecycle opens a new increment after a completed cycle \u2014 the engine otherwise stays pinned at the previous cycle's terminal phase (DEPLOYMENT) and phase-runner mismatches. An explicit, audited cycle boundary (not a backward rewind within a cycle).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectId: { type: "string", minLength: 1 },
+          note: { type: "string", maxLength: 2e3 }
+        },
+        required: ["projectId"],
+        additionalProperties: false
+      },
+      handler: async (raw) => {
+        const args = StartCycleInput.parse(raw);
+        const state = await engine.startCycle(args);
+        return { ok: true, state };
       }
     }
   ];

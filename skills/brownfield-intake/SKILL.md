@@ -2,7 +2,7 @@
 name: brownfield-intake
 description: The brownfield on-ramp. After onboard on an existing codebase, this fingerprints the repo (languages, frameworks, structure, hotspots, tech debt via codebase-intel) so you don't have to explain the architecture, then ASKS how you want to define the work — describe it in plain language, point to an existing requirements/spec doc, answer a few guided questions, or pull a GitHub/GitLab issue — and synthesizes a code-anchored, increment-scoped requirements doc that feeds prd-quality-analyzer and the rest of the SDLC. Use right after onboard on a project that already has code.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(git *) Bash(gh *) Bash(glab *) mcp__codebase-intel__ci_analyze_structure mcp__codebase-intel__ci_dependency_graph mcp__codebase-intel__ci_find_hotspots mcp__codebase-intel__ci_tech_debt_scan
+allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(git *) Bash(gh *) Bash(glab *) mcp__codebase-intel__ci_analyze_structure mcp__codebase-intel__ci_dependency_graph mcp__codebase-intel__ci_find_hotspots mcp__codebase-intel__ci_tech_debt_scan mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Brownfield Intake
@@ -113,6 +113,17 @@ If `currentCycle` is the still-open `initial` cycle (cycle-1 brownfield start),
 just record the increment title on it — don't open a second cycle. Each cycle =
 one branch / PR; if the operator isn't on a dedicated branch yet, breadcrumb
 `git checkout -b increment/<slug>` in Step 4.
+
+**Reset the SDLC engine for the new cycle (Sprint 48).** The engine
+(`sdlc-engine` MCP) models one linear pass and stays pinned at the *previous*
+cycle's terminal phase (DEPLOYMENT) — so without a reset, `phase-runner` for the
+new cycle would mismatch (engine=DEPLOYMENT vs config=REQUIREMENTS) and refuse.
+When you open a **new increment cycle** (not the still-open initial one), call
+`mcp__sdlc-engine__sdlc_start_cycle` `{ projectId, note: "<increment-slug>" }` —
+it resets `currentPhase` to REQUIREMENTS, clears criteria + consensus, and bumps
+the engine's cycle counter, so `phase-runner` walks the new cycle cleanly. (Check
+`mcp__sdlc-engine__sdlc_get_state` first; if the engine is already at
+REQUIREMENTS — e.g. a brand-new project — skip the reset.)
 
 ## Step 4: Hand off to the SDLC
 

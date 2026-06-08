@@ -17,6 +17,14 @@ export interface ProjectState {
   readonly updatedAt: string;
   /** Monotonically increasing revision, incremented on every write. */
   readonly revision: number;
+  /**
+   * Sprint 48: which SDLC cycle this state belongs to (1 = the initial build,
+   * 2+ = each increment). `sdlc_start_cycle` increments it and resets
+   * `currentPhase` to REQUIREMENTS + clears criteria/consensus, so the engine
+   * can walk a new cycle from the start instead of staying pinned at the
+   * previous cycle's terminal phase. Absent ⇒ cycle 1 (back-compat).
+   */
+  readonly cycle?: number;
 }
 
 export type StateMutator<T> = (
@@ -42,6 +50,8 @@ export interface StateStoreTransactOptions {
     recordedAt?: string;
     force?: boolean;
     humanOverrideNote?: string;
+    /** Sprint 48: free-text note for a sdlc_start_cycle boundary event. */
+    note?: string;
   };
 }
 

@@ -47,6 +47,20 @@ export declare class SdlcEngine {
         state: ProjectState;
         transition: TransitionResult;
     }>;
+    /**
+     * Sprint 48: open a new SDLC cycle. The engine models one linear pass, so a
+     * completed cycle leaves `currentPhase` pinned at DEPLOYMENT — and the
+     * Sprint-42 lifecycle then wants cycle N+1 to walk from REQUIREMENTS again.
+     * This resets `currentPhase` to the first phase, clears criteria + consensus,
+     * and increments `cycle`, so `phase-runner` no longer hits a phase-mismatch
+     * (engine=DEPLOYMENT vs lifecycle=REQUIREMENTS). It is forward-safe: unlike a
+     * backward `advancePhase`, it is an explicit, audited cycle boundary, not a
+     * silent rewind within a cycle.
+     */
+    startCycle(input: {
+        projectId: string;
+        note?: string;
+    }): Promise<ProjectState>;
     private seed;
 }
 export declare class PhaseTransitionError extends Error {

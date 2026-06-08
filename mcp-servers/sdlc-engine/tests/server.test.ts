@@ -52,6 +52,7 @@ describe("createServer — MCP request dispatch", () => {
       "sdlc_list_phases",
       "sdlc_record_consensus",
       "sdlc_satisfy_criterion",
+      "sdlc_start_cycle",
     ]);
   });
 

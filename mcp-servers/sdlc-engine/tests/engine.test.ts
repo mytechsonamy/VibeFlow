@@ -31,6 +31,47 @@ describe("SdlcEngine integration", () => {
     expect(state.satisfiedCriteria).toEqual([]);
   });
 
+  // Sprint 48: sdlc_start_cycle resets a completed cycle back to REQUIREMENTS so
+  // the engine can walk the next increment (the multi-cycle lifecycle gap).
+  it("startCycle resets to REQUIREMENTS, clears criteria/consensus, bumps cycle", async () => {
+    await engine.getOrInit("p1");
+    // Walk to DEPLOYMENT by force (structural order preserved), satisfying a
+    // criterion + recording consensus along the way to prove they're cleared.
+    for (const to of [
+      "DESIGN",
+      "ARCHITECTURE",
+      "PLANNING",
+      "DEVELOPMENT",
+      "TESTING",
+      "DEPLOYMENT",
+    ] as const) {
+      await engine.advancePhase({ projectId: "p1", to, force: true });
+    }
+    await engine.satisfyCriterion({ projectId: "p1", criterion: "release.decision.go" });
+    await engine.recordConsensus({
+      projectId: "p1",
+      phase: "DEPLOYMENT",
+      agreement: 1,
+      criticalIssues: 0,
+      status: "APPROVED",
+    });
+    const before = await engine.read("p1");
+    expect(before?.currentPhase).toBe("DEPLOYMENT");
+    expect(before?.cycle ?? 1).toBe(1);
+
+    const after = await engine.startCycle({ projectId: "p1", note: "increment: aggregation" });
+    expect(after.currentPhase).toBe("REQUIREMENTS");
+    expect(after.satisfiedCriteria).toEqual([]);
+    expect(after.lastConsensus).toBeNull();
+    expect(after.cycle).toBe(2);
+    expect(after.revision).toBe((before?.revision ?? 0) + 1);
+
+    // A second cycle increments again.
+    const third = await engine.startCycle({ projectId: "p1" });
+    expect(third.cycle).toBe(3);
+    expect(third.currentPhase).toBe("REQUIREMENTS");
+  });
+
   // Bug #13 (S4-09): getOrInit on an existing project must NOT enter
   // the mutator transaction. The previous implementation called
   // store.transact and tried to return { next: current, result: current }

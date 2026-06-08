@@ -14,6 +14,11 @@ const AdvancePhaseInput = z.object({
     // load-sdlc-context.sh can surface the override on next session.
     humanOverrideNote: z.string().min(1).max(2000).optional(),
 });
+// Sprint 48: open a new SDLC cycle (reset to REQUIREMENTS + clear criteria).
+const StartCycleInput = z.object({
+    projectId: z.string().min(1),
+    note: z.string().max(2000).optional(),
+});
 const RecordConsensusInput = z.object({
     projectId: z.string().min(1),
     phase: PhaseIdSchema,
@@ -134,6 +139,30 @@ gates = { enforceEntryCriteria: false }) {
                     }
                     throw err;
                 }
+            },
+        },
+        {
+            name: "sdlc_start_cycle",
+            description: "Open a new SDLC cycle: reset currentPhase to the first phase " +
+                "(REQUIREMENTS), clear satisfied criteria + last consensus, and " +
+                "increment the cycle counter. Use when the lifecycle opens a new " +
+                "increment after a completed cycle — the engine otherwise stays " +
+                "pinned at the previous cycle's terminal phase (DEPLOYMENT) and " +
+                "phase-runner mismatches. An explicit, audited cycle boundary (not a " +
+                "backward rewind within a cycle).",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    projectId: { type: "string", minLength: 1 },
+                    note: { type: "string", maxLength: 2000 },
+                },
+                required: ["projectId"],
+                additionalProperties: false,
+            },
+            handler: async (raw) => {
+                const args = StartCycleInput.parse(raw);
+                const state = await engine.startCycle(args);
+                return { ok: true, state };
             },
         },
     ];

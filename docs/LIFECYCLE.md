@@ -62,6 +62,26 @@ cycle completed    ── new increment ──→ git checkout -b increment/<slu
   `consensus.deployment.approved`). phase-runner marks `status: completed`, moves
   the cycle to `history[]`, and breadcrumbs the PR merge + next increment.
 
+## Two stores, kept in sync: lifecycle.json + the engine
+
+There are two pieces of state, and a new cycle must reset **both**:
+
+- **`.vibeflow/state/lifecycle.json`** — skill-managed; tracks the cycle list
+  (id, kind, phase, branch, status).
+- **the `sdlc-engine` MCP** (`project.json`) — the gate behind `/vibeflow:advance`
+  and `phase-runner`; tracks `currentPhase` + satisfied criteria for **one
+  linear pass**.
+
+When a new increment opens, `brownfield-intake` opens the lifecycle cycle **and**
+calls **`sdlc_start_cycle`** on the engine — which resets `currentPhase` to
+REQUIREMENTS, clears criteria + consensus, and bumps an engine `cycle` counter.
+Without that reset the engine would stay pinned at the previous cycle's terminal
+phase (DEPLOYMENT) while lifecycle.json says REQUIREMENTS, and `phase-runner`
+would refuse on a phase-mismatch. `sdlc_start_cycle` is an explicit, audited
+**cycle boundary** — not a backward rewind within a cycle (the engine still
+refuses `advance_phase` going backward). (Added in v2.36.0 / Sprint 48; before it,
+the multi-cycle lifecycle had no engine reset and cycle-2 stalled at the gate.)
+
 ## One cycle = one branch / one PR
 
 Each cycle maps to a branch and a PR. VibeFlow **tracks** `branch`/`prUrl` in the

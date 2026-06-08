@@ -2,7 +2,7 @@
 name: phase-runner
 description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, then drives a real cross-AI consensus verdict HEADLESSLY via hooks/scripts/consensus-run.sh (runs the codex/gemini reviewer CLIs + finalises verdict.json — no dependency on the disable-model-invocation consensus skills, so phase-runner no longer deadlocks). On APPROVED it records consensus + auto-advances via the sdlc-engine MCP tools; on NEEDS_REVISION/REJECTED it stops with an explicit operator breadcrumb (the deep-rewrite specialist→arbiter→apply chain edits the primary artifact and stays operator-confirmed by design). In TESTING it first generates the coverage artifact (Sprint 29). One command replaces the manual analyzer → consensus → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(bash hooks/scripts/consensus-run.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus
+allowed-tools: Read Write Bash(bash hooks/scripts/consensus-run.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -218,6 +218,18 @@ decision); it's **"is there an open cycle to resume, or did the last one ship?"*
 Each cycle maps to **one branch / one PR** (track-and-breadcrumb — VibeFlow
 records `branch`/`prUrl` in the cycle and *suggests* the `git`/`gh` commands;
 the operator runs them).
+
+**Engine/lifecycle drift — reconcile before Step 1 (Sprint 48).** The
+`sdlc-engine` MCP models one linear pass; opening a new increment cycle in
+`lifecycle.json` does **not** by itself rewind the engine, which stays at the
+prior cycle's terminal phase (DEPLOYMENT). Normally `brownfield-intake` calls
+`mcp__sdlc-engine__sdlc_start_cycle` when it opens the cycle, so they agree. But
+if you find the engine **ahead** of this cycle's phase — `sdlc_get_state`'s
+`currentPhase` is later than the cycle's `currentPhase` (e.g. a cycle opened
+before this reset existed, like a pre-2.36 ANTOS cycle-2) — call
+`mcp__sdlc-engine__sdlc_start_cycle` `{ projectId, note: "<cycle/​increment>" }`
+once to reset the engine to REQUIREMENTS, then continue. Without it, Step 1's
+phase-mismatch guard correctly refuses to run.
 
 ### Step 1: Resolve phase + config
 
