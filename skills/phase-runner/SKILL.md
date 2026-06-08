@@ -149,6 +149,19 @@ existing gates enforce them: they must pass (`regression-test-runner` /
 entirely — coverage + mutation only, unchanged. `docs/FRONTEND-TESTING.md` maps
 each step to what it guarantees.
 
+**…and on mobile, add the crash/stability lane (Sprint 45).** When
+`vibeflow.config.json.platform` is `ios` / `android` / `all`, also run
+**`mobile-stability-runner`** as a Skill — functional E2E asks "does the flow
+work?", this asks "**does the app crash?**", the failure mode that actually bites
+mobile (and Expo especially, where the crash is usually at cold start, not in the
+happy path). It is **Expo-aware** (auto-detects Expo → Maestro / bare RN → Detox)
+and runs a crash-focused battery (cold-start smoke, background/foreground,
+low-memory, deep links, permission denial, network loss, rotation) detecting
+native crashes / JS redbox / ANR. **Graceful-degrade:** with no simulator/device
+it doesn't fail hard — it breadcrumbs the local run command and records
+`NEEDS_REVISION` (env gap, not a crash). A crash on cold-start or a P0 flow is a
+hard BLOCKED. `docs/MOBILE-TESTING.md` covers it.
+
 ## Process
 
 ### Step 0: Lifecycle — resume the open cycle, or start a new increment (Sprint 42)

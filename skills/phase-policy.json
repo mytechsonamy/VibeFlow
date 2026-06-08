@@ -67,6 +67,10 @@
       "phases": ["DEVELOPMENT", "TESTING"],
       "description": "Generates end-to-end tests."
     },
+    "mobile-stability-runner": {
+      "phases": ["TESTING"],
+      "description": "Sprint 45. Mobile crash & stability testing (iOS/Android, Expo-aware: Expo→Maestro / bare→Detox): cold-start smoke + crash-prone scenario battery (background/foreground, low-memory, deep links, permission denial, network loss, rotation) + native-crash/redbox/ANR detection + crash-reporter surfacing. Platform-conditional lane of the phase-runner TESTING walk; graceful-degrades when no device is available."
+    },
     "test-data-manager": {
       "phases": ["DEVELOPMENT", "TESTING"],
       "description": "Generates factories and fixtures."

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.33.0] — 2026-06-08
+
+### Added
+- **Mobile crash & stability testing — `/vibeflow:mobile-stability-runner`
+  (Expo-aware).** Functional E2E (Detox) tells you the flows work; on mobile —
+  and on Expo especially — the app crashes where the happy path doesn't look:
+  at **cold start** (a native-module / `app.config` / env mismatch) or on a
+  lifecycle event. The new skill is the mobile crash lane: it **auto-detects the
+  runner** (Expo `app.config`/`app.json` + `expo` dep → **Maestro** on Expo Go /
+  dev-client; bare React Native → **Detox**), runs a **crash-focused battery**
+  beyond the functional flows — cold-start smoke, background↔foreground,
+  low-memory, deep links, permission denial, network-loss mid-flow, rotation,
+  rapid navigation, JS unhandled-rejection — and detects native crashes / JS
+  redbox / ANR, surfacing anything a configured crash reporter (Sentry /
+  Crashlytics / Expo) captured. **Graceful-degrade:** with no simulator/device it
+  records `NEEDS_REVISION` + a local-run breadcrumb (`maestro test …` /
+  `eas build` / `npx expo start`) instead of a false failure; a crash on
+  cold-start or a P0 flow is a hard `BLOCKED`. `phase-runner`'s TESTING walk runs
+  it **when `platform` is `ios`/`android`/`all`** (alongside the front-end battery
+  for a mobile UI increment); non-mobile platforms skip it. New skill registered
+  in `phase-policy.json`. Docs: `docs/MOBILE-TESTING.md`. Pinned by
+  `tests/integration/sprint-45.sh` (32 assertions).
+
+---
+
 ## [2.32.0] — 2026-06-08
 
 ### Added
