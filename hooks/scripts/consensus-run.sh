@@ -260,9 +260,13 @@ append_cli_verdict() {
   case "$structured" in
     APPROVED|NEEDS_REVISION|REJECTED) verdict="$structured" ;;
     *)
-      if echo "$raw" | grep -qE 'REJECTED'; then verdict=REJECTED
-      elif echo "$raw" | grep -qE 'NEEDS_REVISION|NEEDS[[:space:]]REVISION'; then verdict=NEEDS_REVISION
-      elif echo "$raw" | grep -qE 'APPROVED'; then verdict=APPROVED
+      # Defense-in-depth (Sprint 47): a line listing the verdict keywords as a
+      # `|`-alternation is the echoed schema template, not a verdict — drop it
+      # before the keyword grep so it can't bias us toward REJECTED.
+      cleaned="$(printf '%s\n' "$raw" | grep -vF 'APPROVED|NEEDS_REVISION|REJECTED')"
+      if echo "$cleaned" | grep -qE 'REJECTED'; then verdict=REJECTED
+      elif echo "$cleaned" | grep -qE 'NEEDS_REVISION|NEEDS[[:space:]]REVISION'; then verdict=NEEDS_REVISION
+      elif echo "$cleaned" | grep -qE 'APPROVED'; then verdict=APPROVED
       else verdict=NEEDS_REVISION
       fi
       ;;
@@ -299,31 +303,44 @@ warn_cli_error() {  # <name> <rc> <model-label> <config-key> <output>
   [[ -n "$out" ]] && echo "  → $name said: $(printf '%s' "$out" | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-300)" >&2
 }
 
+# Capture STDOUT ONLY (Sprint 47 — Patch B). codex `exec` writes its banner +
+# a verbatim echo of the prompt (which contains the JSON *schema template*
+# `{verdict:APPROVED|NEEDS_REVISION|REJECTED, …}`, invalid JSON) to STDERR; the
+# real verdict goes to STDOUT. Merging stderr (`2>&1`) dumped that schema
+# template into the parsed blob ahead of the real answer, where on a large/
+# interleaved diff it defeated vf_extract_json → keyword-grep fallback → a
+# content-free REJECTED/NEEDS_REVISION that flipped the aggregate. Keeping
+# stderr in a separate file preserves error diagnostics without poisoning the
+# verdict blob. (vf_extract_json's walk-all-objects guard stays as belt-and-suspenders.)
 if command -v codex >/dev/null 2>&1; then
-  CODEX_OUT="$( build_review_prompt | vf_run_timeout "$CLI_TIMEOUT" codex exec $CODEX_MFLAG --skip-git-repo-check --ephemeral 2>&1 )"
+  CODEX_ERR="$(mktemp 2>/dev/null || echo /tmp/vf_codex_err.$$)"
+  CODEX_OUT="$( build_review_prompt | vf_run_timeout "$CLI_TIMEOUT" codex exec $CODEX_MFLAG --skip-git-repo-check --ephemeral 2>"$CODEX_ERR" )"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
     echo "consensus-run: codex timed out after ${CLI_TIMEOUT}s (model: ${openaiModel:-<CLI default>})" >&2
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
   elif (( CODEX_RC != 0 )); then
     ERRORS=$((ERRORS + 1))
-    warn_cli_error codex "$CODEX_RC" "$openaiModel" "models.openai" "$CODEX_OUT"
+    warn_cli_error codex "$CODEX_RC" "$openaiModel" "models.openai" "$(cat "$CODEX_ERR" 2>/dev/null; printf '%s' "$CODEX_OUT")"
   else
     append_cli_verdict codex "$CODEX_OUT" ""
   fi
+  rm -f "$CODEX_ERR" 2>/dev/null
 fi
 if command -v gemini >/dev/null 2>&1; then
-  GEMINI_OUT="$( build_review_prompt | vf_run_timeout "$CLI_TIMEOUT" gemini $GEMINI_MFLAG 2>&1 )"
+  GEMINI_ERR="$(mktemp 2>/dev/null || echo /tmp/vf_gemini_err.$$)"
+  GEMINI_OUT="$( build_review_prompt | vf_run_timeout "$CLI_TIMEOUT" gemini $GEMINI_MFLAG 2>"$GEMINI_ERR" )"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
     echo "consensus-run: gemini timed out after ${CLI_TIMEOUT}s (model: ${geminiModel:-<CLI default>})" >&2
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
   elif (( GEMINI_RC != 0 )); then
     ERRORS=$((ERRORS + 1))
-    warn_cli_error gemini "$GEMINI_RC" "$geminiModel" "models.gemini" "$GEMINI_OUT"
+    warn_cli_error gemini "$GEMINI_RC" "$geminiModel" "models.gemini" "$(cat "$GEMINI_ERR" 2>/dev/null; printf '%s' "$GEMINI_OUT")"
   else
     append_cli_verdict gemini "$GEMINI_OUT" ""
   fi
+  rm -f "$GEMINI_ERR" 2>/dev/null
 fi
 
 # A reviewer counts only if it produced a verdict line. If every present CLI

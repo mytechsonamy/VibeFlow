@@ -446,8 +446,10 @@ CLI_TIMEOUT="$(vf_config_get '.consensus.cliTimeoutSeconds' 2>/dev/null || echo 
 [[ "$CLI_TIMEOUT" =~ ^[0-9]+$ ]] && (( CLI_TIMEOUT >= 10 )) || CLI_TIMEOUT=90
 
 # codex — per-CLI timeout so aggregator never sits on its 600s global wait.
+# STDOUT ONLY (Sprint 47 — Patch B): codex `exec` echoes the prompt (with the
+# JSON schema template) + banner to STDERR; merging it poisoned the verdict blob.
 if command -v codex >/dev/null 2>&1; then
-  CODEX_OUT="$( { build_memory_block codex; build_review_prompt; } | vf_run_timeout "$CLI_TIMEOUT" codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>&1)"
+  CODEX_OUT="$( { build_memory_block codex; build_review_prompt; } | vf_run_timeout "$CLI_TIMEOUT" codex exec -m "$openaiModel" --skip-git-repo-check --ephemeral 2>/dev/null)"
   CODEX_RC=$?
   if (( CODEX_RC == 124 )); then
     append_cli_verdict codex '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"
@@ -461,7 +463,7 @@ fi
 # gemini — same shape. Shares build_review_prompt so both CLIs see
 # the same PRIMARY + EVIDENCE framing.
 if command -v gemini >/dev/null 2>&1; then
-  GEMINI_OUT="$( { build_memory_block gemini; build_review_prompt; } | vf_run_timeout "$CLI_TIMEOUT" gemini --model "$geminiModel" 2>&1)"
+  GEMINI_OUT="$( { build_memory_block gemini; build_review_prompt; } | vf_run_timeout "$CLI_TIMEOUT" gemini --model "$geminiModel" 2>/dev/null)"
   GEMINI_RC=$?
   if (( GEMINI_RC == 124 )); then
     append_cli_verdict gemini '{"verdict":"REJECTED","criticalIssues":0}' "cli_timeout"

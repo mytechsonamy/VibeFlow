@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.35.0] — 2026-06-08
+
+### Fixed
+- **Reviewer verdicts no longer poisoned by codex's prompt-echo on stderr (the
+  recurring `consensus-run.sh` parser bug — landed for good).** `consensus-run.sh`
+  and the orchestrator captured codex/gemini with **`2>&1`**, merging stderr into
+  the parsed blob. codex `exec` writes its banner + a verbatim **echo of the
+  prompt** — which contains the JSON **schema template**
+  `{verdict:APPROVED|NEEDS_REVISION|REJECTED, …}` (invalid JSON) — to **stderr**.
+  On a large / interleaved diff that template defeated `vf_extract_json`, so the
+  keyword-grep fallback fired and (checking `REJECTED` first, which the template
+  lists) recorded codex as a **content-free REJECTED / NEEDS_REVISION** that
+  flipped the aggregate and pinned consensus at agreement 0.5 — the
+  specialist→apply loop then ran blind and never converged. **Fix (root cause):**
+  capture **stdout only** (`2>"$errfile"`), where codex's real verdict lives;
+  stderr goes to a separate file so `warn_cli_error` diagnostics are preserved.
+  **Defense-in-depth:** the keyword-grep fallback now drops any line containing
+  the `|`-alternation schema template before classifying, so a stray template can
+  never bias the verdict toward REJECTED. The v2.20.4 walk-all-objects extractor
+  (`vf_extract_json` → first valid object **with a `.verdict` key**) stays as
+  belt-and-suspenders. Applied to both `consensus-run.sh` (lines 303/316) and the
+  `consensus-orchestrator` prose (codex + gemini). Diagnosed end-to-end in a live
+  ANTOS run (report in the project's `.vibeflow/reports/consensus-run-parser-bug.md`).
+  Pinned by `tests/integration/sprint-47.sh` (static + runtime probes: a
+  schema-template-only blob no longer yields REJECTED, and the real verdict is
+  extracted past the template).
+
+---
+
 ## [2.34.0] — 2026-06-08
 
 ### Fixed
