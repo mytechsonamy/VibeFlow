@@ -2,7 +2,7 @@
 name: phase-runner
 description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, then drives a real cross-AI consensus verdict HEADLESSLY via hooks/scripts/consensus-run.sh (runs the codex/gemini reviewer CLIs + finalises verdict.json — no dependency on the disable-model-invocation consensus skills, so phase-runner no longer deadlocks). On APPROVED it records consensus + auto-advances via the sdlc-engine MCP tools; on NEEDS_REVISION/REJECTED it stops with an explicit operator breadcrumb (the deep-rewrite specialist→arbiter→apply chain edits the primary artifact and stays operator-confirmed by design). In TESTING it first generates the coverage artifact (Sprint 29). One command replaces the manual analyzer → consensus → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(bash hooks/scripts/consensus-run.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
+allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -230,6 +230,33 @@ before this reset existed, like a pre-2.36 ANTOS cycle-2) — call
 `mcp__sdlc-engine__sdlc_start_cycle` `{ projectId, note: "<cycle/​increment>" }`
 once to reset the engine to REQUIREMENTS, then continue. Without it, Step 1's
 phase-mismatch guard correctly refuses to run.
+
+**Surface pending work before progressing (Sprint 52).** phase-runner advances
+the SDLC *phase* — it does **not** commit/push your work, and "run phase-runner"
+is not "commit everything and ship". Operators reasonably expect "just do what's
+needed", so before resuming/advancing, **look for in-flight work that the phase
+step would otherwise skip, and name it** (surface only — never auto-commit; git
+is the operator's):
+
+```bash
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 && \
+  git status --porcelain | head -20          # uncommitted changes
+[ -f .vibeflow/state/review-pending.json ] && echo "review-pending marker present"
+```
+
+- **Uncommitted changes** — list them. **This matters most when the phase is (or
+  is advancing into) DEVELOPMENT**, because `code.reviewed` runs consensus on the
+  **committed** diff (Step 1's base-resolver), so anything uncommitted is **not
+  reviewed**. Emit a heads-up + the breadcrumb, e.g.
+  `⚠ N uncommitted file(s) won't be in the DEVELOPMENT review diff — commit first: git add -A && git commit`.
+- **`review-pending.json`** (the `trigger-ai-review` marker) — a
+  committed-but-unreviewed change. Name its sha and remind that consensus on the
+  diff covers it.
+
+phase-runner does **not block** on pending work (the operator may intentionally
+leave it) and does **not** commit it — it surfaces it so "run phase-runner"
+doesn't silently advance past unreviewed in-flight work. If there's nothing
+pending, say nothing.
 
 ### Step 1: Resolve phase + config
 

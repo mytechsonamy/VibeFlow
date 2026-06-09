@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.40.0] — 2026-06-09
+
+### Added
+- **`phase-runner` now surfaces in-flight work before progressing.** Operators
+  reasonably read "run phase-runner" as "do what's needed to move forward", but
+  phase-runner only advances the SDLC *phase* — it doesn't commit/push, and it
+  can silently advance past **uncommitted work** that the phase step won't see.
+  That bites most going **into DEVELOPMENT**, whose `code.reviewed` runs consensus
+  on the **committed** diff, so anything left uncommitted is never reviewed. Step 0
+  now checks `git status --porcelain` (uncommitted changes) + the
+  `review-pending.json` marker and **names** what's pending with a heads-up + a
+  `git add/commit` breadcrumb (e.g. "⚠ N uncommitted file(s) won't be in the
+  DEVELOPMENT review diff — commit first"). It is **surface-only**: it never
+  auto-commits (git stays the operator's), never blocks (you may intentionally
+  leave work uncommitted), and stays quiet when nothing is pending. Surfaced by an
+  operator who ran phase-runner expecting it to also handle a pending commit.
+  Pinned by `tests/integration/sprint-52.sh`.
+
+---
+
 ## [2.39.1] — 2026-06-09
 
 ### Changed
