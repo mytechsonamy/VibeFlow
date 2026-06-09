@@ -2,7 +2,7 @@
 name: phase-runner
 description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, then drives a real cross-AI consensus verdict HEADLESSLY via hooks/scripts/consensus-run.sh (runs the codex/gemini reviewer CLIs + finalises verdict.json — no dependency on the disable-model-invocation consensus skills, so phase-runner no longer deadlocks). On APPROVED it records consensus + auto-advances via the sdlc-engine MCP tools; on NEEDS_REVISION/REJECTED it stops with an explicit operator breadcrumb (the deep-rewrite specialist→arbiter→apply chain edits the primary artifact and stays operator-confirmed by design). In TESTING it first generates the coverage artifact (Sprint 29). One command replaces the manual analyzer → consensus → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
+allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(bash *ui-verification-debt.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -266,6 +266,23 @@ phase-runner does **not block** on pending work (the operator may intentionally
 leave it) and does **not** commit it — it surfaces it so "run phase-runner"
 doesn't silently advance past unreviewed in-flight work. If there's nothing
 pending, say nothing.
+
+**UI render-verification debt (Sprint 54).** The front-end battery runs only when
+the *current* increment is UI-facing — so a web UI built in an earlier cycle (or
+before the visual-testing tooling existed) can stay **never rendered or compared
+to its design**, buried under later backend cycles. Run the read-only reader and
+surface it (surface-only — never blocks, never auto-runs):
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/ui-verification-debt.sh" .
+```
+
+- `"never"` → `⚠ this project has a web UI that has never been render-verified — `
+  `▶ /vibeflow:frontend-render-check` (it'll catch a won't-boot bug + any
+  design divergence).
+- `"stale"` → `⚠ the UI changed since the last render-verification — re-run`
+  `/vibeflow:frontend-render-check`.
+- `"verified"` / `"no-ui"` → say nothing.
 
 ### Step 1: Resolve phase + config
 

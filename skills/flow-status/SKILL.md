@@ -1,7 +1,7 @@
 ---
 name: flow-status
 description: Shows current VibeFlow project status including SDLC phase, pending tasks, quality metrics, and recent review results. Use when asking about project progress. Renamed from `status` in v2.20.0 to avoid colliding with Claude Code's built-in `/status` (usage/quota).
-allowed-tools: Read Grep Glob Bash(bash *loop-audit.sh*) Bash(jq *)
+allowed-tools: Read Grep Glob Bash(bash *loop-audit.sh*) Bash(bash *ui-verification-debt.sh*) Bash(jq *)
 ---
 
 # VibeFlow Flow-Status
@@ -81,6 +81,20 @@ outcomes, `auto-apply/cooldown-*` markers, `auto-apply/watch.json`,
 `applied`, no `cooldowns`, no `armedWatch`, `reportExists:false`), render
 a single line — `Autonomous loop: idle (autoApply off / no activity)` —
 so projects that don't use auto-apply see no noise.
+
+### 7. UI render-verification (Sprint 54)
+Run the read-only reader and render a one-liner **only when there's debt**:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/ui-verification-debt.sh" .
+```
+
+- `"never"` → `⚠ Web UI never render-verified — run /vibeflow:frontend-render-check`
+- `"stale"` → `⚠ UI changed since last render-verification — re-run /vibeflow:frontend-render-check`
+- `"verified"` / `"no-ui"` → render nothing (no web UI, or it's verified).
+
+This catches a UI built in an earlier cycle that shipped coverage-tested but was
+never rendered or compared to its design — so it can't stay buried.
 
 ## Output
 Display a concise status summary directly in the conversation. Do not create a file.

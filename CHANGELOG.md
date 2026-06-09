@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.0] — 2026-06-10
+
+### Added
+- **A "UI never render-verified" debt signal.** The front-end battery
+  (incl. `frontend-render-check`) runs only when the *current* increment is
+  UI-facing — so a web UI built in an **earlier** cycle (or before the
+  visual-testing tooling existed) can ship coverage-tested yet **never rendered or
+  compared to its design**, then stay buried under later backend cycles. A new
+  read-only reader `hooks/scripts/ui-verification-debt.sh` detects a repo that has
+  a web UI (a web-framework dependency + a web entry) but **no
+  `frontend-conformance.md`** (never verified) or one **older than the UI's source**
+  (stale). `phase-runner` Step 0 and `flow-status` now surface it —
+  `⚠ web UI never render-verified — run /vibeflow:frontend-render-check` (or
+  `re-run` when stale) — **surface-only** (never blocks, never auto-runs, and
+  silent on a backend-only or already-verified repo). Caught by the realisation
+  that ANTOS's dashboard (built cycle-3, before the tooling) had never once been
+  opened in a browser or compared to its Figma design. Pinned by
+  `tests/integration/sprint-54.sh` (static + runtime probes: no-ui / never /
+  verified / stale / backend-only).
+
+---
+
 ## [2.41.0] — 2026-06-09
 
 ### Added
