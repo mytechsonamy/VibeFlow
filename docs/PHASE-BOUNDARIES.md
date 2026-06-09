@@ -24,8 +24,17 @@ warning) if it matches the `warn` list. Otherwise it's **denied**
 | **ARCHITECTURE** | DESIGN + `contracts/**`, `.vibeflow/reports/adr-*.md`, `*.d.ts` interface stubs | — | business-logic source files |
 | **PLANNING** | ARCHITECTURE + `docs/sprints/**` | — | source code |
 | **DEVELOPMENT** | everything (`**`) | — | — |
-| **TESTING** | `**/*.test.*`, `**/*.spec.*`, `tests/**`, `test/**`, `.vibeflow/**`, docs | `src/**` (non-test) | — |
-| **DEPLOYMENT** | `CHANGELOG*`, `release-notes/**`, `.github/workflows/**`, `Dockerfile*`, `docker-compose*.yml`, docs | `src/**` | — |
+| **TESTING** | `**/*.test.*`, `**/*.spec.*`, `tests/**`, `test/**`, `.vibeflow/**`, docs | `src/**`, `**/src/**` (non-test source) | — |
+| **DEPLOYMENT** | `CHANGELOG*`, `release-notes/**`, `.github/workflows/**`, `Dockerfile*`, `docker-compose*.yml`, docs | `src/**`, `**/src/**` | — |
+
+> **Monorepo-aware source paths (Sprint 51).** The source `warn` patterns are
+> `src/**` **and** `**/src/**`, so a source file under a monorepo package
+> (`packages/*/src/…`, `apps/*/src/…`) gets the same **warn (soft-allow)**
+> treatment as a top-level `src/…` — not a hard block. This matters in TESTING:
+> a legitimate source touch like a Stryker `// Stryker disable next-line`
+> annotation for a *proven equivalent mutant* is a warned write, not a wall.
+> (A non-`src`/non-test source path — e.g. `packages/*/lib/…` — still blocks; the
+> warn is scoped to `/src/` segments.)
 
 Two globs are **always** in the `allow` list regardless of phase so
 the framework itself never self-blocks:

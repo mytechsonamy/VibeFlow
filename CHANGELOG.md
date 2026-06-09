@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.39.0] — 2026-06-09
+
+### Fixed
+- **`phase-write-guard` source patterns are now monorepo-aware.** The source
+  `warn` glob was `src/**`, which only matches a **top-level** `src/…`. In a
+  monorepo (`packages/*/src/…`, `apps/*/src/…`) a source file matched neither the
+  `allow` list nor that `warn` pattern, so it fell through to a **hard block** in
+  TESTING/DEPLOYMENT — even though the intent for those phases is a **warn
+  (soft-allow)** on source. It bit a legitimate TESTING touch: adding a Stryker
+  `// Stryker disable next-line` annotation for a *proven equivalent mutant* to a
+  monorepo source file got hard-blocked (the operator had to use the
+  `VF_ALLOW_PHASE_WRITE=1` bypass). The `warn` lists for TESTING + DEPLOYMENT now
+  include **`**/src/**`** alongside `src/**`, so monorepo source gets the same
+  warn (soft-allow) as top-level — while a non-`src` monorepo path
+  (`packages/*/lib/…`) still blocks, and REQUIREMENTS still hard-blocks all
+  source (no regression). Test patterns (`**/*.test.*`) were already
+  monorepo-aware; this brings source into line. Surfaced on a live ANTOS
+  (monorepo) TESTING run. Pinned by `tests/integration/sprint-51.sh` (static +
+  a runtime matcher probe). Docs: `docs/PHASE-BOUNDARIES.md`.
+
+---
+
 ## [2.38.0] — 2026-06-08
 
 ### Fixed
