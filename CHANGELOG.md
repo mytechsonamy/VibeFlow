@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.39.1] — 2026-06-09
+
+### Changed
+- Maintainer contact email in `plugin.json` / `marketplace.json` updated to the
+  `@techsonamy.com` address. Metadata-only; no functional change.
+
+---
+
 ## [2.39.0] — 2026-06-09
 
 ### Fixed

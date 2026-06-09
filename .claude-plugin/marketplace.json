@@ -2,14 +2,14 @@
   "name": "vibeflow",
   "owner": {
     "name": "Musti",
-    "email": "mustafa.yildirim@dgpays.com"
+    "email": "mustafa.yildirim@techsonamy.com"
   },
   "plugins": [
     {
       "name": "vibeflow",
       "source": "./",
       "description": "AI-Orchestrated Vibe Coding Framework with Multi-AI Consensus and Truth Validation.",
-      "version": "2.39.0"
+      "version": "2.39.1"
     }
   ]
 }
