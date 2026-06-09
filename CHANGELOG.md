@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.41.0] — 2026-06-09
+
+### Added
+- **`/vibeflow:frontend-render-check` — actually render the UI and compare it to
+  the design (ends the "dark tunnel").** A web UI can pass every unit + component
+  test and still be **nothing like the design** — because none of those tests
+  ever *rendered* it. Surfaced live: an operator found the implemented ANTOS
+  screen had **no relation** to its Figma design, and the dev server wouldn't even
+  start on a path with spaces (a `%20`-encoded alias) — neither caught by the
+  test suite. The new skill: (1) **detects the web framework and boots the dev
+  server** — a server that won't start is a *finding*, not an environment glitch;
+  (2) serves **mock data** so the screens render with content **without a
+  backend**; (3) **captures and surfaces** screenshots of the hero screens (and
+  names `http://localhost:<port>/` to open in Chrome) — never a bare "rendered
+  ✓"; (4) compares **implemented vs designed** — the Figma frames via
+  `design-bridge db_compare_impl`, else the design-spec mockups + tokens — and
+  reports the divergence as a concrete, named list, side-by-side. Verdict
+  `BLOCKED` when the app won't boot **or** has no meaningful relation to the
+  design. It uses mocks **on purpose** (TESTING, no infra); the **front-end +
+  live backend** walk stays `uat-executor` in DEPLOYMENT. Runs **first** in the
+  phase-runner TESTING front-end battery (web UI increments), feeding its
+  screenshots to `visual-ai-analyzer`; arm-on-pass; graceful-degrades when no
+  headless browser. Registered in `phase-policy.json`. Docs: `docs/FRONTEND-TESTING.md`.
+  Pinned by `tests/integration/sprint-53.sh`.
+
+---
+
 ## [2.40.0] — 2026-06-09
 
 ### Added

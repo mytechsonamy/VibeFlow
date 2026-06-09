@@ -148,18 +148,27 @@ cycle), phase-runner runs the **front-end battery** in TESTING **in addition to*
 coverage + mutation — each as a **Skill** (not a general agent), arm-on-pass
 (Sprint 43), so their reports feed the TESTING consensus + the gated test suite:
 
-1. **`input-validation-matrix`** — per-field data validation (required / type /
+1. **`frontend-render-check`** (web only, Sprint 53) — **actually boots the UI**,
+   serves mock data, captures + **surfaces** screenshots of the hero screens, and
+   compares them to the **design** (Figma via `db_compare_impl`, else the
+   design-spec mockups + tokens). This is the step that ends the "dark tunnel":
+   it catches a UI that ships unit-tested but never rendered, a dev server that
+   won't start (a broken alias / a path-with-spaces), and an implementation that
+   has *no relation to the design*. Run it **first** so its screenshots feed
+   `visual-ai-analyzer`.
+2. **`input-validation-matrix`** — per-field data validation (required / type /
    boundary / format / type-mismatch / injection-safety / output-formatting).
-2. **`e2e-test-writer`** then run — functional flows end-to-end (Playwright web /
+3. **`e2e-test-writer`** then run — functional flows end-to-end (Playwright web /
    Detox mobile): the functions actually work.
-3. **`business-rule-validator`** — the functions meet the PRD's rules.
-4. **`traceability-engine`** — every UI requirement maps to a test (no
+4. **`business-rule-validator`** — the functions meet the PRD's rules.
+5. **`traceability-engine`** — every UI requirement maps to a test (no
    untested requirement / orphan test).
-5. **`visual-ai-analyzer`** — design conformance: each area matches
-   `design-spec.md` (layout / typography / a11y); pairs with `design-bridge
-   db_compare_impl` when a Figma file exists.
-6. **`uat-executor`** — end-to-end on staging, when a staging URL is configured
-   (else breadcrumb it as the operator's manual step).
+6. **`visual-ai-analyzer`** — design conformance on the captured screens (layout
+   / typography / a11y), reusing `frontend-render-check`'s screenshots.
+7. **`uat-executor`** — end-to-end on staging **with the real backend**, when a
+   staging URL is configured (else breadcrumb it as the operator's manual step).
+   This is the **front-end + live backend** integration — `frontend-render-check`
+   uses mocks on purpose; the live front+back walk is here / in DEPLOYMENT.
 
 Because the validation + e2e tests are written **into the project suite**, the
 existing gates enforce them: they must pass (`regression-test-runner` /
