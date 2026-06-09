@@ -2,7 +2,7 @@
 name: phase-runner
 description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, then drives a real cross-AI consensus verdict HEADLESSLY via hooks/scripts/consensus-run.sh (runs the codex/gemini reviewer CLIs + finalises verdict.json — no dependency on the disable-model-invocation consensus skills, so phase-runner no longer deadlocks). On APPROVED it records consensus + auto-advances via the sdlc-engine MCP tools; on NEEDS_REVISION/REJECTED it stops with an explicit operator breadcrumb (the deep-rewrite specialist→arbiter→apply chain edits the primary artifact and stays operator-confirmed by design). In TESTING it first generates the coverage artifact (Sprint 29). One command replaces the manual analyzer → consensus → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(bash *ui-verification-debt.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
+allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *ui-styling-check.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -102,6 +102,28 @@ DIFF_RANGE="$BASE..HEAD"          # the DEVELOPMENT primary
 Use `$DIFF_RANGE` as the primary the `quality-gates` analyzer + consensus
 review. `quality-gates` runs lint/typecheck/tests (mechanical — invoke it as a
 **Skill**, not a general agent); consensus on the diff satisfies `code.reviewed`.
+
+**DEVELOPMENT — catch a *skinless* UI here, not at TESTING (Sprint 55).** A UI
+whose *structure* is built (the right DOM, content binding, a11y, even the
+design's class names) but whose *design was never implemented* — no stylesheet,
+no Tailwind, no CSS-in-JS, design tokens never consumed — compiles fine, passes
+lint/typecheck/tests, and reads clean in a diff (an **absence** is invisible to
+`quality-gates` + `code.reviewed`). It then renders as bare default HTML, nothing
+like the mockup. Run the read-only static check on the DEVELOPMENT diff:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/ui-styling-check.sh" .
+```
+
+- `"skinless"` → surface **prominently** (this is a real DEVELOPMENT gap, not a
+  nit): `⚠ the UI uses className but applies no stylesheet/tokens — the design`
+  `(design-spec mockup + design-tokens.json) was specified but never implemented.`
+  `Implement the styling before TESTING.` Do not advance past it silently.
+- `"styled"` / `"no-ui"` → say nothing.
+
+The TESTING `frontend-render-check` is the hard gate (it BLOCKs a skinless UI);
+this catches the same gap **when the UI is written**, so it can't ship structure-
+only.
 
 **DEPLOYMENT closes the cycle (Sprint 42).** DEPLOYMENT is terminal — there is no
 phase after it. When its exit criteria are satisfied (`release.decision.go` =

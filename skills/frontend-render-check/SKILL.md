@@ -2,7 +2,7 @@
 name: frontend-render-check
 description: Actually stands up the front-end and verifies it RENDERS and MATCHES THE DESIGN — the step that ends the "dark tunnel" where a UI ships unit-tested but never once rendered or compared to the design. Detects the web framework, boots the dev server (catching startup bugs like a broken alias on a path with spaces), serves mock/fixture data so the UI renders with content WITHOUT a backend, captures screenshots of the hero screens, surfaces them to the operator (so you SEE it, not a green checkmark), and runs a design-conformance comparison against the Figma file (design-bridge db_compare_impl) or the design-spec mockups + tokens (colors/fonts/spacing/layout). Use in TESTING for a web UI increment; pairs with visual-ai-analyzer.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(vite *) Bash(next *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(npx playwright *) Bash(node *) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_compare_impl mcp__design-bridge__db_extract_tokens
+allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(vite *) Bash(next *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(npx playwright *) Bash(node *) Bash(bash *ui-styling-check.sh*) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_compare_impl mcp__design-bridge__db_extract_tokens
 ---
 
 # Front-end Render Check
@@ -73,6 +73,14 @@ record `NEEDS_REVISION` (env gap, not a design failure).
 ## Step 4: Design conformance — implemented vs designed
 
 This is the heart: **does the coded screen match the design?**
+
+**Static "skinless UI" pre-check (Sprint 55).** Even before screenshots, run
+`hooks/scripts/ui-styling-check.sh .` — if it returns `"skinless"` (the UI uses
+className but applies no stylesheet/tokens), the design was **never
+implemented**: the screen renders as bare default HTML. That's an immediate
+`BLOCKED`, nameable without a browser (exactly the case where a dashboard shipped
+with matching class names but zero CSS). phase-runner surfaces the same signal in
+DEVELOPMENT; here it's a hard gate.
 
 - **If a Figma file is referenced** (a `figma.com/design/…` URL in
   `design/design-spec.md` / config) — pull the design frames via

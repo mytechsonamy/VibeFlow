@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.43.0] — 2026-06-10
+
+### Added
+- **Catch a "skinless" UI in DEVELOPMENT — the design specified but never
+  implemented.** A live ANTOS render-check found the dashboard built with the
+  right DOM, content binding, a11y, and even the design's class names — but
+  **zero CSS**: no stylesheet, no Tailwind, no CSS-in-JS, `design-tokens.json`
+  never consumed. It compiled, passed lint/typecheck/tests, and read clean in the
+  diff (an **absence** is invisible to `quality-gates` + `code.reviewed`), then
+  rendered as bare default HTML — nothing like the mockup. New read-only
+  `hooks/scripts/ui-styling-check.sh` statically classifies a web UI as
+  **`skinless`** (className/class used but no stylesheet/Tailwind/CSS-in-JS/token
+  consumption present), `styled`, or `no-ui`. `phase-runner`'s DEVELOPMENT walk
+  surfaces `skinless` **prominently** ("the design was specified but never
+  implemented — implement the styling before TESTING"), so a structure-only UI is
+  caught **when it's written**, not just at TESTING; the TESTING
+  `frontend-render-check` runs the same static check as an immediate hard
+  `BLOCKED` (nameable without a browser). Surface-only in DEVELOPMENT (never
+  blocks/auto-runs; silent on a styled or backend-only repo). Pinned by
+  `tests/integration/sprint-55.sh` (static + runtime probes: no-ui / skinless /
+  styled[stylesheet/Tailwind/token] / backend-only).
+
+---
+
 ## [2.42.0] — 2026-06-10
 
 ### Added
