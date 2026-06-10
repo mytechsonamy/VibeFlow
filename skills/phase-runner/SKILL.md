@@ -217,11 +217,23 @@ hard BLOCKED. `docs/MOBILE-TESTING.md` covers it.
 
 ### Step 0: Lifecycle — resume the open cycle, or start a new increment (Sprint 42)
 
+> **Gather setup state with the Read tool + MCP, NOT Bash (Sprint 56).** An
+> analysis skill (e.g. `prd-quality-analyzer`) often armed
+> `.vibeflow/state/consensus-needed.json` just before you ran — and
+> `consensus-gate` then blocks **every Bash/Write/Edit** until consensus drains.
+> phase-runner is the *legitimate drainer*, but its **setup reads** (lifecycle,
+> phase, reports) trip that gate if you do them with `cat`/`jq` in Bash. So read
+> `.vibeflow/state/lifecycle.json` with the **Read tool**, the engine phase via
+> `mcp__sdlc-engine__sdlc_get_state` (**MCP**), and any report with the Read tool
+> — all three are **ungated**. Then the only Bash you need under an armed marker
+> is `hooks/scripts/consensus-run.sh` (already allowlisted), which drains it. Do
+> **not** reach for `VF_SKIP_CONSENSUS_GATE=1` just to read state — switch tools.
+
 **Run first.** A project moves through one or more **cycles** — one pass of the
 SDLC per deliverable (the initial build, then one per increment). The runtime
 question is never "greenfield or brownfield" (that was a one-time cycle-1
 decision); it's **"is there an open cycle to resume, or did the last one ship?"**
-— read from state, not from whether source files exist. Read
+— read from state, not from whether source files exist. **Read** (the tool)
 `.vibeflow/state/lifecycle.json`:
 
 - **`currentCycle.status == "in-progress"`** → resume; continue to Step 1 at the

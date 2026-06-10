@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.0] — 2026-06-10
+
+### Fixed
+- **phase-runner's setup no longer trips the consensus-gate.** An analysis skill
+  (e.g. `prd-quality-analyzer`) usually arms `consensus-needed.json` right before
+  you run `/vibeflow:phase-runner` — and `consensus-gate` then blocks every
+  Bash/Write/Edit until consensus drains. phase-runner is the *legitimate
+  drainer*, but its **read-only setup** (reading lifecycle, `git status` to
+  surface in-flight work, the `ui-verification-debt`/`ui-styling-check` readers)
+  tripped that gate, throwing a hook error on its very first action and forcing a
+  `VF_SKIP_CONSENSUS_GATE=1` dance. Two-part fix: (1) phase-runner Step 0 now
+  reads lifecycle via the **Read tool** and the engine phase via **MCP**
+  (`sdlc_get_state`) — both ungated — instead of `cat`/`jq` in Bash; (2)
+  `consensus-gate` allowlists VibeFlow's **read-only readers**
+  (`ui-verification-debt.sh`, `ui-styling-check.sh`, `loop-audit.sh`) and
+  read-only `git status` / `git rev-parse` — they only *inspect* state, so they
+  never bypass the consensus requirement, and gating them was pure friction. A
+  **write** (`> src/foo.ts`) or forward work (`npm run build`) still blocks, so
+  the gate's purpose is intact. Surfaced on a live ANTOS cycle-6 run. Pinned by
+  `tests/integration/sprint-56.sh` (static + runtime: readers/git allow, writes
+  block).
+
+---
+
 ## [2.43.0] — 2026-06-10
 
 ### Added

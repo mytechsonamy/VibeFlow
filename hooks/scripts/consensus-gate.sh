@@ -107,6 +107,17 @@ if [[ -n "$CMD" ]]; then
     *consensus-run.sh*)                echo '{"continue":true}'; exit 0 ;;
     *rm*.vibeflow/state/consensus-needed.json*) echo '{"continue":true}'; exit 0 ;;
     *rm*consensus-needed.json*)                 echo '{"continue":true}'; exit 0 ;;
+    # Sprint 56: VibeFlow's own READ-ONLY readers + `git status` only inspect
+    # state — they don't "move past" the consensus requirement, so gating them is
+    # pure friction (phase-runner Step 0 / flow-status call them while a marker is
+    # armed, right before draining via consensus-run.sh). Allow them through.
+    *ui-verification-debt.sh*) echo '{"continue":true}'; exit 0 ;;
+    *ui-styling-check.sh*)     echo '{"continue":true}'; exit 0 ;;
+    *loop-audit.sh*)           echo '{"continue":true}'; exit 0 ;;
+    # read-only git inspection (phase-runner Step 0 surfaces in-flight work +
+    # resolves the DEVELOPMENT diff base with these; both only read).
+    *"git status"*)    echo '{"continue":true}'; exit 0 ;;
+    *"git rev-parse"*) echo '{"continue":true}'; exit 0 ;;
   esac
 fi
 
