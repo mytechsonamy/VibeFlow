@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.45.0] — 2026-06-12
+
+### Added
+- **UI test scenarios are enumerated up front in PLANNING, not deferred to
+  TESTING.** `test-strategy-planner` already produced per-requirement
+  happy/edge/negative functional scenarios in `scenario-set.md` — but for a UI
+  increment it never enumerated the **UI surface**: per-field visual conformance,
+  per-field validation, and backend-data binding. Those were only generated later
+  inside TESTING, so they were never part of the AI-reviewed PLANNING deliverable
+  (the `test-strategy.md` consensus), never RTM-traced, and the TESTING front-end
+  battery had nothing concrete to implement against. New **Step 2b** (UI-conditional
+  — runs only when platform is `web`/`all` **and** a `design/design-spec.md`
+  exists; skipped + recorded otherwise so backend/infra increments are unchanged)
+  reads the design spec and, for each hero screen and each field/control,
+  enumerates three dimensions of scenario into a `## UI Scenarios` block:
+  **visual-conformance** (`SCN-UI-<screen>-V-NN` — color/font/spacing/layout +
+  default/hover/focus/disabled/error/loading states), **field-validation**
+  (`SCN-UI-<screen>-VAL-NN` — required/type/boundary/format), and
+  **backend-data-binding** (`SCN-UI-<screen>-DATA-NN` — correct server value +
+  loading/populated/empty/error/offline states). Every UI scenario is traced back
+  to the functional requirement its screen serves, so the RTM carries the
+  `FR-* → screen → UI scenario` chain; a screen with no backing requirement (or a
+  requirement whose UI has no screen) is a `DESIGN_REQ_GAP` finding in the coverage
+  gap analysis (alongside new `UI_UNTESTED` / `UI_DATA_GAP` categories), never a
+  silently invented requirement. These UI scenarios are then the contract the
+  TESTING front-end battery implements — `frontend-render-check` (visual + data),
+  `input-validation-matrix` (validation), `visual-ai-analyzer`, `uat-executor`.
+  Net effect: the up-front, multi-AI-reviewed scenario doc is now honest about the
+  UI surface — each field's visual look **and** its real-server-data behaviour are
+  planned and reviewed in PLANNING, not discovered in TESTING. Pinned by
+  `tests/integration/sprint-57.sh` (31 checks).
+
+---
+
 ## [2.44.0] — 2026-06-10
 
 ### Fixed

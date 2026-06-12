@@ -62,12 +62,65 @@ Priority levels:
 - **P2 (Important)**: Secondary features, edge cases
 - **P3 (Low)**: Cosmetic, nice-to-have, low-impact scenarios
 
+### Step 2b: UI Scenario Enumeration (Sprint 57 — UI increments only)
+
+The per-requirement scenarios above (Step 2) are **functional** — they
+say *what* must work, not *how each screen renders*. For a UI increment
+that leaves the per-field visual + data-binding test surface unspecified
+until TESTING, so it never gets AI-reviewed up front and the front-end
+battery has nothing concrete to implement against. Close that gap **here,
+in PLANNING**, so UI scenarios are part of the AI-reviewed
+`scenario-set.md` / `test-strategy.md` deliverable, RTM-traced, and
+picked up by the TESTING front-end battery.
+
+**UI-condition (run this step only when BOTH hold):**
+1. Platform is `web` or `all` (from `$ARGUMENTS`), **and**
+2. A design spec exists — `design/design-spec.md` (or any
+   `design/**/design-spec.md`). Use Glob to check.
+
+If either is false, skip this step entirely and note in the strategy doc
+*"UI scenario enumeration skipped — non-UI increment (platform=`<p>`,
+design-spec present=`<bool>`)."* Backend/infra increments are unchanged.
+
+When it runs: read `design/design-spec.md` (+ its token file and any
+`design/**/mockups/` if present) and, **for each hero screen and each
+field/control on it**, enumerate three dimensions of scenario — these
+become the concrete contract the TESTING front-end battery implements:
+
+| Dimension | Naming | What it asserts | Implemented in TESTING by |
+|---|---|---|---|
+| **Visual conformance** | `SCN-UI-<screen>-V-NN` | The rendered field matches the design spec: color, typography, spacing, layout position, and each declared **state** (default / hover / focus / disabled / error / loading) | `frontend-render-check`, `visual-ai-analyzer` |
+| **Field validation** | `SCN-UI-<screen>-VAL-NN` | Per-field input rules: required, type, min/max boundary, format/pattern, cross-field — the input-validation-matrix dimensions | `input-validation-matrix`, `uat-executor` |
+| **Backend-data binding** | `SCN-UI-<screen>-DATA-NN` | The field renders the **correct server value**, and the screen handles each data state: loading, populated, empty, error, offline/stale | `frontend-render-check`, `uat-executor` |
+
+Rules:
+- **One screen = one `### UI: <screen>` block** in `scenario-set.md`
+  (see Output format below), listed after the functional `FR-*` blocks.
+- Tag every UI scenario `[WEB]` (or `[WEB]`+`[E2E]`) and assign a priority
+  — visual-conformance of a P0 flow's primary action is P0; cosmetic
+  spacing on a secondary screen is P3.
+- **Trace every UI scenario back to the functional requirement(s)** the
+  screen serves, so the RTM (Step 3) shows the `FR-*` → screen → UI
+  scenario chain. A screen with no backing requirement is a finding for
+  the coverage gap analysis (Step 5), not a silent addition.
+- If `design-spec.md` lists screens/fields the PRD's requirements don't
+  cover (or vice-versa), record it as a **design↔requirement gap** in
+  Step 5 — do not invent a requirement to cover it.
+
+This keeps the up-front, AI-reviewed scenario doc honest about the UI
+surface instead of deferring all per-field visual/data checks to TESTING.
+
 ### Step 3: RTM Generation
 Create Requirements Traceability Matrix:
 
 | REQ-ID | Requirement | Scenarios | Test Type | Priority | Status |
 |--------|-------------|-----------|-----------|----------|--------|
 | FR-001 | User login | SCN-1-001-H-01, SCN-1-001-N-01 | [E2E], [UNIT] | P0 | Planned |
+| FR-001 | User login (UI: LoginScreen) | SCN-UI-LoginScreen-V-01, SCN-UI-LoginScreen-VAL-01, SCN-UI-LoginScreen-DATA-01 | [WEB], [E2E] | P0 | Planned |
+
+For a UI increment the RTM **must** carry the `FR-* → screen → UI
+scenario` chain so the per-field visual/validation/data scenarios are
+traceable to the requirement they serve (not orphaned UI checks).
 
 ### Step 4: Strategy Document
 Structure the test strategy with these sections:
@@ -87,6 +140,11 @@ Identify:
 - Requirements with only happy-path scenarios (PARTIAL)
 - Ambiguous requirements that cannot be tested (UNTESTABLE)
 - Scenarios that require manual testing only (MANUAL_ONLY)
+
+For a UI increment (Step 2b ran), also identify:
+- Design-spec screens/fields with no UI scenario (UI_UNTESTED)
+- Screens with visual-conformance scenarios but no data-binding scenarios — pretty but unverified against real server data (UI_DATA_GAP)
+- A `design-spec.md` screen with no backing functional requirement, or an `FR-*` with a UI it serves but no screen in the design spec (DESIGN_REQ_GAP)
 
 ## Output Files
 
@@ -111,12 +169,22 @@ This is the universal input for downstream skills. Format:
 - Platform: [web|ios|android|all]
 - Total Scenarios: XX
 - P0: XX | P1: XX | P2: XX | P3: XX
+- UI scenarios: XX (enumerated: yes|no — non-UI increment)
 
 ## Scenarios
 ### FR-001: [Requirement Title]
 - SCN-1-001-H-01 [E2E] [P0]: User successfully logs in with valid credentials
 - SCN-1-001-N-01 [E2E] [P0]: Login fails with invalid password, shows error
 - SCN-1-001-E-01 [UNIT] [P1]: Login with expired session token triggers re-auth
+
+## UI Scenarios (Sprint 57 — web/all + design-spec only)
+### UI: LoginScreen  (serves: FR-001)
+- SCN-UI-LoginScreen-V-01   [WEB] [P0]: Email field matches design — token color/font/spacing, default + focus + error states
+- SCN-UI-LoginScreen-V-02   [WEB] [P1]: "Sign in" button matches design in default/hover/disabled/loading states
+- SCN-UI-LoginScreen-VAL-01 [WEB] [P0]: Email field — required + RFC-format validation, inline error copy per spec
+- SCN-UI-LoginScreen-VAL-02 [WEB] [P1]: Password field — required + min-length boundary, masked input
+- SCN-UI-LoginScreen-DATA-01 [WEB] [E2E] [P0]: On submit, the screen binds the server auth result; error state renders the API error
+- SCN-UI-LoginScreen-DATA-02 [WEB] [P2]: Screen renders loading state during the auth call and empty/offline state when the API is unreachable
 ```
 
 ### 3. rtm.md
@@ -132,6 +200,13 @@ scenario-set.md is consumed by:
 - coverage-analyzer (measures requirement coverage)
 - uat-executor (UAT scenarios)
 - regression-test-runner (regression baseline)
+
+The **UI Scenarios** block (Step 2b) is the contract the TESTING
+front-end battery implements:
+- frontend-render-check (visual conformance + backend-data binding — boots the UI, screenshots, compares to design)
+- input-validation-matrix (per-field validation scenarios)
+- visual-ai-analyzer (visual conformance scoring)
+- uat-executor (data-binding + validation as UAT steps)
 
 **CRITICAL**: This skill MUST run before any skill that consumes scenario-set.md.
 
