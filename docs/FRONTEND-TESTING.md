@@ -24,7 +24,8 @@ only).
 | Input / output controls | `input-validation-matrix` + `e2e-test-writer` | accept/reject + the displayed/formatted value (currency precision, masking) |
 | Functions work | `e2e-test-writer` (Playwright web / Detox mobile) + `regression-test-runner` | end-to-end functional flows actually run green |
 | Functions meet requirements | `business-rule-validator` + `traceability-engine` | each PRD rule has a test; every UI requirement maps to a test (no untested requirement / orphan) |
-| End-to-end on a real environment | `uat-executor` | UAT scenarios on staging (when a staging URL is configured) |
+| **The UI actually talks to a real backend** | **`integration-verifier`** (full-stack only) | boots the **real** back-end locally, seeds deterministic data, points the real front-end at it (not mocks), drives the `SCN-UI-*-DATA-*` data-binding scenarios — **no deploy required**. See [INTEGRATION-TESTING.md](INTEGRATION-TESTING.md) |
+| End-to-end on a real environment | `uat-executor` | UAT scenarios on **deployed staging** (when a staging URL is configured) |
 
 ## Why it's a *gate*, not a side report
 
@@ -75,13 +76,25 @@ It verdicts `BLOCKED` when the app won't boot **or** the implementation has no
 meaningful relation to the design (a real "rebuild this screen against the
 design" signal).
 
-### Mock now, live later
+### Three integration rungs — mock, local-real, deployed
 
 `frontend-render-check` uses **mock data on purpose** so design conformance can
-run in TESTING without infra. The **front-end + real backend** integration — the
-UI driving a live API end-to-end — is `uat-executor` against a staging
-environment (DEPLOYMENT). Two tiers: *render + conform* against mocks in TESTING;
-*live front+back* in DEPLOYMENT/UAT.
+run without infra. But "renders on mocks" is **not** "talks to a backend" — and
+the live-backend check used to be `uat-executor` *only*, which needs a **deployed
+staging** env most projects never stand up (a back-end with no HTTP server can't
+reach staging at all). So a mock-front-end over a *claimed* backend slipped
+straight to GO. Sprint 58 adds the missing middle rung:
+
+1. **`frontend-render-check`** — renders on **mocks** → it *looks* right. (TESTING)
+2. **`integration-verifier`** — real back-end booted **locally** + seeded test
+   data + the real front-end pointed at it → it *talks* right, **no deploy**.
+   Full-stack increments only. (TESTING) — see
+   [INTEGRATION-TESTING.md](INTEGRATION-TESTING.md).
+3. **`uat-executor`** — the **deployed staging** live front+back walk with the
+   real backend + human steps. (DEPLOYMENT, when a staging URL exists)
+
+A *claimed* backend is not a *verified* backend; rung 2 is where that claim is
+exercised before a full-stack increment can reach GO.
 
 ## A/B and experiments
 

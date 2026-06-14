@@ -113,13 +113,15 @@ Write `.vibeflow/reports/frontend-conformance.md`:
   implementation has **no meaningful relation** to the design — a real "rebuild
   the screen against the design" signal).
 
-## When the backend is ready (live integration — not here)
+## Live integration is a separate rung — not here
 
-This step uses **mock data on purpose** so design conformance can run in TESTING
-without infra. The **front-end + real backend** integration — the UI driving a
-live API end-to-end — is `uat-executor` against a staging environment in
-DEPLOYMENT. Note in the report that conformance was verified against mocks and
-the live front+back walk is the DEPLOYMENT/UAT step.
+This step uses **mock data on purpose** so design conformance can run without
+infra. The **front-end + real backend** integration is two further rungs:
+`integration-verifier` (Sprint 58) runs the real front↔back **locally** with
+seeded test data **in TESTING** (no deploy needed — it's a gate, not deferred),
+and `uat-executor` is the **deployed staging** walk in DEPLOYMENT. Note in the
+report that conformance here was verified against mocks, and that
+`integration-verifier` is what proves the UI actually talks to a real backend.
 
 ## Final Step: Auto-Consensus Marker (only on PASS — Sprint 43 arm-on-pass)
 

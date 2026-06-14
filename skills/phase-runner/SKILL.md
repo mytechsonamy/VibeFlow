@@ -2,7 +2,7 @@
 name: phase-runner
 description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, then drives a real cross-AI consensus verdict HEADLESSLY via hooks/scripts/consensus-run.sh (runs the codex/gemini reviewer CLIs + finalises verdict.json — no dependency on the disable-model-invocation consensus skills, so phase-runner no longer deadlocks). On APPROVED it records consensus + auto-advances via the sdlc-engine MCP tools; on NEEDS_REVISION/REJECTED it stops with an explicit operator breadcrumb (the deep-rewrite specialist→arbiter→apply chain edits the primary artifact and stays operator-confirmed by design). In TESTING it first generates the coverage artifact (Sprint 29). One command replaces the manual analyzer → consensus → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *ui-styling-check.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
+allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *ui-styling-check.sh*) Bash(bash *integration-wiring-check.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -125,6 +125,27 @@ The TESTING `frontend-render-check` is the hard gate (it BLOCKs a skinless UI);
 this catches the same gap **when the UI is written**, so it can't ship structure-
 only.
 
+**DEVELOPMENT — catch an *unwired* UI here too (Sprint 58).** The same class of
+invisible-absence bug applies to the front↔back boundary: a UI that calls
+`fetch('/api/...')` over an endpoint **no server implements** (or is hard-bound to
+mock fixtures) compiles, renders on mocks, and reads clean in a diff — its links
+have **no backend behind them**. Run the read-only static check:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/integration-wiring-check.sh" .
+```
+
+- `"unwired"` → surface **prominently**: `⚠ the UI calls a server API but no`
+  `backend serving those routes was found — the links have no backend behind them.`
+  `Wire the backend before TESTING (▶ /vibeflow:integration-verifier proves it).`
+  Like `ui-verification-debt`, this also flags an `unwired` boundary left from an
+  earlier cycle, not just the current increment.
+- `"wired"` / `"single-tier"` / `"no-app"` → say nothing.
+
+The TESTING `integration-verifier` is the hard gate (it boots the real back-end +
+seeds data + BLOCKs a 404/won't-boot); this surfaces the same gap **while the UI
+is built**, so a mock-front-end-over-a-claimed-backend can't reach TESTING unseen.
+
 **DEPLOYMENT closes the cycle (Sprint 42).** DEPLOYMENT is terminal — there is no
 phase after it. When its exit criteria are satisfied (`release.decision.go` =
 GO + `deployment.verified` + `consensus.deployment.approved`), the **cycle is
@@ -187,10 +208,27 @@ coverage + mutation — each as a **Skill** (not a general agent), arm-on-pass
    untested requirement / orphan test).
 6. **`visual-ai-analyzer`** — design conformance on the captured screens (layout
    / typography / a11y), reusing `frontend-render-check`'s screenshots.
-7. **`uat-executor`** — end-to-end on staging **with the real backend**, when a
-   staging URL is configured (else breadcrumb it as the operator's manual step).
-   This is the **front-end + live backend** integration — `frontend-render-check`
-   uses mocks on purpose; the live front+back walk is here / in DEPLOYMENT.
+7. **`integration-verifier`** (full-stack increments only, Sprint 58) — boots the
+   **real** back-end locally, seeds deterministic test data (via
+   `test-data-manager`), points the **real** front-end at it instead of mocks, and
+   drives the `SCN-UI-*-DATA-*` data-binding scenarios end-to-end (populated /
+   loading / empty / error / offline). Proves the UI *talks* to a backend, not
+   just that it *renders* — **no deploy required**. Gate it on
+   `hooks/scripts/integration-wiring-check.sh .` = `wired`/`unwired`; a
+   `single-tier` / `no-app` result means skip it (the front-end-only / back-end-only
+   carve-out). BLOCKs when the back-end won't boot (or has no HTTP server), a
+   called endpoint 404s, or the UI errors on real data — the "mock front-end over
+   a *claimed* backend" trap that lets unverified backends ship.
+8. **`uat-executor`** — end-to-end on **deployed staging** with the real backend +
+   human steps, when a staging URL is configured (else breadcrumb it as the
+   operator's manual step). The three integration rungs, in order:
+   `frontend-render-check` renders on **mocks** (looks right) →
+   `integration-verifier` runs the **real front↔back locally** with seeded data
+   (talks right, **no deploy**) → `uat-executor` is the **deployed** live
+   front+back walk. The middle rung is what was missing: the live front+back
+   integration used to be checked *only* on a
+   staging env most projects never stand up, so a UI-over-claimed-backend slipped
+   straight to GO.
 
 Because the validation + e2e tests are written **into the project suite**, the
 existing gates enforce them: they must pass (`regression-test-runner` /

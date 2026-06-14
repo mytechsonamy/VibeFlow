@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.0] — 2026-06-14
+
+### Added
+
+- **Full-stack increments must be integration-verified with real test data, not mocked.** A cycle could ship a mock front-end over a backend that was only *claimed* to exist and reach GO, because the front↔back integration was only ever checked by `uat-executor` against a **deployed staging** env most projects never stand up (a backend with no HTTP server can't reach staging at all) — so the integration was never verified. Sprint 58 adds the missing middle rung.
+  - **`integration-verifier`** skill (TESTING, full-stack increments only): boots the **real** back-end **locally** (no deploy), seeds deterministic test data via `test-data-manager`, points the **real** front-end at it instead of mocks, and drives the `SCN-UI-*-DATA-*` data-binding scenarios end-to-end (populated / loading / empty / error / offline) + `curl`s each endpoint to catch a 404. BLOCKs when the back-end won't boot (or has no HTTP server), an endpoint 404s, or the UI errors on real data; arms the consensus marker only on PASS (Sprint 43). The rung between `frontend-render-check` (mocks — *looks* right) and `uat-executor` (deployed staging).
+  - **`hooks/scripts/integration-wiring-check.sh`** read-only detector (sibling of `ui-styling-check.sh`): classifies the front↔back boundary as `wired` / `unwired` (UI calls a server API but no backend serves it — "the links have no backend behind them") / `single-tier` (front-end-only or back-end-only → the carve-out) / `no-app`. Front-end and back-end source dirs are split by their nearest `package.json` so an axios `.get(` in the UI isn't mistaken for a server route.
+  - **phase-runner** wiring: TESTING runs `integration-verifier` for full-stack increments (between the mock render and the staging UAT, gated on the detector); DEVELOPMENT surfaces an `unwired` UI **prominently** (caught while built, like Sprint 55's `skinless`), with the hard gate staying in TESTING.
+  - Docs: new `docs/INTEGRATION-TESTING.md` (the three rungs + the full-stack-vs-single-tier carve-out + "a *claimed* backend is not a *verified* backend"); `docs/FRONTEND-TESTING.md` refreshed to the three-rung ladder.
+  - Tests: `tests/integration/sprint-58.sh` (47/0 — detector runtime probes for each class + skill structure + phase-runner wiring + docs). Skill + hook + docs only; no engine/MCP change.
+
+---
+
 ## [2.45.0] — 2026-06-12
 
 ### Added
