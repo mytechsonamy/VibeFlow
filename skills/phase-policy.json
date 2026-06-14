@@ -95,6 +95,10 @@
       "phases": ["TESTING"],
       "description": "Sprint 53. Actually boots a web UI, serves mock data, captures + surfaces hero-screen screenshots, and compares them to the design (Figma via design-bridge db_compare_impl, else the design-spec mockups + tokens). Ends the 'dark tunnel' where a UI ships unit-tested but never rendered or compared to the design; catches won't-boot bugs and design divergence. First lane of the UI-conditional front-end battery."
     },
+    "integration-verifier": {
+      "phases": ["TESTING"],
+      "description": "Sprint 58. For a full-stack increment, proves the front-end actually talks to a REAL back-end end-to-end with seeded test data, locally (no deployed staging required): boots the back-end, seeds deterministic data via test-data-manager, points the real front-end at the local back-end instead of mocks, and drives the SCN-UI-*-DATA-* data-binding scenarios (populated/loading/empty/error/offline). The middle integration rung between frontend-render-check (mocks — looks right) and uat-executor (deployed staging). Gated on integration-wiring-check.sh = wired/unwired; single-tier/no-app increments skip it. BLOCKs when the back-end won't boot, an endpoint 404s, or the UI errors on real data — the 'mock front-end over a claimed backend' trap."
+    },
     "cross-run-consistency": {
       "phases": ["TESTING"],
       "description": "Runs the same test N times to detect flake."
