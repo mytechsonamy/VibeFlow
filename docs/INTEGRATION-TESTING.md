@@ -74,6 +74,35 @@ flags an `unwired` boundary left over from an **earlier** cycle (like
 under later backend cycles doesn't stay hidden. DEVELOPMENT only *surfaces*; the
 **hard gate** is `integration-verifier` in TESTING.
 
+## Supported stacks (Sprint 59 — stack-agnostic)
+
+The gate is **not** JS-only. Both the detector and the verifier recognise the
+back-end **manifest-first**, the same vocabulary `repo-fingerprint` uses:
+
+| Stack | Manifest | Back-end / route signals | Default run command |
+|---|---|---|---|
+| Node | `package.json` | `express`/`fastify`/`koa`/`@nestjs`/`hono`, Next `app/api`, `http.createServer` | `npm run dev` / `start` |
+| Python | `pyproject.toml` / `requirements.txt` | `fastapi`/`flask`/`django`, `@app.get(`, `APIRouter(`, `urlpatterns` | `uvicorn <m>:app` / project run script |
+| Go | `go.mod` | `http.HandleFunc`, `ListenAndServe`, `.GET(`/`.POST(`, `mux.Handle` | `go run ./...` |
+| .NET | `*.csproj` / `*.sln` | `app.MapGet(`, `[HttpGet]`, `ControllerBase` | `dotnet run` |
+| Java | `pom.xml` / `build.gradle` | `@RestController`, `@GetMapping`, `@RequestMapping` | `./mvnw spring-boot:run` / `./gradlew bootRun` |
+
+The **front-end** is any client-rendered web UI that makes server calls —
+**framework-optional**: a plain `index.html` + `fetch(...)` counts as much as a
+Vite/Next app. A pure static **design mockup** (no `fetch`, often under `design/`)
+makes no calls, so it stays `single-tier` — it is not a front-end. A purely
+**server-rendered** app (Jinja/Razor/ERB templates, no decoupled API client) has
+no separate front↔back wire to verify and reads as `single-tier`.
+
+When detection can't guess the entrypoint, override the boot in `integration-verifier`:
+
+```bash
+VF_BACKEND_CMD="uvicorn clera.api:app --port 8000" VF_BACKEND_PORT=8000  /vibeflow:integration-verifier
+```
+
+This is what makes the gate fire on a project like Clera (a **Python/FastAPI**
+back-end behind a UI) instead of staying dormant because it "didn't see Node".
+
 ## Running it
 
 It's part of the one-command walk — phase-runner runs it in the TESTING front-end
