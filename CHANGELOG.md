@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.0] — 2026-06-15
+
+### Changed
+
+- **The front↔back integration gate is now stack-agnostic.** Sprint 58's `integration-wiring-check.sh` + `integration-verifier` were JS/TS-only (they grepped for `express`/`fastify`/`next` and split dirs by `package.json`), so a Python/FastAPI, Go, or .NET backend behind a UI read as `no-app`/`single-tier` and the gate stayed dormant — surfaced by a live Clera session whose Python backend the gate couldn't see.
+  - **`hooks/scripts/integration-wiring-check.sh`** now detects the back-end **manifest-first** across Node (`package.json`), Python (`pyproject.toml`/`requirements.txt`), Go (`go.mod`), .NET (`*.csproj`/`*.sln`) and Java (`pom.xml`/`build.gradle`), with per-language route-handler patterns scoped to each stack's dirs (so an axios `.get(` in the UI is still never read as a server route). The **front-end** is now framework-optional — a plain `index.html` + `fetch(...)` counts; a pure static design mockup (no calls) stays `single-tier`. Same four-status contract (`wired`/`unwired`/`single-tier`/`no-app`), fail-safe, surface-only.
+  - **`integration-verifier`** boots the back-end across stacks (Node `npm`, Python `uvicorn`/run-script, Go `go run`, .NET `dotnet run`, Java `mvnw`/`gradlew`), honouring `VF_BACKEND_CMD` / `VF_BACKEND_PORT` overrides; "no HTTP server at all, only a library" (the Clera shape) stays an explicit BLOCKED finding regardless of language. `allowed-tools` gains `python`/`uvicorn`/`gunicorn`/`go`/`dotnet`/`mvn`/`gradle`.
+  - **phase-runner** prose + **`docs/INTEGRATION-TESTING.md`** gain a "Supported stacks" matrix + the `VF_BACKEND_CMD` override + the server-rendered-app note.
+  - Tests: `tests/integration/sprint-59.sh` (33/0 — detector probes for Python/Go/.NET/framework-less + the JS Sprint-58 regression + the Clera backend-only→single-tier shape). Skill + hook + docs only; no engine/MCP change.
+
+---
+
 ## [2.46.0] — 2026-06-14
 
 ### Added

@@ -142,9 +142,13 @@ bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/integration-wiring-check.sh" .
   earlier cycle, not just the current increment.
 - `"wired"` / `"single-tier"` / `"no-app"` → say nothing.
 
-The TESTING `integration-verifier` is the hard gate (it boots the real back-end +
-seeds data + BLOCKs a 404/won't-boot); this surfaces the same gap **while the UI
-is built**, so a mock-front-end-over-a-claimed-backend can't reach TESTING unseen.
+The check is **stack-agnostic** (Sprint 59) — it recognises Node, Python, Go,
+.NET and Java back-ends (manifest-first), so a UI over a Python/FastAPI or Go
+backend is surfaced the same as one over Express.
+The TESTING `integration-verifier` is the hard gate (it boots the real back-end —
+any stack — + seeds data + BLOCKs a 404/won't-boot); this surfaces the same gap
+**while the UI is built**, so a mock-front-end-over-a-claimed-backend can't reach
+TESTING unseen.
 
 **DEPLOYMENT closes the cycle (Sprint 42).** DEPLOYMENT is terminal — there is no
 phase after it. When its exit criteria are satisfied (`release.decision.go` =

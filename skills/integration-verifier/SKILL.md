@@ -1,8 +1,8 @@
 ---
 name: integration-verifier
-description: For a full-stack increment, proves the front-end actually talks to a REAL back-end end-to-end with seeded test data — locally, no deployed staging required. Boots the back-end, seeds deterministic test data (via test-data-manager), points the real front-end at the local back-end instead of mocks, and drives the backend-data-binding scenarios (SCN-UI-*-DATA-* from scenario-set.md) across loading/populated/empty/error/offline. This is the rung between frontend-render-check (renders on mocks — looks right) and uat-executor (deployed staging walk): it answers "does it TALK right?" without needing infra. BLOCKs when the back-end won't boot, an endpoint 404s, or the UI errors on real data — the exact "mock front-end over a claimed-but-unverified backend" trap. Use in TESTING for any increment that crosses the front↔back boundary; single-tier (front-end-only / back-end-only) increments are skipped.
+description: For a full-stack increment, proves the front-end actually talks to a REAL back-end end-to-end with seeded test data — locally, no deployed staging required. Stack-agnostic (Node / Python / Go / .NET / Java): boots the back-end, seeds deterministic test data (via test-data-manager), points the real front-end at the local back-end instead of mocks, and drives the backend-data-binding scenarios (SCN-UI-*-DATA-* from scenario-set.md) across loading/populated/empty/error/offline. This is the rung between frontend-render-check (renders on mocks — looks right) and uat-executor (deployed staging walk): it answers "does it TALK right?" without needing infra. BLOCKs when the back-end won't boot, an endpoint 404s, or the UI errors on real data — the exact "mock front-end over a claimed-but-unverified backend" trap. Use in TESTING for any increment that crosses the front↔back boundary; single-tier (front-end-only / back-end-only) increments are skipped.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(node *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(pytest *) Bash(dotnet *) Bash(go *) Bash(npx playwright *) Bash(bash *integration-wiring-check.sh*)
+allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(node *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(python *) Bash(python3 *) Bash(uvicorn *) Bash(gunicorn *) Bash(pytest *) Bash(dotnet *) Bash(go *) Bash(mvn *) Bash(gradle *) Bash(npx playwright *) Bash(bash *integration-wiring-check.sh*)
 ---
 
 # Integration Verifier
@@ -41,20 +41,34 @@ bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/integration-wiring-check.sh" .
 
 Outputs land in `.vibeflow/reports/integration/` + `.vibeflow/**`.
 
-## Step 1: Boot the back-end — locally, no staging
+## Step 1: Boot the back-end — locally, no staging (any stack)
 
-Detect and boot the server (don't assume `apps/api` — detect):
+Detect and boot the server (don't assume `apps/api`, and don't assume Node —
+detect the stack manifest-first, the same way `integration-wiring-check.sh` does):
 
-- Find the back-end package: a `package.json` with a server framework
-  (`express`/`fastify`/`koa`/`@nestjs`/`hono`/`@trpc/server`) or Next API routes
-  (`app/api`/`pages/api`), or a raw `http.createServer`/`Bun.serve`/`Deno.serve`.
-- Resolve its **start/dev command** (`npm run dev`/`start`, `next dev`, a
-  `node dist/server.js`, `uvicorn`, `dotnet run`) and port.
+- **Find the back-end** by its manifest + server signal:
+  - **Node** — `package.json` with `express`/`fastify`/`koa`/`@nestjs`/`hono`, Next
+    API routes (`app/api`/`pages/api`), or a raw `http.createServer`/`Bun.serve`.
+  - **Python** — `pyproject.toml`/`requirements.txt` with `fastapi`/`flask`/
+    `django`/`uvicorn`/`gunicorn` (a `FastAPI(`/`Flask(`/`APIRouter(`).
+  - **Go** — `go.mod` with `net/http`/`gin`/`echo`/`fiber`/`chi` (`ListenAndServe`).
+  - **.NET** — `*.csproj` with ASP.NET (`WebApplication`/`MapGet`/`[HttpGet]`).
+  - **Java** — `pom.xml`/`build.gradle` with Spring (`@RestController`).
+- **Resolve the run command + port** — prefer an explicit override, then a
+  per-stack default:
+  - `VF_BACKEND_CMD` (env) — if set, run exactly that. `VF_BACKEND_PORT` — the
+    port to probe (default 8000). This is the escape hatch when detection can't
+    guess (e.g. a non-standard entrypoint).
+  - Else default by stack: Node `npm run dev`/`start` (or `node <entry>`); Python
+    `uvicorn <module>:app --port <p>` (or the project's documented run script /
+    `python -m <pkg>`); Go `go run ./...`; .NET `dotnet run`; Java
+    `./mvnw spring-boot:run` / `./gradlew bootRun`.
 - **Boot it** and capture startup output. A back-end that **can't boot locally**
   — including the case where there is **no HTTP server at all**, only domain
-  modules — is a **real finding**, not an env glitch: stop with a **BLOCKED**
+  modules / a library (the Clera shape: a Python engine with no FastAPI/uvicorn
+  entry) — is a **real finding**, not an env glitch: stop with a **BLOCKED**
   verdict naming it. This is the precise defect that lets a "backend written"
-  claim ship unverified.
+  claim ship unverified, regardless of language.
 
 ## Step 2: Seed deterministic test data
 
