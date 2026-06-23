@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.48.0] — 2026-06-23
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Added — parallel team work via per-branch work-streams (Sprint 60)
+- **Opt-in `streams.enabled` (default OFF)** — derive a per-git-branch `projectId` (`<project>__<slug>`) so two developers on two branches/worktrees progress **independent** SDLC state in isolated `.vibeflow/state/<id>/` dirs that never clobber each other. The `sdlc-engine` already locks+isolates per projectId, so this is **no engine logic change** — only a new optional `StreamsConfigSchema`. Default branch / detached HEAD / non-git collapse to the bare project id, so existing single-stream projects are bit-for-bit unchanged.
+- New read-only helpers/readers: `vf_stream_id` / `vf_branch_slug` / `vf_lifecycle_path` (`_lib.sh`), `hooks/scripts/stream-id.sh`, `hooks/scripts/streams-audit.sh` (both allowlisted in `consensus-gate`).
+- New `/vibeflow:streams` dashboard (who is working on what, which phase) and `/vibeflow:integrate` merge-point skill (opens an integration cycle, runs `integration-verifier` over the combined front↔back surface + cross-feature consensus).
+- `onboard` / `phase-runner` / `brownfield-intake` resolve the stream id for the MCP `projectId` + lifecycle path; `flow-status` adds a one-line stream glance.
+- Docs: `docs/TEAM-WORK.md`.
+
+### Added — operator decisions become tappable choices (Sprint 61)
+- At every operator-blocking decision point, nine skills (`onboard`, `brownfield-intake`, `design-bootstrap`, `architecture-bootstrap`, `apply-arbiter-patch`, `phase-runner`, `integrate`, `release-decision-engine`, `learning-apply`) now surface 2–4 options via the **`AskUserQuestion`** tool (recommended first, condensed rationale per option) instead of a prose menu / `[y/N]` the operator must read and type. The built-in "Other" always preserves manual typing — pure upside, no config flag, and much faster to drive from a phone (remote/mobile). Prose menus kept as fallback.
+- Docs: `docs/OPERATOR-CHOICES.md`.
+
+### Notes
+- Pure skill-prose + hook + config-schema + docs changes; no MCP behavioural change beyond the additive `StreamsConfigSchema`.
+- Tests: engine 206/206, hooks 198/0, integration run.sh 399/0, sprint-60 63/0, sprint-61 57/0.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.47.0] — 2026-06-15
 
 ### Changed
