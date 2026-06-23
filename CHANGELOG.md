@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.50.0] — 2026-06-23
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Changed — read-only views surface their next-step as a tappable choice (Sprint 63)
+- `flow-status`, `loop-status`, and `streams` now present their closing "Next step" as a tappable **`AskUserQuestion`** choice instead of a prose breadcrumb the operator must read and retype — recommended action first, **always a "Stay / do nothing" option**, and the built-in "Other" still lets you type. The card is omitted when there's nothing actionable.
+- `flow-status` specifically covers advance / branch-increment-mismatch / render-verification-debt / work-streams next-steps (the gap a live FlowBridge_TR run hit: a prose "Next step: run /vibeflow:advance" instead of a one-tap option).
+- Extends the Sprint-61 operator-choice convention to terminal next-step breadcrumbs. Skill-prose + docs only; `docs/OPERATOR-CHOICES.md` refreshed. New `tests/integration/sprint-63.sh` (30/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.49.0] — 2026-06-23
 
 <!-- Notes pre-filled from --notes-file. -->
