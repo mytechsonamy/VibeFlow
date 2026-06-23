@@ -1047,6 +1047,45 @@ rm -rf "$DIR"
 unset VIBEFLOW_CWD
 
 # ---------------------------------------------------------------------------
+echo "== consensus-gate.sh cd-preamble bypass [S62-A] =="
+
+# Sprint 62: the env-prefix bypass must also be honored after a leading
+# `cd <path> &&|;` navigation preamble, while a quoted mention / non-cd work
+# preceding it must still BLOCK.
+DIR="$(make_project ARCHITECTURE)"
+export VIBEFLOW_CWD="$DIR"
+mkdir -p "$DIR/.vibeflow/state"
+cat > "$DIR/.vibeflow/state/consensus-needed.json" <<EOF
+{
+  "primaryArtifact": "docs/architecture.md",
+  "requiredCommand": "/vibeflow:consensus-orchestrator docs/architecture.md",
+  "createdAt": "2026-06-23T00:00:00Z"
+}
+EOF
+s62() { printf '%s' "$1" | bash "$GATE" >/dev/null 2>&1; echo $?; }
+
+assert_eq "[S62-A] cd; then bypass → allow" "0" \
+  "$(s62 '{"tool_input":{"command":"cd /repo; VF_SKIP_CONSENSUS_GATE=1 python3 x.py"}}')"
+assert_eq "[S62-A] cd && bypass → allow" "0" \
+  "$(s62 '{"tool_input":{"command":"cd /repo && VF_SKIP_CONSENSUS_GATE=1 python3 x.py"}}')"
+assert_eq "[S62-A] cd quoted-path && bypass → allow" "0" \
+  "$(s62 '{"tool_input":{"command":"cd \"/p a/b\" && VF_SKIP_CONSENSUS_GATE=1 ls"}}')"
+assert_eq "[S62-A] double cd && bypass → allow" "0" \
+  "$(s62 '{"tool_input":{"command":"cd /a && cd /b && VF_SKIP_CONSENSUS_GATE=1 ls"}}')"
+assert_eq "[S62-A] leading bypass (no cd) → allow" "0" \
+  "$(s62 '{"tool_input":{"command":"VF_SKIP_CONSENSUS_GATE=1 python3 x.py"}}')"
+# Guardrails: must still BLOCK.
+assert_eq "[S62-A] cd && quoted-mention → block" "2" \
+  "$(s62 '{"tool_input":{"command":"cd /repo && echo \"VF_SKIP_CONSENSUS_GATE=1\" > x"}}')"
+assert_eq "[S62-A] non-cd work && bypass → block" "2" \
+  "$(s62 '{"tool_input":{"command":"rm -rf /tmp/x && VF_SKIP_CONSENSUS_GATE=1 ls"}}')"
+assert_eq "[S62-A] plain forward work → block" "2" \
+  "$(s62 '{"tool_input":{"command":"echo hi > src/foo.ts"}}')"
+
+rm -rf "$DIR"
+unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
 echo "== save-plan-doc.sh [S19-PLAN] =="
 
 SPD="$SCRIPTS/save-plan-doc.sh"

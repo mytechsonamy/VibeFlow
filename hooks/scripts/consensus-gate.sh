@@ -69,7 +69,16 @@ CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""')"
 # `VAR=val` tokens before the first real command word), so the override is order-
 # and count-independent but a mere mention of the var inside a quoted string arg
 # does NOT bypass. awk stops at the first non-assignment token.
-GATE_LEADING_ENV="$(printf '%s' "$CMD" | awk '{for(i=1;i<=NF;i++){if($i ~ /^[A-Za-z_][A-Za-z0-9_]*=/){printf "%s ",$i}else{break}}}')"
+#
+# Sprint 62: also honor the override after a leading `cd <path> &&|;` navigation
+# preamble — the very common `cd /repo && VF_SKIP_CONSENSUS_GATE=1 cmd` shape
+# (without this the awk stops at `cd` and never sees the override). `cd` is a
+# no-op for the gate's purpose (navigation, not forward work), so we strip one or
+# more leading `cd … (&&|;)` segments before scanning the env-prefix. ONLY `cd`
+# is strippable — real work (`rm … && VF_SKIP=1 …`) can't sneak ahead ungated —
+# and a quoted mention after the cd still doesn't bypass (the awk break holds).
+GATE_SCAN="$(printf '%s' "$CMD" | sed -E 's/^[[:space:]]*(cd[[:space:]]+[^&;]*(&&|;)[[:space:]]*)+//')"
+GATE_LEADING_ENV="$(printf '%s' "$GATE_SCAN" | awk '{for(i=1;i<=NF;i++){if($i ~ /^[A-Za-z_][A-Za-z0-9_]*=/){printf "%s ",$i}else{break}}}')"
 if printf '%s' "$GATE_LEADING_ENV" | grep -qE '(^|[[:space:]])VF_SKIP_CONSENSUS_GATE=(1|true)([[:space:]]|$)'; then
   echo '{"continue":true}'
   exit 0
