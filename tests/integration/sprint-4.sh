@@ -366,7 +366,7 @@ fi
 # prd-quality-analyzer failure that v2.1.0 surfaced.
 for skill_md in "$REPO_ROOT"/skills/*/SKILL.md; do
   if grep -qE '^## Output Files' "$skill_md"; then
-    if grep -qE '^allowed-tools:[^\n]*(Write|MultiEdit)' "$skill_md"; then
+    if grep -qE '^allowed-tools:.*(Write|MultiEdit)' "$skill_md"; then
       pass "output-writing skill $(basename "$(dirname "$skill_md")") has Write in allowed-tools"
     else
       fail "output-writing skill $(basename "$(dirname "$skill_md")") missing Write in allowed-tools"

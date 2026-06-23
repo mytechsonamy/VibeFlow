@@ -83,6 +83,25 @@ A read-only view that surfaces **no** actionable next step prints no card (it
 still has nothing to decide). Picking an option just **launches** the named
 command — these views never change state themselves.
 
+### Even a single deterministic next command is a card (Sprint 64)
+
+A skill that ends with a **single deterministic `▶ Next: <command>` breadcrumb**
+(the Sprint-31 handoff convention — e.g. `onboard → /vibeflow:phase-runner`,
+`brownfield-intake → /vibeflow:prd-quality-analyzer`, an analyzer →
+`/vibeflow:consensus-orchestrator`) also presents it as a tappable
+**`AskUserQuestion`**: **Run `<command>` now (Recommended)** / **Not yet**, with
+"Other" to type a different command. This lets the operator walk the whole SDLC
+phone-first — one tap per handoff — instead of copy-typing each next command. The
+literal `▶ Next:` line stays as the textual fallback. The card is skipped only
+when the breadcrumb names no runnable command (a plain advisory like "add tests").
+
+This applies to every skill that emits a terminal breadcrumb: the bootstrap /
+on-ramp skills (`onboard`, `brownfield-intake`, `design-bootstrap`,
+`architecture-bootstrap`, `prd-quality-analyzer`), the orchestrators
+(`phase-runner`, `integrate`), and the TESTING analyzers
+(`coverage-analyzer`, `mutation-test-runner`, `frontend-render-check`,
+`input-validation-matrix`, `integration-verifier`, `mobile-stability-runner`).
+
 ## For skill authors
 
 1. Add `AskUserQuestion` to the skill's `allowed-tools` frontmatter (skills are

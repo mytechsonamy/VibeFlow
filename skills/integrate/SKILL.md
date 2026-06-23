@@ -150,3 +150,13 @@ the operator's). You merge the feature branches; `integrate` verifies the result
 - `docs/TEAM-WORK.md` — the parallel team-work model + the three reconciliation rungs.
 - `docs/INTEGRATION-TESTING.md` — integration-verifier's local-boot mechanics.
 - `/vibeflow:streams` — the per-stream dashboard.
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

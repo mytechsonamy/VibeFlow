@@ -219,3 +219,13 @@ its own skill.
 - `vibeflow.config.json` in project root
 - `.vibeflow/` directory with `reports/`, `artifacts/`, `traces/`
 - `.vibeflow/reports/codebase-fingerprint.md` (brownfield only)
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

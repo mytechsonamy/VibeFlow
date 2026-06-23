@@ -1,7 +1,7 @@
 ---
 name: prd-quality-analyzer
 description: Analyzes PRD documents for ambiguity, conflicts, and missing flows. Produces testability score (0-100). Writes a report to .vibeflow/reports/prd-quality-report.md and a cost-avoidance breakdown to .vibeflow/reports/prd-cost-avoidance.md. Use when reviewing requirements, validating PRDs, or before starting development. Blocks development if testability score < 60.
-allowed-tools: Read Write Grep Glob
+allowed-tools: AskUserQuestion Read Write Grep Glob
 context: fork
 ---
 
@@ -237,3 +237,13 @@ skipped by env (VF_SKIP_AUTO_CONSENSUS)" and stop. The phase-gate in
 `sdlc-engine` (Sprint 15-C) still blocks the next `/vibeflow:advance`
 until a fresh REQUIREMENTS consensus is recorded — the env bypass
 is call-scoped, not phase-scoped.
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

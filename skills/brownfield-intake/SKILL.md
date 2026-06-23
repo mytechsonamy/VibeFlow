@@ -164,3 +164,13 @@ UI").
 - `docs/<increment-slug>-requirements.md` (the scoped, code-anchored primary)
 - `.vibeflow/reports/codebase-fingerprint.md` (built/refreshed)
 - `vibeflow.config.json` → `requirements.activeIncrement` (the slug)
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

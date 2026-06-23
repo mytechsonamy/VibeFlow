@@ -163,7 +163,7 @@ for token in "APPLY" "DEFER" "REJECT" "phase_relevance" "iteration" "arbiter-dec
   fi
 done
 # Must NOT allow Edit on source files (diff-first contract)
-if head -10 "$ARB" | grep -qE 'allowed-tools:[^\n]*\bEdit\b'; then
+if head -10 "$ARB" | grep -qE 'allowed-tools:.*\bEdit\b'; then
   fail "[S15-F] arbiter must NOT have Edit in allowed-tools (diff-first)"
 else
   pass "[S15-F] arbiter correctly omits Edit (diff-first)"

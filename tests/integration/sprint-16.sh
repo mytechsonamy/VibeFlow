@@ -117,7 +117,7 @@ for skill in prd-quality-analyzer architecture-validator test-strategy-planner t
   assert_grep "[S16-C] $skill marker names requiredCommand" \
     "\"requiredCommand\":" "$f"
   # Write must be in allowed-tools (required to drop the marker file)
-  if head -10 "$f" | grep -qE 'allowed-tools:[^\n]*\bWrite\b'; then
+  if head -10 "$f" | grep -qE 'allowed-tools:.*\bWrite\b'; then
     pass "[S16-C] $skill allowed-tools include Write"
   else
     fail "[S16-C] $skill allowed-tools include Write"

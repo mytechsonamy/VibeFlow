@@ -1,7 +1,7 @@
 ---
 name: coverage-analyzer
 description: Parses vitest/jest/istanbul coverage JSON, rolls up line/branch/function coverage to the requirement level via RTM, ranks uncovered gaps by risk, and enforces domain-specific thresholds. Gate contract — every P0 requirement has 100% coverage of its mapped lines, overall coverage meets the domain threshold, and no unjustified exclusions. PIPELINE-5 step 5 / PIPELINE-6 step 4.
-allowed-tools: Read Write Grep Glob
+allowed-tools: AskUserQuestion Read Write Grep Glob
 context: fork
 ---
 
@@ -431,3 +431,13 @@ do NOT write the marker. Log "auto-consensus skipped by env
 (Sprint 15-C) still blocks the next `/vibeflow:advance` until a
 fresh consensus record exists — the env bypass is call-scoped,
 not phase-scoped.
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

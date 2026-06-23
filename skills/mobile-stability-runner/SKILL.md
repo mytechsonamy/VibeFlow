@@ -2,7 +2,7 @@
 name: mobile-stability-runner
 description: Mobile crash & stability testing for a UI increment on iOS/Android. Expo-aware — auto-detects Expo (managed/bare) and picks the runner (Expo → Maestro on Expo Go / dev-client, bare React Native → Detox). Runs a crash-focused battery beyond functional E2E — cold-start smoke, background/foreground, low-memory, deep links, permission denial, network loss mid-flow, rotation, rapid navigation — and detects native crashes / JS redbox / ANR, surfacing anything captured by a configured crash reporter (Sentry / Crashlytics / Expo). Writes mobile-stability-report.md. Graceful-degrades to a local-run breadcrumb when no simulator/device is available. Use in TESTING when the platform is mobile.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(npx *) Bash(npm *) Bash(yarn *) Bash(pnpm *) Bash(expo *) Bash(eas *) Bash(maestro *) Bash(detox *) Bash(xcrun *) Bash(adb *) Bash(curl *)
+allowed-tools: AskUserQuestion Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(npx *) Bash(npm *) Bash(yarn *) Bash(pnpm *) Bash(expo *) Bash(eas *) Bash(maestro *) Bash(detox *) Bash(xcrun *) Bash(adb *) Bash(curl *)
 ---
 
 # Mobile Stability Runner
@@ -100,3 +100,13 @@ and stop, so `consensus-gate` doesn't block the fix.
 
 - runner flow files (Maestro `.yaml` / Detox specs) in the project
 - `.vibeflow/reports/mobile-stability-report.md` (scenario × crash outcome + verdict)
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

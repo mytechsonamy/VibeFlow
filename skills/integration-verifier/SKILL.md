@@ -2,7 +2,7 @@
 name: integration-verifier
 description: For a full-stack increment, proves the front-end actually talks to a REAL back-end end-to-end with seeded test data — locally, no deployed staging required. Stack-agnostic (Node / Python / Go / .NET / Java): boots the back-end, seeds deterministic test data (via test-data-manager), points the real front-end at the local back-end instead of mocks, and drives the backend-data-binding scenarios (SCN-UI-*-DATA-* from scenario-set.md) across loading/populated/empty/error/offline. This is the rung between frontend-render-check (renders on mocks — looks right) and uat-executor (deployed staging walk): it answers "does it TALK right?" without needing infra. BLOCKs when the back-end won't boot, an endpoint 404s, or the UI errors on real data — the exact "mock front-end over a claimed-but-unverified backend" trap. Use in TESTING for any increment that crosses the front↔back boundary; single-tier (front-end-only / back-end-only) increments are skipped.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(node *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(python *) Bash(python3 *) Bash(uvicorn *) Bash(gunicorn *) Bash(pytest *) Bash(dotnet *) Bash(go *) Bash(mvn *) Bash(gradle *) Bash(npx playwright *) Bash(bash *integration-wiring-check.sh*)
+allowed-tools: AskUserQuestion Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(node *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(python *) Bash(python3 *) Bash(uvicorn *) Bash(gunicorn *) Bash(pytest *) Bash(dotnet *) Bash(go *) Bash(mvn *) Bash(gradle *) Bash(npx playwright *) Bash(bash *integration-wiring-check.sh*)
 ---
 
 # Integration Verifier
@@ -155,3 +155,13 @@ so the gate stays clear for the fix iteration.
 
 - `.vibeflow/reports/integration/` (per-scenario evidence, curl transcripts)
 - `.vibeflow/reports/integration-conformance.md` (scenarios + state table + verdict)
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

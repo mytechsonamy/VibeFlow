@@ -299,3 +299,13 @@ prefix is the project-wide next-step convention):
 - `design/styles.css` (Figma-existing path)
 - `.vibeflow/state/consensus-needed.json` (arms DESIGN consensus)
 - optional `vibeflow.config.json` → `design.figmaFileUrl` (persisted)
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

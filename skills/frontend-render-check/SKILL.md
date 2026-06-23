@@ -2,7 +2,7 @@
 name: frontend-render-check
 description: Actually stands up the front-end and verifies it RENDERS and MATCHES THE DESIGN — the step that ends the "dark tunnel" where a UI ships unit-tested but never once rendered or compared to the design. Detects the web framework, boots the dev server (catching startup bugs like a broken alias on a path with spaces), serves mock/fixture data so the UI renders with content WITHOUT a backend, captures screenshots of the hero screens, surfaces them to the operator (so you SEE it, not a green checkmark), and runs a design-conformance comparison against the Figma file (design-bridge db_compare_impl) or the design-spec mockups + tokens (colors/fonts/spacing/layout). Use in TESTING for a web UI increment; pairs with visual-ai-analyzer.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(vite *) Bash(next *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(npx playwright *) Bash(node *) Bash(bash *ui-styling-check.sh*) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_compare_impl mcp__design-bridge__db_extract_tokens
+allowed-tools: AskUserQuestion Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(vite *) Bash(next *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(npx playwright *) Bash(node *) Bash(bash *ui-styling-check.sh*) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_compare_impl mcp__design-bridge__db_extract_tokens
 ---
 
 # Front-end Render Check
@@ -135,3 +135,13 @@ the boot error / rebuild the screen against the design), and stop.
 
 - `.vibeflow/reports/frontend-render/<screen>-impl.png` + `<screen>-design.png`
 - `.vibeflow/reports/frontend-conformance.md` (side-by-side + conformance table + verdict)
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

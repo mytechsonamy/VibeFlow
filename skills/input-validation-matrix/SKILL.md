@@ -2,7 +2,7 @@
 name: input-validation-matrix
 description: For every input field in the UI, generates and runs a systematic data-validation test matrix — required/presence, type (numeric vs alphanumeric vs email/date/currency), boundary (min/max value + length, just-inside/just-outside), format (regex/IBAN/phone/precision), type-mismatch, and injection-safety (XSS/SQL-ish strings escaped or rejected) — plus output-control checks (formatting/masking of the displayed value). Writes real framework tests into the suite and a validation-matrix.md report. Use in TESTING for any UI-facing change; pairs with e2e-test-writer + visual-ai-analyzer in the front-end battery.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(vitest *) Bash(jest *) Bash(playwright *)
+allowed-tools: AskUserQuestion Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(vitest *) Bash(jest *) Bash(playwright *)
 ---
 
 # Input Validation Matrix
@@ -113,3 +113,13 @@ block the fix.
 
 - validation test files in the project test dir (component + form-submit E2E)
 - `.vibeflow/reports/validation-matrix.md` (the field × category matrix + verdict)
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).

@@ -141,7 +141,7 @@ for skill_md in "$REPO_ROOT"/skills/*/SKILL.md; do
   if ! grep -qE '^## Output Files' "$skill_md"; then
     continue
   fi
-  if grep -qE '^allowed-tools:[^\n]*(Write|MultiEdit)' "$skill_md"; then
+  if grep -qE '^allowed-tools:.*(Write|MultiEdit)' "$skill_md"; then
     pass "[S14-D] $name has Write in allowed-tools"
   else
     fail "[S14-D] $name has Write in allowed-tools"

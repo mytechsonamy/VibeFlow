@@ -1,7 +1,7 @@
 ---
 name: mutation-test-runner
 description: Generates code mutations from a fixed operator catalog, runs the test suite against each mutant, and computes the mutation score. A surviving mutant points directly at an assertion that doesn't actually check what it claims. Gate contract — zero surviving mutants in P0 code + domain-specific mutation score threshold. PIPELINE-2 step 2 (conditional) / PIPELINE-6 step 2.
-allowed-tools: Read Write Bash(npx *) Bash(node *) Bash(git *) Grep Glob
+allowed-tools: AskUserQuestion Read Write Bash(npx *) Bash(node *) Bash(git *) Grep Glob
 context: fork
 ---
 
@@ -419,3 +419,13 @@ The orchestrator covers the third TESTING exit criterion,
 stop. The phase-gate still blocks `/vibeflow:advance` until a
 fresh consensus record exists — the env bypass is call-scoped,
 not phase-scoped.
+
+## Breadcrumb as a tappable card (Sprint 64)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When you
+finish with a `▶ Next:` breadcrumb naming a single next command, also present it
+as a tappable **`AskUserQuestion`** so the operator can advance with one tap from
+a phone: **Run `<that command>` now (Recommended)** / **Not yet**. The built-in
+"Other" lets them type a different command. Keep the literal `▶ Next:` line too
+(it is the textual fallback). Skip the card only when the breadcrumb names no
+runnable command (e.g. a plain "add tests" advisory).
