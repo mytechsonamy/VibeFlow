@@ -852,10 +852,10 @@ fi
 
 # Hook output budget tests must be wired in hooks/tests/run.sh.
 HOOKS_TEST="$REPO_ROOT/hooks/tests/run.sh"
-if grep -q "load-sdlc-context output stays under 250 char budget" "$HOOKS_TEST"; then
-  pass "hooks tests budget load-sdlc-context to 250 chars"
+if grep -q "load-sdlc-context output stays under 450 char budget" "$HOOKS_TEST"; then
+  pass "hooks tests budget load-sdlc-context to 450 chars"
 else
-  fail "hooks tests budget load-sdlc-context to 250 chars"
+  fail "hooks tests budget load-sdlc-context to 450 chars"
 fi
 if grep -q "compact-recovery output stays under 800 char budget" "$HOOKS_TEST"; then
   pass "hooks tests budget compact-recovery to 800 chars"
@@ -1130,8 +1130,9 @@ EOF
   else
     fail "extracted load-sdlc-context reports phase=DEVELOPMENT"
   fi
-  # Output stays under the 250-char budget even on the extracted layout.
-  if (( ${#CTX} <= 250 )); then
+  # Output stays under the 450-char budget even on the extracted layout
+  # (Sprint 65 raised it from 250 for the ambient operator-choice line).
+  if (( ${#CTX} <= 450 )); then
     pass "extracted load-sdlc-context output within budget (${#CTX})"
   else
     fail "extracted load-sdlc-context output within budget (${#CTX})"

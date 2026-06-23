@@ -184,11 +184,17 @@ DIR="$(make_project DEVELOPMENT)"
 export VIBEFLOW_CWD="$DIR"
 LSC_OUT="$(bash "$SCRIPTS/load-sdlc-context.sh")"
 LSC_LEN="${#LSC_OUT}"
-if (( LSC_LEN <= 250 )); then
-  pass "load-sdlc-context output stays under 250 char budget (got $LSC_LEN)"
+# Sprint 65 raised the budget 250→450 to fit the ambient operator-choice
+# convention line (a deliberate one-line behavioral hint); still bounded so the
+# SessionStart context can't bloat unboundedly with markers/advisories.
+if (( LSC_LEN <= 450 )); then
+  pass "load-sdlc-context output stays under 450 char budget (got $LSC_LEN)"
 else
-  fail "load-sdlc-context output exceeds 250 char budget (got $LSC_LEN)"
+  fail "load-sdlc-context output exceeds 450 char budget (got $LSC_LEN)"
 fi
+# Sprint 65: the ambient operator-choice convention line is present.
+assert_contains "[S65-A] SessionStart nudges AskUserQuestion for operator choices" "AskUserQuestion" "$LSC_OUT"
+assert_contains "[S65-A] convention line is mobile/remote-first" "Mobile/remote-first" "$LSC_OUT"
 rm -rf "$DIR"
 
 # Degraded state: config exists but state.db is missing → surface a

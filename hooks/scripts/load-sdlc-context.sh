@@ -117,4 +117,10 @@ if vf_have_jq; then
 fi
 
 echo "Use /vibeflow:flow-status for full state, /vibeflow:advance to move phase."
+# Sprint 65: ambient operator-choice convention. Skill decision points already
+# render as AskUserQuestion (Sprint 61/63/64), but ad-hoc questions the model
+# poses while orchestrating (outside any skill) fall back to prose. This nudges
+# the whole session to keep them tappable — best-effort (a session-wide hint,
+# not a hard skill instruction); remote/mobile operators tap instead of typing.
+echo "VibeFlow: present any operator choice/confirmation via the AskUserQuestion tool (2-4 tappable options, recommended first, 'Other' to type) — not a prose 'which one?'. Mobile/remote-first."
 exit 0
