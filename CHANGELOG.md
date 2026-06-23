@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.0] — 2026-06-23
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Changed — ambient operator-choice convention on SessionStart (Sprint 65)
+- Sprint 61/63/64 made the *documented* skill decision points (menus, confirms, breadcrumbs) render as tappable `AskUserQuestion` cards. But an **ad-hoc question the model poses while orchestrating** — outside any skill (e.g. "build the API layer first, or go straight to DEVELOPMENT? which one?") — still fell back to prose.
+- `load-sdlc-context.sh` (the SessionStart hook) now injects a one-line convention nudging the whole session to present **any** operator choice/confirmation via `AskUserQuestion` (tappable options + "Other"), not a prose "which one?". This is a **best-effort session-wide hint** for unstructured moments — the skill-point cards remain the hard guarantee.
+- For a hard guarantee in your own project, add the same one-liner to your repo's `CLAUDE.md` (project instructions override default behavior).
+- The SessionStart context budget was raised 250→450 chars (still bounded). Hook + test-budget change only; no engine/skill change. New `tests/integration/sprint-65.sh` (11/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.51.0] — 2026-06-23
 
 <!-- Notes pre-filled from --notes-file. -->
