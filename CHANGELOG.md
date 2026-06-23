@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.49.0] — 2026-06-23
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Fixed — consensus-gate honors the bypass after a leading `cd` preamble (Sprint 62)
+- `consensus-gate.sh` parses `VF_SKIP_CONSENSUS_GATE=1` as a leading env-var prefix, but the awk scan stopped at the first non-assignment token — so `cd /repo && VF_SKIP_CONSENSUS_GATE=1 cmd` (a very common shape) was blocked, while a leading-assignment form worked. The gate now strips one or more leading `cd … (&&|;)` navigation segments before the env-prefix scan.
+- **Only `cd` is strippable** (navigation, not forward work) — `rm … && VF_SKIP_CONSENSUS_GATE=1 …` still blocks, and a quoted mention of the variable after the `cd` still does not bypass. Hook-only change.
+- Tests: hooks/tests/run.sh [S62-A] (8 runtime probes); new `tests/integration/sprint-62.sh` (16/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.48.0] — 2026-06-23
 
 <!-- Notes pre-filled from --notes-file. -->
