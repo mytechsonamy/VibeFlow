@@ -1,7 +1,7 @@
 ---
 name: flow-status
 description: Shows current VibeFlow project status including SDLC phase, pending tasks, quality metrics, and recent review results. Use when asking about project progress. Renamed from `status` in v2.20.0 to avoid colliding with Claude Code's built-in `/status` (usage/quota).
-allowed-tools: Read Grep Glob Bash(bash *loop-audit.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *streams-audit.sh*) Bash(jq *)
+allowed-tools: Read Grep Glob AskUserQuestion Bash(bash *loop-audit.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *streams-audit.sh*) Bash(jq *)
 ---
 
 # VibeFlow Flow-Status
@@ -112,3 +112,25 @@ This is the quick glance; `/vibeflow:streams` is the full per-stream dashboard.
 
 ## Output
 Display a concise status summary directly in the conversation. Do not create a file.
+
+### Next step — as a tappable choice, not a prose breadcrumb (Sprint 63)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When the
+status surfaces a **clear next action**, present it with the **`AskUserQuestion`**
+tool as 2–4 tappable options instead of (or right after) a bare "Next step:" line,
+so the operator can act with one tap from a phone. Lead with the recommended
+option; always include a **"Stay / do nothing"** option; the built-in "Other"
+lets them type. Derive the options from what the report found, e.g.:
+
+- a **phase advance is available** (all exit criteria for the current phase met) →
+  **Advance to `<next phase>`** (`/vibeflow:advance`) · Stay.
+- a **branch/increment or cycle mismatch** was flagged → **Advance anyway** ·
+  **Fix the mismatch first** (name it) · Stay.
+- **UI render-verification debt** (`never`/`stale`) → **Run
+  `/vibeflow:frontend-render-check`** · Stay.
+- **work-streams** with a recommended action → **Open `/vibeflow:streams`** · Stay.
+
+Put the condensed "why" (the relevant finding) in each option's description so the
+operator decides without scrolling the full report. When there is **no** actionable
+next step, omit the card (don't invent one). This is a read-only surfacing — it
+never changes state; picking an option just launches the named command.

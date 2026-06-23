@@ -65,8 +65,23 @@ options (the prose menu remains as the textual fallback):
 | `release-decision-engine` | next action on GO / CONDITIONAL / BLOCKED |
 | `learning-apply` | which lane / which recommendation to apply (when not `--yes`) |
 
-A skill that only **reports** (no operator branch) is untouched — it has no
-decision to turn into options.
+### Terminal next-step breadcrumbs are tappable too (Sprint 63)
+
+The same rule applies to a skill's **closing "Next step:" / "▶ Next:"
+breadcrumb** when it implies a real action — don't leave it as prose the operator
+must read and retype. The read-only status/dashboard views surface their next
+action as a tappable choice (recommended first, always a **"Stay / do nothing"**
+option, "Other" to type), and omit the card when there's nothing actionable:
+
+| Read-only view | Next step surfaced as options |
+|----------------|-------------------------------|
+| `flow-status` | advance to `<next>` / fix branch-increment mismatch / run frontend-render-check / open streams — whichever the status surfaced · Stay |
+| `loop-status` | remove a high-revert-rate key / run learning-apply / (cross-project recommendation, read-only) · Stay |
+| `streams` | run integrate (merge point) / run phase-runner (continue a feature stream) / resolve a shared-branch conflict · Stay |
+
+A read-only view that surfaces **no** actionable next step prints no card (it
+still has nothing to decide). Picking an option just **launches** the named
+command — these views never change state themselves.
 
 ## For skill authors
 

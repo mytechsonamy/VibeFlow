@@ -1,7 +1,7 @@
 ---
 name: streams
 description: The parallel team-work dashboard. When streams.enabled is on, VibeFlow keys state per git branch so multiple developers (each on their own branch / git worktree) progress independent SDLC work-streams that never clobber each other. This skill consolidates every locally-visible work-stream — its branch, SDLC phase, cycle status, and the engine revision — into one read-only view, flags any shared-branch conflicts, and writes a durable .vibeflow/reports/streams.md. Read-only — never changes config or state. Use to see "who is working on what, and which phase each feature is in".
-allowed-tools: Read Write Bash(bash *streams-audit.sh*) Bash(jq *)
+allowed-tools: Read Write AskUserQuestion Bash(bash *streams-audit.sh*) Bash(jq *)
 ---
 
 # Streams — the parallel team-work dashboard (Sprint 60)
@@ -56,6 +56,24 @@ VibeFlow Work-Streams — <project>   (owner: <owner>)
 Write the same content as Markdown to `.vibeflow/reports/streams.md` — a
 shareable snapshot of the team's parallel work. Header with the project +
 owner + a UTC timestamp, then the same dashboard.
+
+## Next step — as a tappable choice (Sprint 63)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When the
+dashboard surfaces a **clear recommended action**, present it with the
+**`AskUserQuestion`** tool as 2–4 tappable options (recommended first, condensed
+rationale per option, always a **"Stay / do nothing"** option; "Other" lets the
+operator type) instead of a bare prose next-step. Typical cases:
+
+- on an **integration/base branch with merged feature streams** → **Run
+  `/vibeflow:integrate`** (the merge point) · Stay.
+- on a **feature-branch stream that's in-progress** → **Run
+  `/vibeflow:phase-runner`** (continue this stream) · Stay.
+- a **shared-branch conflict** was flagged → surface **Resolve the conflict**
+  (name the streams/branch) · Stay.
+
+Omit the card when streams are off or there's nothing actionable. Read-only —
+picking an option just launches the named command.
 
 ## Read-only
 

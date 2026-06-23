@@ -1,7 +1,7 @@
 ---
 name: loop-status
 description: The autonomous-loop dashboard. Consolidates every loop surface — phase-runner progress, auto-apply outcomes + per-key revert rates, cooled-down keys, the armed revert watch, learning-report findings, and the opt-in cross-project signal — into one read-only view, and writes a durable .vibeflow/reports/loop-status.md audit. Where /vibeflow:flow-status gives a quick inline glance, /vibeflow:loop-status is the full pane of glass. Read-only — never changes config or source.
-allowed-tools: Read Write Grep Glob Bash(bash *loop-audit.sh*) Bash(jq *)
+allowed-tools: Read Write Grep Glob AskUserQuestion Bash(bash *loop-audit.sh*) Bash(jq *)
 ---
 
 # Loop Status — the autonomous-loop dashboard (Sprint 30)
@@ -57,6 +57,23 @@ Write the same content as Markdown to
 `.vibeflow/reports/loop-status.md` — a shareable "loop pane of glass" the
 operator (or CI) can read without re-running the skill. Header with the
 project + phase + a UTC timestamp, then the same sections.
+
+## Next step — as a tappable choice (Sprint 63)
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When the
+dashboard surfaces a **clear recommended action**, present it with the
+**`AskUserQuestion`** tool as 2–4 tappable options (recommended first, condensed
+rationale per option, always a **"Stay / do nothing"** option; "Other" lets the
+operator type) instead of a bare prose next-step. Typical cases:
+
+- a `perKey` entry at `revertRate ≥ 0.5` → **Remove `<key>` from `autoApply.keys`**
+  (via `/vibeflow:learning-apply`) · Stay.
+- a cross-project signal recommendation → surface it as a **recommendation-only**
+  option (state it does NOT auto-allowlist) · Stay.
+- pending learning findings → **Run `/vibeflow:learning-apply`** · Stay.
+
+Omit the card when the loop is idle / there's nothing actionable. Read-only —
+picking an option just launches the named command; it changes nothing itself.
 
 ## Read-only
 
