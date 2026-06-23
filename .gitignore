@@ -45,3 +45,6 @@ coverage/
 # archive itself is build output and not source.
 vibeflow-plugin-*.tar.gz
 vibeflow-plugin-*.tar.gz.sha256
+
+# MCP server test artifacts (engine writes .vibeflow/ under its cwd during tests)
+mcp-servers/*/.vibeflow/
