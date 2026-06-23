@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.51.0] — 2026-06-23
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Changed — deterministic single-step `▶ Next:` breadcrumbs become tappable cards (Sprint 64)
+- Every skill that ends with a single deterministic `▶ Next: <command>` handoff now also presents it as a tappable **`AskUserQuestion`**: **Run `<command>` now (Recommended)** / **Not yet**, with "Other" to type a different command. The literal `▶ Next:` line stays as the textual fallback, and the card is skipped when the breadcrumb names no runnable command. You can now walk the whole SDLC phone-first — one tap per handoff (onboard → phase-runner → … → integrate).
+- Applies to the 13 breadcrumb-emitting skills: architecture-bootstrap, brownfield-intake, coverage-analyzer, design-bootstrap, frontend-render-check, input-validation-matrix, integrate, integration-verifier, mobile-stability-runner, mutation-test-runner, onboard, phase-runner, prd-quality-analyzer. Builds on the Sprint 61/63 operator-choice convention.
+
+### Fixed — latent test-sentinel bug
+- Four `allowed-tools:[^\n]*` grep sentinels (sprint-4/14/15/16) used the `[^\n]` idiom, which matches "not backslash-or-n" rather than "not newline" — an allowed-tools value containing a literal `n` before `Write`/`Edit` (e.g. `AskUserQuestion`) silently defeated the check. Corrected to `.*`.
+
+Skill-prose + docs + test-sentinel fixes; no engine/MCP change. sprint-64.sh (62/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.50.0] — 2026-06-23
 
 <!-- Notes pre-filled from --notes-file. -->
