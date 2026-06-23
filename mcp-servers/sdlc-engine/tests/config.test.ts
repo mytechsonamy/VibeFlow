@@ -14,6 +14,7 @@ import {
   LoopAuditConfigSchema,
   GatesConfigSchema,
   GlobalLearningConfigSchema,
+  StreamsConfigSchema,
 } from "../src/config.js";
 
 const ENV_KEYS = ["VIBEFLOW_PROJECT", "VIBEFLOW_STATE_DIR"] as const;
@@ -488,6 +489,45 @@ describe("GlobalLearningConfigSchema (Sprint 28-A)", () => {
     expect(GlobalLearningConfigSchema.safeParse({ enabled: true }).success).toBe(
       true,
     );
+  });
+});
+
+describe("StreamsConfigSchema (Sprint 60)", () => {
+  it("defaults enabled:false + idStrategy:branch (back-compat)", () => {
+    const cfg = EngineConfigSchema.parse({ project: "p" });
+    expect(cfg.streams.enabled).toBe(false);
+    expect(cfg.streams.idStrategy).toBe("branch");
+  });
+
+  it("accepts enabled:true and merges from config file", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      streams: { enabled: true },
+    });
+    expect(cfg.streams.enabled).toBe(true);
+    // partial merge keeps the default strategy
+    expect(cfg.streams.idStrategy).toBe("branch");
+  });
+
+  it("accepts idStrategy:fixed", () => {
+    const cfg = EngineConfigSchema.parse({
+      project: "p",
+      streams: { enabled: true, idStrategy: "fixed" },
+    });
+    expect(cfg.streams.idStrategy).toBe("fixed");
+  });
+
+  it("rejects a non-boolean enabled and an unknown idStrategy", () => {
+    expect(StreamsConfigSchema.safeParse({ enabled: "yes" }).success).toBe(
+      false,
+    );
+    expect(
+      StreamsConfigSchema.safeParse({ idStrategy: "per-user" }).success,
+    ).toBe(false);
+    expect(
+      StreamsConfigSchema.safeParse({ enabled: true, idStrategy: "branch" })
+        .success,
+    ).toBe(true);
   });
 });
 

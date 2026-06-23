@@ -1542,6 +1542,117 @@ _s28_fire "$DIR" "gl2"
 [[ ! -f "$GLOBAL/global-learning.jsonl" ]] && pass "[S28-B] disabled (default) → no global store write" || fail "[S28-B] disabled (default) → no global store write"
 rm -rf "$DIR" "$GLOBAL"; unset VIBEFLOW_CWD VIBEFLOW_GLOBAL_DIR
 
+echo "== _lib.sh vf_stream_id [S60-A] =="
+
+# Build a throwaway git repo with a vibeflow.config.json. $1 = streams JSON
+# block (or "" for none); leaves HEAD on `main`.
+make_stream_project() {
+  local streams_block="$1"
+  local dir
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/vf-hooks-stream-XXXXXX")"
+  cat > "$dir/vibeflow.config.json" <<EOF
+{
+  "project": "acme",
+  "domain": "general",
+  "currentPhase": "REQUIREMENTS"${streams_block:+,
+  $streams_block}
+}
+EOF
+  git -C "$dir" init -q 2>/dev/null
+  git -C "$dir" config user.email t@t.t 2>/dev/null
+  git -C "$dir" config user.name tester 2>/dev/null
+  git -C "$dir" commit -q --allow-empty -m init 2>/dev/null
+  git -C "$dir" branch -M main 2>/dev/null
+  echo "$dir"
+}
+
+_sid() { bash -c "source '$SCRIPTS/_lib.sh'; vf_stream_id"; }
+
+# 1. streams off (no block) → bare project id (legacy, bit-for-bit).
+DIR="$(make_stream_project "")"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/auth 2>/dev/null
+assert_eq "[S60-A] streams off → bare project id (legacy)" "acme" "$(_sid)"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# 2. streams on, feature branch → <project>__<slug>.
+DIR="$(make_stream_project '"streams": { "enabled": true }')"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/Auth-Flow 2>/dev/null
+assert_eq "[S60-A] on + feature branch → slugged stream id" "acme__feature-auth-flow" "$(_sid)"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# 3. streams on, on main → collapses to bare project id (initial stream).
+DIR="$(make_stream_project '"streams": { "enabled": true }')"
+export VIBEFLOW_CWD="$DIR"
+assert_eq "[S60-A] on + main → bare project id (initial stream)" "acme" "$(_sid)"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# 4. streams on, idStrategy fixed → bare project id even off-main.
+DIR="$(make_stream_project '"streams": { "enabled": true, "idStrategy": "fixed" }')"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/x 2>/dev/null
+assert_eq "[S60-A] on + idStrategy:fixed → bare project id" "acme" "$(_sid)"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# 5. VIBEFLOW_STREAM override wins over the branch.
+DIR="$(make_stream_project '"streams": { "enabled": true }')"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/x 2>/dev/null
+export VIBEFLOW_STREAM="payments/v2"
+assert_eq "[S60-A] VIBEFLOW_STREAM override → env slug" "acme__payments-v2" "$(_sid)"
+unset VIBEFLOW_STREAM
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# 6. detached HEAD → bare project id (no branch to slug).
+DIR="$(make_stream_project '"streams": { "enabled": true }')"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" commit -q --allow-empty -m second 2>/dev/null
+git -C "$DIR" checkout -q --detach HEAD 2>/dev/null
+assert_eq "[S60-A] detached HEAD → bare project id" "acme" "$(_sid)"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# 7. vf_state_project_dir follows the stream id (isolation substrate).
+DIR="$(make_stream_project '"streams": { "enabled": true }')"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/iso 2>/dev/null
+PDIR="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_state_project_dir")"
+assert_eq "[S60-A] vf_state_project_dir is stream-scoped" "$DIR/.vibeflow/state/acme__feature-iso" "$PDIR"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+echo "== _lib.sh vf_lifecycle_path + stream-id.sh [S60-B] =="
+
+# off → legacy single lifecycle.json location (back-compat).
+DIR="$(make_stream_project "")"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/x 2>/dev/null
+LC="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_lifecycle_path")"
+assert_eq "[S60-B] streams off → legacy lifecycle path" "$DIR/.vibeflow/state/lifecycle.json" "$LC"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# on + feature branch → stream-scoped lifecycle path.
+DIR="$(make_stream_project '"streams": { "enabled": true }')"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/x 2>/dev/null
+LC="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_lifecycle_path")"
+assert_eq "[S60-B] streams on → stream-scoped lifecycle path" "$DIR/.vibeflow/state/acme__feature-x/lifecycle.json" "$LC"
+# stream-id.sh emits the same streamId + lifecycle as JSON.
+SJSON="$(bash "$SCRIPTS/stream-id.sh")"
+assert_eq "[S60-B] stream-id.sh streamId" "acme__feature-x" "$(echo "$SJSON" | jq -r '.streamId')"
+assert_eq "[S60-B] stream-id.sh lifecycle" "$LC" "$(echo "$SJSON" | jq -r '.lifecycle')"
+assert_eq "[S60-B] stream-id.sh branch" "feature/x" "$(echo "$SJSON" | jq -r '.branch')"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
+# Two branches → two isolated state dirs (the whole point).
+DIR="$(make_stream_project '"streams": { "enabled": true }')"
+export VIBEFLOW_CWD="$DIR"
+git -C "$DIR" checkout -q -b feature/auth 2>/dev/null
+A="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_state_project_dir")"
+git -C "$DIR" checkout -q -b feature/pay 2>/dev/null
+B="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_state_project_dir")"
+[[ "$A" != "$B" ]] && pass "[S60-B] two branches → two isolated state dirs" || fail "[S60-B] two branches → two isolated state dirs (both=$A)"
+rm -rf "$DIR"; unset VIBEFLOW_CWD
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

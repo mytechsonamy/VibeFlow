@@ -2,7 +2,7 @@
 name: brownfield-intake
 description: The brownfield on-ramp. After onboard on an existing codebase, this fingerprints the repo (languages, frameworks, structure, hotspots, tech debt via codebase-intel) so you don't have to explain the architecture, then ASKS how you want to define the work — describe it in plain language, point to an existing requirements/spec doc, answer a few guided questions, or pull a GitHub/GitLab issue — and synthesizes a code-anchored, increment-scoped requirements doc that feeds prd-quality-analyzer and the rest of the SDLC. Use right after onboard on a project that already has code.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(git *) Bash(gh *) Bash(glab *) mcp__codebase-intel__ci_analyze_structure mcp__codebase-intel__ci_dependency_graph mcp__codebase-intel__ci_find_hotspots mcp__codebase-intel__ci_tech_debt_scan mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_start_cycle
+allowed-tools: Read Write AskUserQuestion Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(git *) Bash(gh *) Bash(glab *) Bash(bash *stream-id.sh*) mcp__codebase-intel__ci_analyze_structure mcp__codebase-intel__ci_dependency_graph mcp__codebase-intel__ci_find_hotspots mcp__codebase-intel__ci_tech_debt_scan mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Brownfield Intake
@@ -41,7 +41,14 @@ manifests (package.json / pyproject.toml / *.csproj / go.mod) and say so.
 
 ## Step 2: ASK how to define the increment (4 ways)
 
-Don't assume — present the intake choice and wait:
+Don't assume — present the intake choice and wait.
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** Surface
+this with the **`AskUserQuestion`** tool as four tappable options (header e.g.
+"Intake"), each carrying the one-line rationale below; the built-in "Other" lets
+the operator type. After the pick, collect the actual free-form input (the
+description / path / answers / issue ref) as a normal typed reply. The prose menu
+below is the textual fallback rendering of the same four options:
 
 ```
 Define the work for <project> (brownfield — <primary-language>, <framework>):
@@ -97,8 +104,21 @@ Keep the intent faithful to the operator's input (especially for paths 2 & 4 —
 enrich, don't redirect). Persist the increment slug to
 `vibeflow.config.json` → `requirements.activeIncrement` for traceability.
 
-**Open the increment's lifecycle cycle (Sprint 42).** Read
-`.vibeflow/state/lifecycle.json`. If `currentCycle` is `completed` (or this is a
+**Resolve the work-stream (Sprint 60).** Run the read-only reader to learn this
+branch's stream id + lifecycle path:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/stream-id.sh"
+```
+
+Use the printed `streamId` as the `projectId` for every `sdlc_*` MCP call below,
+and the printed `lifecycle` path wherever this step names
+`.vibeflow/state/lifecycle.json`. With streams off both equal today's values; with
+streams on, this increment's branch gets its own isolated cycle. See
+`docs/TEAM-WORK.md`.
+
+**Open the increment's lifecycle cycle (Sprint 42).** Read the lifecycle file
+(the `lifecycle` path above). If `currentCycle` is `completed` (or this is a
 brand-new increment after a shipped cycle), open a **new** cycle — push the old
 one into `history[]` and set:
 

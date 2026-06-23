@@ -266,6 +266,41 @@ export declare const GlobalLearningConfigSchema: z.ZodDefault<z.ZodObject<{
     enabled?: boolean | undefined;
 }>>;
 export type GlobalLearningConfig = z.infer<typeof GlobalLearningConfigSchema>;
+/**
+ * Sprint 60: parallel team work via per-branch work-streams. `enabled`
+ * (default OFF) opts a project into deriving a per-work-stream `projectId`
+ * so two developers (each on their own branch / git worktree) progress
+ * independent SDLC states that never clobber one another. When OFF the
+ * resolved id stays the single `project` value — today's behaviour, bit
+ * for bit — so existing single-stream projects are unaffected.
+ *
+ * `idStrategy` picks how the stream id is derived when enabled:
+ *   - "branch": `<project>__<slugified-git-branch>` (the engine already
+ *     isolates each projectId in its own locked `.vibeflow/state/<id>/`
+ *     dir, so this is the whole mechanism). The default branch
+ *     (main/master) collapses back to the bare `<project>` so the initial
+ *     stream keeps the legacy path.
+ *   - "fixed": always the bare `<project>` — an explicit no-op escape
+ *     hatch that keeps `enabled: true` config valid while disabling the
+ *     per-branch suffix (e.g. for a single-tier repo that opts in for the
+ *     dashboard only).
+ *
+ * The id is computed in bash (`vf_stream_id` in hooks/scripts/_lib.sh)
+ * because skills pass `projectId` to the MCP tools per call; this schema
+ * exists so `vibeflow.config.json` validates and TS/bash read the same
+ * shape.
+ */
+export declare const StreamsConfigSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    idStrategy: z.ZodDefault<z.ZodEnum<["branch", "fixed"]>>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    idStrategy: "branch" | "fixed";
+}, {
+    enabled?: boolean | undefined;
+    idStrategy?: "branch" | "fixed" | undefined;
+}>>;
+export type StreamsConfig = z.infer<typeof StreamsConfigSchema>;
 export declare const EngineConfigSchema: z.ZodObject<{
     project: z.ZodString;
     stateStore: z.ZodDefault<z.ZodObject<{
@@ -424,6 +459,16 @@ export declare const EngineConfigSchema: z.ZodObject<{
     }, {
         enabled?: boolean | undefined;
     }>>;
+    streams: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        idStrategy: z.ZodDefault<z.ZodEnum<["branch", "fixed"]>>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        idStrategy: "branch" | "fixed";
+    }, {
+        enabled?: boolean | undefined;
+        idStrategy?: "branch" | "fixed" | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     project: string;
     stateStore: {
@@ -478,6 +523,10 @@ export declare const EngineConfigSchema: z.ZodObject<{
     globalLearning: {
         enabled: boolean;
     };
+    streams: {
+        enabled: boolean;
+        idStrategy: "branch" | "fixed";
+    };
 }, {
     project: string;
     stateStore?: {
@@ -531,6 +580,10 @@ export declare const EngineConfigSchema: z.ZodObject<{
     } | undefined;
     globalLearning?: {
         enabled?: boolean | undefined;
+    } | undefined;
+    streams?: {
+        enabled?: boolean | undefined;
+        idStrategy?: "branch" | "fixed" | undefined;
     } | undefined;
 }>;
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;

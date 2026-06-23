@@ -1,7 +1,7 @@
 ---
 name: release-decision-engine
 description: Aggregates all quality signals into a deterministic release decision (GO/CONDITIONAL/BLOCKED). Uses domain-specific weighted scoring. Always runs LAST in staging-uat and release-decision pipelines. Use when deciding whether a release is safe.
-allowed-tools: Read Write Grep Glob
+allowed-tools: Read Write Grep Glob AskUserQuestion
 context: fork
 ---
 
@@ -128,6 +128,24 @@ CONDITIONAL means "can release with mitigations":
 - [Which skills to re-run after fixes]
 - [Estimated effort to unblock]
 ```
+
+## Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`)
+
+After writing `release-decision.md`, surface the next action via the
+**`AskUserQuestion`** tool as tappable options keyed on the verdict, each
+description carrying the condensed reason (top blocker / mitigation), so the
+operator can act from a phone instead of reading the full report:
+
+- **GO** → **Proceed to deploy (Recommended)** (`/vibeflow:deploy-verifier` /
+  the deploy step) · **Review report**.
+- **CONDITIONAL** → **Release with mitigations** (names the required mitigations)
+  · **Fix first** · **Review report**.
+- **BLOCKED** → **Fix blockers** (names the top blocker + which skill re-runs it)
+  · **Review report**.
+
+"Other" always lets the operator type. This is a *surfacing* of the deterministic
+verdict — it does not change the GO/CONDITIONAL/BLOCKED decision or the
+GO-only auto-satisfy below.
 
 ## Explainability Contract
 Every finding MUST include:

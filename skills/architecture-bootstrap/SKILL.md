@@ -2,7 +2,7 @@
 name: architecture-bootstrap
 description: The ARCHITECTURE-phase author-side guide — the counterpart to design-bootstrap. architecture-validator VALIDATES docs/architecture.md but nothing authors it, so a greenfield ARCHITECTURE phase had no skill to produce the doc. This authors docs/architecture.md (logical/component architecture, data model, integration contracts, a domain-policy-aware security & privacy architecture, NFRs, deployment baseline) + one revisitable ADR per consequential decision, after ASKING the operator the technology/deployment baseline (propose sensible defaults / specify the stack / stack-agnostic). Then arms the consensus marker so architecture-validator + consensus review it. Use at the start of ARCHITECTURE.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) mcp__codebase-intel__ci_dependency_graph mcp__codebase-intel__ci_analyze_structure
+allowed-tools: Read Write AskUserQuestion Bash(mkdir *) Bash(jq *) Bash(ls *) mcp__codebase-intel__ci_dependency_graph mcp__codebase-intel__ci_analyze_structure
 ---
 
 # Architecture Bootstrap
@@ -45,7 +45,13 @@ Read:
 The logical architecture is largely fixed by the PRD (modules, flows,
 entities, the domain's mandated controls). The genuinely open, **expensive-to-change**
 fork is the technology + deployment baseline — do **not** invent it silently.
-Emit this menu and wait:
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** Surface
+the baseline with the **`AskUserQuestion`** tool as three tappable options
+(header e.g. "Tech baseline"): Propose defaults (Recommended) / Specify the stack
+/ Stack-agnostic, each with the one-line rationale below. "Other" lets the
+operator type constraints directly (which feeds option 2). The prose menu below
+is the textual fallback:
 
 ```
 ARCHITECTURE baseline for <project> (domain=<domain>, platform=<platform>)?

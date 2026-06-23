@@ -2,7 +2,7 @@
 name: phase-runner
 description: End-to-end phase orchestrator. For the current SDLC phase, runs every registered analyzer, then drives a real cross-AI consensus verdict HEADLESSLY via hooks/scripts/consensus-run.sh (runs the codex/gemini reviewer CLIs + finalises verdict.json — no dependency on the disable-model-invocation consensus skills, so phase-runner no longer deadlocks). On APPROVED it records consensus + auto-advances via the sdlc-engine MCP tools; on NEEDS_REVISION/REJECTED it stops with an explicit operator breadcrumb (the deep-rewrite specialist→arbiter→apply chain edits the primary artifact and stays operator-confirmed by design). In TESTING it first generates the coverage artifact (Sprint 29). One command replaces the manual analyzer → consensus → advance walk.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *ui-styling-check.sh*) Bash(bash *integration-wiring-check.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
+allowed-tools: Read Write AskUserQuestion Bash(git status*) Bash(git rev-parse*) Bash(bash hooks/scripts/consensus-run.sh*) Bash(bash *stream-id.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *ui-styling-check.sh*) Bash(bash *integration-wiring-check.sh*) Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(pytest *) Bash(dotnet *) Bash(cargo *) Bash(go *) mcp__sdlc-engine__sdlc_get_state mcp__sdlc-engine__sdlc_advance_phase mcp__sdlc-engine__sdlc_list_phases mcp__sdlc-engine__sdlc_record_consensus mcp__sdlc-engine__sdlc_start_cycle
 ---
 
 # Phase Runner (Sprint 19-F)
@@ -265,18 +265,45 @@ hard BLOCKED. `docs/MOBILE-TESTING.md` covers it.
 > `consensus-gate` then blocks **every Bash/Write/Edit** until consensus drains.
 > phase-runner is the *legitimate drainer*, but its **setup reads** (lifecycle,
 > phase, reports) trip that gate if you do them with `cat`/`jq` in Bash. So read
-> `.vibeflow/state/lifecycle.json` with the **Read tool**, the engine phase via
+> `.vibeflow/state/lifecycle.json` with the **Read tool** (when streams are on,
+> its exact path is the `lifecycle` field from the allowlisted read-only
+> `stream-id.sh`), the engine phase via
 > `mcp__sdlc-engine__sdlc_get_state` (**MCP**), and any report with the Read tool
 > — all three are **ungated**. Then the only Bash you need under an armed marker
 > is `hooks/scripts/consensus-run.sh` (already allowlisted), which drains it. Do
 > **not** reach for `VF_SKIP_CONSENSUS_GATE=1` just to read state — switch tools.
 
+**Resolve the work-stream first (Sprint 60).** VibeFlow keys all state on a
+**work-stream id**. With the default single-stream setup it is the bare project
+id and nothing changes. When `streams.enabled` is on (opt-in parallel team
+work), it is derived per git branch so two developers on two branches/worktrees
+run **independent** SDLC states that never clobber each other. Resolve it with
+the read-only reader (allowlisted, ungated — safe under an armed marker):
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/stream-id.sh"
+```
+
+Use the printed `streamId` as the `projectId` for **every** `sdlc_*` MCP call
+below, and the printed `lifecycle` path wherever this step names
+`.vibeflow/state/lifecycle.json`. (With streams off these are the project id and
+`.vibeflow/state/lifecycle.json` — today's values. See `docs/TEAM-WORK.md`.)
+
+> **Integration branch hint (streams on).** If `streams.enabled` is on and the
+> reader's `branch` is an integration/base branch (e.g. `main`/`master`/`release/*`
+> — the stream id collapsed to the bare project) **and** other feature streams
+> have merged in, this is a **merge point**, not a fresh feature walk. Drive the
+> combined product through the integration gate instead:
+> > ▶ Next: /vibeflow:integrate
+> A feature branch (its own `<project>__<slug>` stream) just runs phase-runner
+> normally below.
+
 **Run first.** A project moves through one or more **cycles** — one pass of the
 SDLC per deliverable (the initial build, then one per increment). The runtime
 question is never "greenfield or brownfield" (that was a one-time cycle-1
 decision); it's **"is there an open cycle to resume, or did the last one ship?"**
-— read from state, not from whether source files exist. **Read** (the tool)
-`.vibeflow/state/lifecycle.json`:
+— read from state, not from whether source files exist. **Read** (the tool) the
+lifecycle file (the `lifecycle` path from the reader above):
 
 - **`currentCycle.status == "in-progress"`** → resume; continue to Step 1 at the
   cycle's `currentPhase`. (This is the *greenfield-paused-and-resumed* case — it
@@ -552,6 +579,21 @@ Read `status` from the runner's output (or `verdictFile`) and branch:
       then  /vibeflow:phase-runner
   ```
 
+  **Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** After
+  the breadcrumb, also surface the next step via the **`AskUserQuestion`** tool
+  as tappable options so the operator can pick one from a phone instead of typing
+  the command — each description carrying the condensed verdict (top critical
+  finding / agreement):
+  - **Run specialist** (Recommended) — deep-rewrite the primary artifact
+    (`/vibeflow:consensus-specialist <session-id>`).
+  - **Run arbiter** — turn reviewer suggestions into a diff-first patch
+    (`/vibeflow:consensus-arbiter <session-id>`).
+  - **Stop** — pause here; the operator will handle it.
+
+  These edits still need human review (the chain stays `disable-model-invocation`)
+  — the choice only makes *launching* the next step one tap; "Other" lets the
+  operator type any command.
+
 phase-runner does **not** auto-loop through specialist/apply — those
 edit the primary artifact and need human review. Autonomy stops at the
 verdict; human judgment owns the rewrite. One `phase-runner` invocation
@@ -565,7 +607,7 @@ script) cannot call MCP tools, so phase-runner does it:
 
 ```
 mcp__sdlc-engine__sdlc_record_consensus {
-  "projectId": "<project id from config>",
+  "projectId": "<streamId from Step 0's stream-id.sh>",
   "phase":     "<currentPhase from config>",
   "status":    "APPROVED",
   "agreement": <verdict.json .agreement>,
@@ -577,7 +619,7 @@ Then, if `phaseRunner.autoAdvance` is true, advance directly:
 
 ```
 mcp__sdlc-engine__sdlc_advance_phase {
-  "projectId": "<from config>",
+  "projectId": "<streamId from Step 0's stream-id.sh>",
   "to":        "<next phase per canonical order>"
 }
 ```
