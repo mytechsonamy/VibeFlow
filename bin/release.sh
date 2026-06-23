@@ -288,34 +288,11 @@ fi
 CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo '__detached__')"
 
 # -----------------------------------------------------------------------------
-echo "== [0.5] build-dependency sanity =="
-
-# Sprint 7 / S7-04 — pg is a peer dependency of sdlc-engine (Sprint 5
-# / S5-03 moved it from optionalDependencies so team-mode users get
-# it by default). The sdlc-engine TypeScript source has a static
-# `import 'pg'` in src/state/postgres.ts, so `tsc` requires pg +
-# @types/pg to be resolvable at build time. If the peer dep was
-# uninstalled for testing (as happened during S6-01 live-verification
-# before the v1.1.0 release), `build-all.sh` fails halfway through
-# step [5] with `Cannot find module 'pg'` AFTER plugin.json has
-# already been bumped — leaving the working tree in an awkward
-# half-released state.
-#
-# Catching this pre-flight keeps the release atomic: the tree stays
-# clean until the build actually runs. The fix is a one-liner
-# (`cd mcp-servers/sdlc-engine && npm install pg @types/pg`) so we
-# print it directly rather than make the maintainer hunt for it.
-PG_NODE_MODULES="$REPO_ROOT/mcp-servers/sdlc-engine/node_modules/pg"
-PG_TYPES_NODE_MODULES="$REPO_ROOT/mcp-servers/sdlc-engine/node_modules/@types/pg"
-
-if [[ ! -d "$PG_NODE_MODULES" ]] || [[ ! -d "$PG_TYPES_NODE_MODULES" ]]; then
-  echo "release: pg peer dep is not installed in sdlc-engine." >&2
-  echo "release: `build-all.sh` will fail at step [5] without it." >&2
-  echo "release: fix with:" >&2
-  echo "release:   cd mcp-servers/sdlc-engine && npm install pg @types/pg" >&2
-  exit 1
-fi
-echo "  ok   pg + @types/pg installed in sdlc-engine/node_modules"
+# Sprint 60 — removed the stale [0.5] pg peer-dep pre-flight. It guarded a
+# static `import 'pg'` in src/state/postgres.ts, but Sprint 11 (v2.0.0) retired
+# the postgres backend entirely (sdlc-engine has no pg dependency), so the check
+# was dead code that wrongly blocked every release in an environment without a
+# leftover @types/pg in node_modules. build-all.sh no longer needs pg to compile.
 
 # -----------------------------------------------------------------------------
 echo "== [1] version argument =="
