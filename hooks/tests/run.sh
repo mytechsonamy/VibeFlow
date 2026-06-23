@@ -10,6 +10,14 @@
 
 set -uo pipefail
 
+# Sprint 60 — test isolation. A dev session (or the release gauntlet running
+# inside one) may export VF_ALLOW_PHASE_WRITE / VF_SKIP_CONSENSUS_GATE to bypass
+# the guards while editing. If they leak into this suite the phase-write-guard /
+# consensus-gate assertions would test nothing (every guarded call is allowed).
+# Drop them so the suite always exercises real guard behaviour. Individual tests
+# that need a bypass set it explicitly per-call.
+unset VF_ALLOW_PHASE_WRITE VF_SKIP_CONSENSUS_GATE 2>/dev/null || true
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPTS="$REPO_ROOT/hooks/scripts"
 PASS=0

@@ -37,79 +37,45 @@ pass() { PASS=$((PASS + 1)); echo "  ok   $1"; }
 fail() { FAIL=$((FAIL + 1)); FAILS+=("$1"); echo "  FAIL $1"; }
 
 # ---------------------------------------------------------------------------
-echo "== [S7-A] release.sh pre-step-5 pg peer-dep sanity check =="
+echo "== [S7-A] release.sh pg peer-dep pre-flight REMOVED (Sprint 60) =="
 
-# S7-04 — release.sh must refuse to proceed past step [0.5] if the
-# pg peer dependency is not installed in sdlc-engine's node_modules.
-# Without this check, the release fails mid-flight at step [5]
-# (build-all.sh) with `Cannot find module 'pg'` AFTER plugin.json
-# has been bumped — leaving the working tree in an awkward
-# half-released state.
-#
-# These sentinels are source-grep checks. Exercising the actual
-# failure path would require uninstalling pg, which would break the
-# normal-dev build. The structural checks are enough: if the step
-# [0.5] logic is present, it must fire when pg is actually missing
-# (that's the `[[ ! -d ... ]] && exit 1` guarantee).
+# S7-04 originally added a [0.5] build-dependency sanity check requiring pg +
+# @types/pg in sdlc-engine/node_modules, guarding a static `import 'pg'` in
+# src/state/postgres.ts. Sprint 11 (v2.0.0) RETIRED the postgres backend and
+# deleted postgres.ts — sdlc-engine has no pg dependency. The check was dead
+# code that wrongly blocked every release in an environment without a leftover
+# @types/pg (and its echo had an unescaped-backtick command substitution that
+# printed a spurious "build-all.sh: command not found"). Sprint 60 removed it.
+# These sentinels assert the dead check is GONE.
 
 RELEASE_SCRIPT_S7A="$REPO_ROOT/bin/release.sh"
 
-# The [0.5] section header must be present (it's the visible marker
-# of the sanity check).
-if grep -q '== \[0.5\] build-dependency sanity' "$RELEASE_SCRIPT_S7A"; then
-  pass "[S7-A] release.sh has a [0.5] build-dependency sanity section"
+# The pg / @types/pg node_modules probes must no longer exist.
+if ! grep -q 'node_modules/pg' "$RELEASE_SCRIPT_S7A" && ! grep -q 'node_modules/@types/pg' "$RELEASE_SCRIPT_S7A"; then
+  pass "[S7-A] release.sh no longer probes for the pg peer dep"
 else
-  fail "[S7-A] release.sh has a [0.5] build-dependency sanity section"
+  fail "[S7-A] release.sh no longer probes for the pg peer dep"
 fi
 
-# The probe must name the exact path that build-all.sh requires —
-# mcp-servers/sdlc-engine/node_modules/pg. Anything else would be
-# a weaker check.
-if grep -q 'mcp-servers/sdlc-engine/node_modules/pg' "$RELEASE_SCRIPT_S7A"; then
-  pass "[S7-A] release.sh probes sdlc-engine/node_modules/pg"
+# The 'npm install pg @types/pg' fix hint must be gone too.
+if ! grep -q 'npm install pg @types/pg' "$RELEASE_SCRIPT_S7A"; then
+  pass "[S7-A] release.sh no longer prints the pg install fix command"
 else
-  fail "[S7-A] release.sh probes sdlc-engine/node_modules/pg"
+  fail "[S7-A] release.sh no longer prints the pg install fix command"
 fi
 
-# The probe must ALSO include @types/pg — tsc needs both the
-# runtime module and the types. Without the types, tsc fails with a
-# different error (TS2307) that the bare pg check wouldn't catch.
-if grep -q 'node_modules/@types/pg' "$RELEASE_SCRIPT_S7A"; then
-  pass "[S7-A] release.sh probes sdlc-engine/node_modules/@types/pg"
+# The dead [0.5] build-dependency sanity section header must be gone.
+if ! grep -q '== \[0.5\] build-dependency sanity' "$RELEASE_SCRIPT_S7A"; then
+  pass "[S7-A] the dead [0.5] build-dependency sanity section is gone"
 else
-  fail "[S7-A] release.sh probes sdlc-engine/node_modules/@types/pg"
+  fail "[S7-A] the dead [0.5] build-dependency sanity section is gone"
 fi
 
-# The error output must include the fix command so the maintainer
-# doesn't have to hunt for it. `cd mcp-servers/sdlc-engine && npm install pg @types/pg`
-# is a one-liner we print directly.
-if grep -q 'npm install pg @types/pg' "$RELEASE_SCRIPT_S7A"; then
-  pass "[S7-A] release.sh prints the 'npm install pg @types/pg' fix command"
+# The removal must be documented in-place so a future reader knows why.
+if grep -q 'Sprint 60 — removed the stale \[0.5\] pg peer-dep' "$RELEASE_SCRIPT_S7A"; then
+  pass "[S7-A] release.sh documents the Sprint 60 pg-check removal"
 else
-  fail "[S7-A] release.sh prints the 'npm install pg @types/pg' fix command"
-fi
-
-# The sanity check must run BEFORE step [1] (version argument).
-# Otherwise a pg-missing release would still bump plugin.json's
-# version in step [3] before failing at step [5] — same half-
-# released state the ticket is designed to prevent.
-#
-# grep -n gives us line numbers; we compare the [0.5] position
-# against the [1] position.
-LINE_05="$(grep -n '== \[0.5\]' "$RELEASE_SCRIPT_S7A" | head -1 | cut -d: -f1)"
-LINE_1="$(grep -n '== \[1\] version argument' "$RELEASE_SCRIPT_S7A" | head -1 | cut -d: -f1)"
-if [[ -n "$LINE_05" ]] && [[ -n "$LINE_1" ]] && (( LINE_05 < LINE_1 )); then
-  pass "[S7-A] [0.5] sanity check runs before [1] version argument (line $LINE_05 < $LINE_1)"
-else
-  fail "[S7-A] [0.5] sanity check runs before [1] version argument (got 0.5=$LINE_05 1=$LINE_1)"
-fi
-
-# The S7-04 ticket reference must appear in the section comment so
-# a future contributor reading the code knows why the check exists.
-if grep -q 'S7-04' "$RELEASE_SCRIPT_S7A"; then
-  pass "[S7-A] release.sh [0.5] section cites S7-04 in the comment"
-else
-  fail "[S7-A] release.sh [0.5] section cites S7-04 in the comment"
+  fail "[S7-A] release.sh documents the Sprint 60 pg-check removal"
 fi
 
 # ---------------------------------------------------------------------------
