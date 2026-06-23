@@ -1,7 +1,7 @@
 ---
 name: flow-status
 description: Shows current VibeFlow project status including SDLC phase, pending tasks, quality metrics, and recent review results. Use when asking about project progress. Renamed from `status` in v2.20.0 to avoid colliding with Claude Code's built-in `/status` (usage/quota).
-allowed-tools: Read Grep Glob Bash(bash *loop-audit.sh*) Bash(bash *ui-verification-debt.sh*) Bash(jq *)
+allowed-tools: Read Grep Glob Bash(bash *loop-audit.sh*) Bash(bash *ui-verification-debt.sh*) Bash(bash *streams-audit.sh*) Bash(jq *)
 ---
 
 # VibeFlow Flow-Status
@@ -95,6 +95,20 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/ui-verification-debt.sh" .
 
 This catches a UI built in an earlier cycle that shipped coverage-tested but was
 never rendered or compared to its design — so it can't stay buried.
+
+### 8. Work-streams (Sprint 60)
+**Only when `streams.enabled` is on**, run the read-only reader and render a
+one-liner naming how many parallel work-streams have local state:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/streams-audit.sh"
+```
+
+- `streamsEnabled: false` → render nothing (single-stream project).
+- otherwise → `Work-streams: <N> active (current: <currentStreamId>) — /vibeflow:streams`
+  and, if `conflicts[]` is non-empty, append `⚠ <K> shared-branch conflict(s)`.
+
+This is the quick glance; `/vibeflow:streams` is the full per-stream dashboard.
 
 ## Output
 Display a concise status summary directly in the conversation. Do not create a file.

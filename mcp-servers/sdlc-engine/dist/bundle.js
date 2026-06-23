@@ -17871,6 +17871,10 @@ var GatesConfigSchema = external_exports.object({
 var GlobalLearningConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(false)
 }).default({ enabled: false });
+var StreamsConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(false),
+  idStrategy: external_exports.enum(["branch", "fixed"]).default("branch")
+}).default({ enabled: false, idStrategy: "branch" });
 var EngineConfigSchema = external_exports.object({
   project: external_exports.string().min(1),
   stateStore: external_exports.object({
@@ -17883,7 +17887,8 @@ var EngineConfigSchema = external_exports.object({
   learningApply: LearningApplyConfigSchema,
   loopAudit: LoopAuditConfigSchema,
   gates: GatesConfigSchema,
-  globalLearning: GlobalLearningConfigSchema
+  globalLearning: GlobalLearningConfigSchema,
+  streams: StreamsConfigSchema
 });
 function resolveConfig(cwd = process.cwd()) {
   const fileConfig = loadFileConfig(cwd);
@@ -17899,7 +17904,8 @@ function resolveConfig(cwd = process.cwd()) {
     learningApply: fileConfig.learningApply ?? {},
     loopAudit: fileConfig.loopAudit ?? {},
     gates: fileConfig.gates ?? {},
-    globalLearning: fileConfig.globalLearning ?? {}
+    globalLearning: fileConfig.globalLearning ?? {},
+    streams: fileConfig.streams ?? {}
   });
 }
 function loadFileConfig(cwd) {
@@ -17967,6 +17973,13 @@ function loadFileConfig(cwd) {
         globalLearning = parsed.data;
       }
     }
+    let streams;
+    if (typeof raw.streams === "object" && raw.streams !== null) {
+      const parsed = StreamsConfigSchema.safeParse(raw.streams);
+      if (parsed.success) {
+        streams = parsed.data;
+      }
+    }
     return {
       ...typeof project === "string" ? { project } : {},
       ...dir ? { stateStore: { dir } } : {},
@@ -17977,7 +17990,8 @@ function loadFileConfig(cwd) {
       ...learningApply ? { learningApply } : {},
       ...loopAudit ? { loopAudit } : {},
       ...gates ? { gates } : {},
-      ...globalLearning ? { globalLearning } : {}
+      ...globalLearning ? { globalLearning } : {},
+      ...streams ? { streams } : {}
     };
   } catch {
     return {};

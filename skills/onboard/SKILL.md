@@ -2,7 +2,7 @@
 name: onboard
 description: Onboard a new VibeFlow project (renamed from init in v2.19.0 to avoid colliding with Claude Code's built-in /init). Sets up vibeflow.config.json with domain and tech stack, creates the .vibeflow/ state directory, and records an optional brownfield fingerprint. Runs exactly once at the start of REQUIREMENTS.
 disable-model-invocation: true
-allowed-tools: Read Write Bash(mkdir *) Bash(git *)
+allowed-tools: Read Write AskUserQuestion Bash(mkdir *) Bash(git *) Bash(jq *) Bash(bash -c *) Bash(echo *)
 ---
 
 # VibeFlow Project Onboarding
@@ -27,13 +27,19 @@ outputs are `vibeflow.config.json`, `.vibeflow/**`, and `docs/**`.
 `vibeflow.config.json` already exists, the project is initialized — do **not**
 re-onboard, and do **not** mis-read its existing source as "brownfield" (a
 greenfield project that has reached DEVELOPMENT *also* has source files; file
-presence is not the signal — lifecycle state is). Read
-`.vibeflow/state/lifecycle.json` and route:
+presence is not the signal — lifecycle state is). Resolve the lifecycle path
+(stream-aware — see Step 0a) and route on `currentCycle.status`:
 
 ```bash
 test -f vibeflow.config.json && echo EXISTS
-[ -f .vibeflow/state/lifecycle.json ] && jq -r '.currentCycle.status' .vibeflow/state/lifecycle.json
+LC="$(bash -c 'source "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/_lib.sh"; vf_lifecycle_path' 2>/dev/null)"
+[ -f "$LC" ] && jq -r '.currentCycle.status' "$LC"
 ```
+
+(With the default single-stream setup `$LC` is `.vibeflow/state/lifecycle.json`,
+exactly as before. When `streams.enabled` is on it is the per-branch
+`.vibeflow/state/<streamId>/lifecycle.json`, so each work-stream resumes its own
+cycle — see Step 0a and `docs/TEAM-WORK.md`.)
 
 - **`currentCycle.status == "in-progress"`** → an active cycle is mid-flight.
   Stop and resume:
@@ -56,13 +62,45 @@ test -f vibeflow.config.json && echo EXISTS
 Only when `vibeflow.config.json` does **not** exist do you continue to Step 1
 (a genuinely fresh project).
 
+### Step 0a: Work-stream id (parallel team work, Sprint 60)
+
+VibeFlow keys all state on a **work-stream id** — by default the bare project id,
+so single-developer projects are unchanged. When `streams.enabled` is on
+(opt-in), the id is derived per git branch (`<project>__<branch-slug>`) so two
+developers on two branches/worktrees progress **independent** SDLC states that
+never clobber each other (the merge happens later via `/vibeflow:integrate`).
+Resolve it once and use it as the `projectId` for every `sdlc_*` MCP call and as
+the lifecycle path:
+
+```bash
+SID="$(bash -c 'source "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/_lib.sh"; vf_stream_id' 2>/dev/null)"
+LC="$(bash -c 'source "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/_lib.sh"; vf_lifecycle_path' 2>/dev/null)"
+echo "stream=$SID lifecycle=$LC"
+```
+
+Use the printed `$SID` (a literal string) wherever a step below says
+"`projectId`", and `$LC` wherever it names the lifecycle file. With streams off
+both equal today's values. See `docs/TEAM-WORK.md`.
+
 ### Step 1: Gather Project Info
-Ask the user for:
-1. **Project name**: What is this project called?
-2. **Domain**: financial, e-commerce, healthcare, or general?
-3. **Platform**: web, ios, android, or all?
-4. **Tech stack**: What languages/frameworks? (detect from package.json / pyproject.toml / *.csproj / go.mod if present — do NOT assume)
-5. **Risk tolerance**: low, medium, or high?
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** The
+enumerable fields are tappable, not typed. Make **one `AskUserQuestion` call**
+with three questions so it's a single interaction:
+
+- **Domain** — financial / e-commerce / healthcare / general
+- **Platform** — web / ios / android / all
+- **Risk tolerance** — low / medium / high
+
+Give each option a one-line description (e.g. domain → the quality-threshold
+profile it selects). The built-in "Other" lets the operator type if none fit.
+
+The two free-form fields stay typed prompts (a keyboard is the right tool):
+1. **Project name** — what this project is called.
+2. **Tech stack** — detect from package.json / pyproject.toml / *.csproj /
+   go.mod if present and **confirm via an `AskUserQuestion`** (e.g. "Detected
+   Node + React — use this?" → Use detected (Recommended) / Let me specify);
+   do **not** assume silently.
 
 (Sprint 11 removed the legacy `mode: solo/team` field — state is now
 filesystem-only. Do not ask about mode.)
@@ -123,7 +161,8 @@ If source files are absent, skip this step entirely.
 
 ### Step 4b: Open the first lifecycle cycle (Sprint 42)
 
-Write `.vibeflow/state/lifecycle.json` recording **cycle 1** — the project's
+Write the lifecycle file (`$LC` from Step 0a — `.vibeflow/state/lifecycle.json`
+with streams off) recording **cycle 1** — the project's
 first pass through the SDLC. The `kind` is `initial` (greenfield-from-PRD or
 brownfield-from-code is a cycle-1 detail; every *later* cycle is an
 `increment`). Record the branch so each cycle maps to one branch / PR:

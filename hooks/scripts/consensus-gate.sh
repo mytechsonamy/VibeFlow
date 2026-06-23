@@ -114,6 +114,10 @@ if [[ -n "$CMD" ]]; then
     *ui-verification-debt.sh*) echo '{"continue":true}'; exit 0 ;;
     *ui-styling-check.sh*)     echo '{"continue":true}'; exit 0 ;;
     *loop-audit.sh*)           echo '{"continue":true}'; exit 0 ;;
+    # Sprint 60: read-only work-stream readers (phase-runner/onboard/streams
+    # resolve the stream id + lifecycle path with these; inspect-only).
+    *stream-id.sh*)            echo '{"continue":true}'; exit 0 ;;
+    *streams-audit.sh*)        echo '{"continue":true}'; exit 0 ;;
     # read-only git inspection (phase-runner Step 0 surfaces in-flight work +
     # resolves the DEVELOPMENT diff base with these; both only read).
     *"git status"*)    echo '{"continue":true}'; exit 0 ;;

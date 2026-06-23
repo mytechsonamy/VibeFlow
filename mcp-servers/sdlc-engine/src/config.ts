@@ -237,6 +237,39 @@ export const GlobalLearningConfigSchema = z
 
 export type GlobalLearningConfig = z.infer<typeof GlobalLearningConfigSchema>;
 
+/**
+ * Sprint 60: parallel team work via per-branch work-streams. `enabled`
+ * (default OFF) opts a project into deriving a per-work-stream `projectId`
+ * so two developers (each on their own branch / git worktree) progress
+ * independent SDLC states that never clobber one another. When OFF the
+ * resolved id stays the single `project` value — today's behaviour, bit
+ * for bit — so existing single-stream projects are unaffected.
+ *
+ * `idStrategy` picks how the stream id is derived when enabled:
+ *   - "branch": `<project>__<slugified-git-branch>` (the engine already
+ *     isolates each projectId in its own locked `.vibeflow/state/<id>/`
+ *     dir, so this is the whole mechanism). The default branch
+ *     (main/master) collapses back to the bare `<project>` so the initial
+ *     stream keeps the legacy path.
+ *   - "fixed": always the bare `<project>` — an explicit no-op escape
+ *     hatch that keeps `enabled: true` config valid while disabling the
+ *     per-branch suffix (e.g. for a single-tier repo that opts in for the
+ *     dashboard only).
+ *
+ * The id is computed in bash (`vf_stream_id` in hooks/scripts/_lib.sh)
+ * because skills pass `projectId` to the MCP tools per call; this schema
+ * exists so `vibeflow.config.json` validates and TS/bash read the same
+ * shape.
+ */
+export const StreamsConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    idStrategy: z.enum(["branch", "fixed"]).default("branch"),
+  })
+  .default({ enabled: false, idStrategy: "branch" });
+
+export type StreamsConfig = z.infer<typeof StreamsConfigSchema>;
+
 export const EngineConfigSchema = z.object({
   project: z.string().min(1),
   stateStore: z
@@ -252,6 +285,7 @@ export const EngineConfigSchema = z.object({
   loopAudit: LoopAuditConfigSchema,
   gates: GatesConfigSchema,
   globalLearning: GlobalLearningConfigSchema,
+  streams: StreamsConfigSchema,
 });
 
 export type EngineConfig = z.infer<typeof EngineConfigSchema>;
@@ -281,6 +315,7 @@ export function resolveConfig(cwd: string = process.cwd()): EngineConfig {
     loopAudit: fileConfig.loopAudit ?? {},
     gates: fileConfig.gates ?? {},
     globalLearning: fileConfig.globalLearning ?? {},
+    streams: fileConfig.streams ?? {},
   });
 }
 
@@ -365,6 +400,14 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
         globalLearning = parsed.data;
       }
     }
+    // Sprint 60: per-branch work-streams opt-in, same silent-fallback.
+    let streams: StreamsConfig | undefined;
+    if (typeof raw.streams === "object" && raw.streams !== null) {
+      const parsed = StreamsConfigSchema.safeParse(raw.streams);
+      if (parsed.success) {
+        streams = parsed.data;
+      }
+    }
     return {
       ...(typeof project === "string" ? { project } : {}),
       ...(dir ? { stateStore: { dir } } : {}),
@@ -376,6 +419,7 @@ function loadFileConfig(cwd: string): Partial<EngineConfig> {
       ...(loopAudit ? { loopAudit } : {}),
       ...(gates ? { gates } : {}),
       ...(globalLearning ? { globalLearning } : {}),
+      ...(streams ? { streams } : {}),
     };
   } catch {
     return {};

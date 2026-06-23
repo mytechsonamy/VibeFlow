@@ -49,14 +49,122 @@ vf_project_hash() {
   fi
 }
 
-# Sprint 11-C: filesystem backend per-project directory.
-# <cwd>/.vibeflow/state/<projectId>/project.json is the rollup target.
-# Prints nothing (returns 1) if the project id can't be resolved yet.
-vf_state_project_dir() {
-  local project
+# Sprint 60: slugify a git branch name into a projectId-safe token. The
+# engine's validateProjectId allows [a-zA-Z0-9_-]{1,64}, so we lowercase,
+# replace every other char (incl. `/`) with `-`, collapse runs, trim
+# leading/trailing `-`, and clamp to 64. Reads the branch from $1 (or the
+# current branch when omitted).
+vf_branch_slug() {
+  local branch="${1:-}"
+  [[ -n "$branch" ]] || return 1
+  # lowercase
+  branch="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]')"
+  # non-allowed -> '-', collapse runs of '-', trim edges
+  branch="$(printf '%s' "$branch" | sed -e 's/[^a-z0-9_-]/-/g' -e 's/-\{2,\}/-/g' -e 's/^-//' -e 's/-$//')"
+  [[ -n "$branch" ]] || return 1
+  printf '%s' "${branch:0:64}"
+}
+
+# Sprint 60: resolve the work-stream id — the projectId every state read
+# and every MCP call should key on. This is the single mechanism behind
+# parallel team work: each branch / git worktree gets its own isolated
+# `.vibeflow/state/<streamId>/` (the engine already locks + isolates per
+# projectId).
+#
+# Resolution:
+#   1. streams.enabled != true            -> bare project id (legacy path,
+#                                            bit-for-bit unchanged).
+#   2. VIBEFLOW_STREAM set                -> "<project>__<slug(env)>" override.
+#   3. streams.idStrategy == "fixed"      -> bare project id.
+#   4. not a git repo / detached HEAD /
+#      default branch (main|master) /
+#      slug == project                    -> bare project id (the initial
+#                                            stream keeps the legacy dir).
+#   5. otherwise                          -> "<project>__<branch-slug>".
+# Always prints SOMETHING when a project id exists; returns 1 only when the
+# project id itself can't be resolved.
+vf_stream_id() {
+  local project enabled strategy branch slug
   project="$(vf_project_id)"
   [[ -n "$project" ]] || return 1
+
+  enabled="$(vf_config_get '.streams.enabled' 2>/dev/null || echo "")"
+  if [[ "$enabled" != "true" ]]; then
+    printf '%s' "$project"
+    return 0
+  fi
+
+  # explicit override wins (still namespaced under the project)
+  if [[ -n "${VIBEFLOW_STREAM:-}" ]]; then
+    slug="$(vf_branch_slug "$VIBEFLOW_STREAM" 2>/dev/null || echo "")"
+    if [[ -n "$slug" && "$slug" != "$project" ]]; then
+      local id="${project}__${slug}"; printf '%s' "${id:0:64}"
+    else
+      printf '%s' "$project"
+    fi
+    return 0
+  fi
+
+  strategy="$(vf_config_get '.streams.idStrategy' 2>/dev/null || echo "branch")"
+  if [[ "$strategy" == "fixed" ]]; then
+    printf '%s' "$project"
+    return 0
+  fi
+
+  # branch strategy: derive from the current git branch
+  if ! command -v git >/dev/null 2>&1; then
+    printf '%s' "$project"; return 0
+  fi
+  branch="$(git -C "$(vf_cwd)" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+  # detached HEAD reports "HEAD"; treat as no-branch
+  if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+    printf '%s' "$project"; return 0
+  fi
+  case "$branch" in
+    main|master) printf '%s' "$project"; return 0 ;;
+  esac
+  slug="$(vf_branch_slug "$branch" 2>/dev/null || echo "")"
+  if [[ -z "$slug" || "$slug" == "$project" ]]; then
+    printf '%s' "$project"
+  else
+    local id="${project}__${slug}"; printf '%s' "${id:0:64}"
+  fi
+}
+
+# Sprint 11-C: filesystem backend per-project directory.
+# <cwd>/.vibeflow/state/<streamId>/project.json is the rollup target.
+# Sprint 60: keyed on vf_stream_id (== vf_project_id when streams are off)
+# so every existing state read becomes work-stream-aware for free.
+# Prints nothing (returns 1) if the id can't be resolved yet.
+vf_state_project_dir() {
+  local project
+  project="$(vf_stream_id 2>/dev/null)" || project="$(vf_project_id)"
+  [[ -n "$project" ]] || return 1
   echo "$(vf_cwd)/.vibeflow/state/$project"
+}
+
+# Sprint 60: path to the skill-managed lifecycle.json. With streams OFF
+# (default) this is the legacy single location `.vibeflow/state/lifecycle.json`
+# — bit-for-bit unchanged. With streams ON it is co-located with the
+# work-stream's project.json at `.vibeflow/state/<streamId>/lifecycle.json`
+# so each branch/worktree tracks its own cycle independently. Always prints
+# a path (never fails); skills read/write this with the Read/Write tools.
+vf_lifecycle_path() {
+  local enabled sid base
+  enabled="$(vf_config_get '.streams.enabled' 2>/dev/null || echo "")"
+  if [[ "$enabled" == "true" ]]; then
+    sid="$(vf_stream_id 2>/dev/null || echo "")"
+    base="$(vf_project_id 2>/dev/null || echo "")"
+    # Only a NON-initial stream (sid != bare project id) gets its own
+    # subdir. The initial/main stream (sid collapses to the bare project id)
+    # keeps the legacy `.vibeflow/state/lifecycle.json`, so turning streams on
+    # never moves an existing project's lifecycle.
+    if [[ -n "$sid" && "$sid" != "$base" ]]; then
+      echo "$(vf_cwd)/.vibeflow/state/$sid/lifecycle.json"
+      return 0
+    fi
+  fi
+  echo "$(vf_cwd)/.vibeflow/state/lifecycle.json"
 }
 
 # Path to the filesystem-backend rollup file. Returns 1 if the file

@@ -34,6 +34,13 @@ greenfield project that reached DEVELOPMENT also has source files).
 }
 ```
 
+> **Parallel team work (Sprint 60).** With `streams.enabled` on, `lifecycle.json`
+> is **per work-stream** — `.vibeflow/state/<streamId>/lifecycle.json`, one per git
+> branch — so two developers each track their own cycle independently. With streams
+> off (the default) it stays the single `.vibeflow/state/lifecycle.json` described
+> here. Skills resolve the right path via `hooks/scripts/stream-id.sh`. See
+> `docs/TEAM-WORK.md`.
+
 ## The state machine
 
 ```

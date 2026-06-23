@@ -2,7 +2,7 @@
 name: apply-arbiter-patch
 description: Reads the patch manifest produced by consensus-arbiter, shows a git-style diff summary, archives every target file to .vibeflow/archive/ (a timestamped version trail) AND snapshots it for one-command rollback before touching anything, asks for explicit operator confirmation (unless --yes), and applies via `git apply`. Updates `arbiter-decisions.md` with applied:true + timestamp. Optional `--run-tests` runs the project's test command afterward and reminds the operator how to revert if they break.
 disable-model-invocation: true
-allowed-tools: Read Write Edit Bash(git *) Bash(jq *) Bash(npm *) Bash(vitest *) Bash(jest *) Bash(pytest *) Bash(dotnet *) Bash(rm *) Bash(cp *) Bash(mkdir *)
+allowed-tools: Read Write Edit AskUserQuestion Bash(git *) Bash(jq *) Bash(npm *) Bash(vitest *) Bash(jest *) Bash(pytest *) Bash(dotnet *) Bash(rm *) Bash(cp *) Bash(mkdir *)
 context: fork
 ---
 
@@ -96,8 +96,20 @@ Apply all 3? [y/N]
 
 - If `--dry-run`: stop here, exit 0.
 - If `--yes`: log "apply confirmed via --yes" and proceed.
-- Otherwise: ask. Accept `y`/`yes` (case-insensitive). Anything else
-  aborts with "apply cancelled by operator".
+- Otherwise: ask — **as an operator choice, not a typed `[y/N]`**.
+
+  **Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** With
+  the diff summary above as context, surface the decision via the
+  **`AskUserQuestion`** tool as tappable options (header e.g. "Apply patch"):
+  - **Apply** — apply all N patches via `git apply` (the description carries the
+    condensed summary: file count + total `+/−` + which artifacts, e.g.
+    "3 files, +42/−10, PRD §4 + ADR-002").
+  - **Dry-run** — show the diff and stop without applying.
+  - **Skip** — cancel; nothing is touched.
+
+  This makes approving a rewrite one tap from a phone. "Other" still lets the
+  operator type. Treat **Apply** as confirmation; **Skip**/anything else aborts
+  with "apply cancelled by operator".
 
 ### Step 3.5: Snapshot the target files (git-independent safety net)
 

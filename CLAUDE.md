@@ -38,6 +38,8 @@ VibeFlow is a Claude Code plugin that orchestrates the full SDLC through multi-A
 - `/vibeflow:prd-quality-analyzer` - Analyze PRD quality
 - `/vibeflow:test-strategy-planner` - Generate test strategy from PRD
 - `/vibeflow:release-decision-engine` - Produce release decision
+- `/vibeflow:streams` - Parallel team-work dashboard (Sprint 60; meaningful when `streams.enabled` is on — per-branch isolated SDLC state). See `docs/TEAM-WORK.md`.
+- `/vibeflow:integrate` - The merge point for parallel work-streams: combined front↔back verify + cross-feature consensus on the integration branch (Sprint 60).
 
 ## Build & Test
 - MCP servers: `cd mcp-servers/<server> && npm install && npm run build`
@@ -117,6 +119,7 @@ VibeFlow is a Claude Code plugin that orchestrates the full SDLC through multi-A
 - Zod schemas for all MCP tool input validation
 - Enum-safe comparisons (never string literals for status values)
 - All skill outputs follow the explainability contract: { finding, why, impact, confidence }
+- **Operator decisions are tappable choices, not typed prose** (Sprint 61): at any operator-blocking decision point a skill uses the `AskUserQuestion` tool to surface 2–4 options (recommended first, condensed rationale in each description); the built-in "Other" always preserves manual typing. Mobile/remote-first. See `docs/OPERATOR-CHOICES.md`.
 
 ## Sprint Tracking
 - Full roadmap: `ROADMAP.md` (4 sprints, skill inventory, bug tracker)

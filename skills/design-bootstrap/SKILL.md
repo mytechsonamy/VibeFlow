@@ -2,7 +2,7 @@
 name: design-bootstrap
 description: The DESIGN-phase guide. Produces the design artifacts (design spec, design tokens, wireframes) that DESIGN consensus reviews. It classifies whether the increment is UI-facing, then ASKS the operator which design source — Claude-native (zero-setup attractive accessible UI spec + tokens + wireframes), an existing Figma file (via the design-bridge MCP), designing from scratch in Figma (official Figma MCP), BOTH side-by-side for comparison (design-comparison.md → pick one), or a technical design (low/no-UI backend/infra increments). Writes everything under design/ and arms the consensus marker. Use at the start of DESIGN.
 disable-model-invocation: false
-allowed-tools: Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cp *) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_extract_tokens mcp__design-bridge__db_generate_styles mcp__design-bridge__db_compare_impl mcp__claude_ai_Figma__use_figma mcp__claude_ai_Figma__get_design_context mcp__claude_ai_Figma__get_screenshot
+allowed-tools: Read Write AskUserQuestion Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cp *) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_extract_tokens mcp__design-bridge__db_generate_styles mcp__design-bridge__db_compare_impl mcp__claude_ai_Figma__use_figma mcp__claude_ai_Figma__get_design_context mcp__claude_ai_Figma__get_screenshot
 ---
 
 # Design Bootstrap
@@ -68,8 +68,15 @@ ARCHITECTURE phase." If UI signals dominate, recommend 1–4 normally.
 ## Step 2: ASK the operator which design source (always)
 
 Do **not** assume a default — present the choice every DESIGN run (per the
-framework's design decision). Emit this menu, annotated with the Step-1b
-classification + per-option availability, and wait for the answer:
+framework's design decision).
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** Surface
+the five sources with the **`AskUserQuestion`** tool as tappable options (header
+e.g. "Design source"), each description carrying the one-line rationale +
+the Step-1b availability annotation below (e.g. "(needs FIGMA_TOKEN)"); lead with
+the option Step-1b suggests, labelled "(Recommended)". The built-in "Other" lets
+the operator type. The prose menu below is the textual fallback of the same five
+options:
 
 ```
 DESIGN source for <project> (domain=<domain>, platform=<platform>)?
@@ -212,9 +219,12 @@ For when the look matters enough to weigh two directions before committing.
    - **a recommendation** with the reasoning.
    When both sides have `.png`, `db_compare_impl({leftPath, rightPath})` adds a
    dimension/identity check to the qualitative compare.
-4. **Ask the operator to pick** (1 = Claude-native, 2 = Figma, or "merge —
-   take tokens from X, layout from Y"). Copy the chosen (or merged) candidate
-   to the canonical **`design/design-spec.md`** + `design/design-tokens.json`.
+4. **Ask the operator to pick** — surface this with the **`AskUserQuestion`**
+   tool (see `docs/OPERATOR-CHOICES.md`) as tappable options: Claude-native /
+   Figma / Merge (with each description naming the comparison's key trade-off and
+   leading with your recommendation); "Other" lets them type a custom merge
+   instruction ("take tokens from X, layout from Y"). Copy the chosen (or merged)
+   candidate to the canonical **`design/design-spec.md`** + `design/design-tokens.json`.
    Note the choice + rationale at the top of `design-comparison.md`.
 
 > **What "merge" means here** (operators ask): the two candidates express the

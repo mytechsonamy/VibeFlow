@@ -1,7 +1,7 @@
 ---
 name: learning-apply
 description: Closes the L3 action gap — turns learning-loop-engine recommendations into concrete, diff-first, operator-confirmed changes. Reads .vibeflow/reports/consensus-learning-report.md and classifies each finding into three lanes — config-tune (diff-first patch to vibeflow.config.json), template-route (recommend the matching phase specialist), escalate (hand to decision-recommender). Propose-only by default — config patches apply only with --yes after EngineConfigSchema re-validation + bounds clamp. Sprint 23 adds opt-in bounded auto-apply (learningApply.autoApply, default OFF): allowlisted config keys auto-apply with a pre-change snapshot + an auto-revert watch that rolls back if the next consensus round regresses. Invoke as /vibeflow:learning-apply [--dry-run] [--yes].
-allowed-tools: Read Write Grep Glob Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(node *) Bash(git apply *) Bash(cp *) Bash(mv *)
+allowed-tools: Read Write Grep Glob AskUserQuestion Bash(jq *) Bash(mkdir *) Bash(rm *) Bash(node *) Bash(git apply *) Bash(cp *) Bash(mv *)
 context: fork
 ---
 
@@ -180,7 +180,22 @@ unchanged.
 
 ## Step 6 — Apply (only with `--yes`)
 
-Preview is the default. With `--yes`, for each config-tune patch:
+Preview is the default.
+
+**Operator choice (mobile-friendly — see `docs/OPERATOR-CHOICES.md`).** When run
+**without** `--yes` and there is at least one proposed config-tune patch, after
+showing the preview surface the apply decision via the **`AskUserQuestion`** tool
+as tappable options instead of telling the operator to re-run with a flag — each
+description carrying the condensed tune (`key: old → new`, the bound applied):
+- **Apply tune(s)** — apply the proposed config patch(es) (runs the same
+  schema-revalidation gate below).
+- **Skip** (Recommended when unsure) — leave `vibeflow.config.json` untouched.
+
+Picking **Apply** is equivalent to `--yes` for this run; "Other" lets the
+operator type. Each patch still passes the re-validation gate below before it
+touches the config.
+
+With `--yes` (or an **Apply** choice), for each config-tune patch:
 
 1. **Preview** the diff to the operator.
 2. **Schema re-validation gate.** Apply the patch to a *copy* and run the
