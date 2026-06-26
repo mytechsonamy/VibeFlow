@@ -92,8 +92,8 @@
       "description": "Sprint 44. Per-field UI data-validation matrix (required/type/boundary/format/type-mismatch/injection-safety/output-formatting); writes runnable tests into the suite + validation-matrix.md. Part of the UI-conditional front-end battery the phase-runner TESTING walk orchestrates."
     },
     "frontend-render-check": {
-      "phases": ["TESTING"],
-      "description": "Sprint 53. Actually boots a web UI, serves mock data, captures + surfaces hero-screen screenshots, and compares them to the design (Figma via design-bridge db_compare_impl, else the design-spec mockups + tokens). Ends the 'dark tunnel' where a UI ships unit-tested but never rendered or compared to the design; catches won't-boot bugs and design divergence. First lane of the UI-conditional front-end battery."
+      "phases": ["DEVELOPMENT", "TESTING"],
+      "description": "Sprint 53 (Sprint 67: also DEVELOPMENT render-as-you-build). Actually boots a web UI (JS dev server with mocks, or — Sprint 66 — the real server for a server-rendered app), captures + surfaces hero-screen screenshots, and compares them to the design (Figma via design-bridge db_compare_impl, else the design-spec mockups + tokens). Ends the 'dark tunnel' where a UI ships unit-tested but never rendered or compared to the design; catches won't-boot bugs and design divergence. In DEVELOPMENT phase-runner runs it on the screens the increment changed (render-as-you-build, proportionate gate: BLOCKED stops, drift surfaces; never arms the consensus marker — that's TESTING). First lane of the UI-conditional front-end battery in TESTING."
     },
     "integration-verifier": {
       "phases": ["TESTING"],

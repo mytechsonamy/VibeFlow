@@ -150,6 +150,33 @@ any stack — + seeds data + BLOCKs a 404/won't-boot); this surfaces the same ga
 **while the UI is built**, so a mock-front-end-over-a-claimed-backend can't reach
 TESTING unseen.
 
+**DEVELOPMENT — render every new screen as it's built (Sprint 67).** `skinless`
+and `unwired` are *static absence* checks; they don't catch a screen that renders
+but looks wrong (bad spacing, a missing glyph, no empty-state, a dağınık layout) —
+the class of defect that shipped in Clera and was only caught by a human eyeballing
+the screens. So when the increment is **UI-facing** (`vf_web_ui_kind .` ≠ `none`
+via the readers **and** the diff touched UI), run `frontend-render-check` **via the
+Skill tool** in its DEVELOPMENT render-as-you-build mode — scoped to the screens
+this increment changed — so each new screen is RENDERED + SHOWN (screenshots) +
+visually checked while you build it, not deferred to TESTING:
+
+```
+Skill: vibeflow:frontend-render-check     # DEVELOPMENT mode — scoped to changed screens
+```
+
+- **`BLOCKED`** (won't render / skinless / no relation to the design) → **stop**
+  with the fix breadcrumb — a proportionate DEVELOPMENT gate (don't advance a
+  screen that doesn't render or has no relation to its design).
+- cosmetic **drift findings** → surface **prominently** (with the screenshots) +
+  continue; the operator fixes before TESTING.
+- It **never arms the consensus marker** in DEVELOPMENT (arm-on-pass is TESTING),
+  so it can't block the iteration that fixes the screen.
+
+The TESTING run is still the full battery (frontend-render-check +
+visual-ai-analyzer + input-validation + integration-verifier) and the hard
+arm-on-pass gate; this just moves the *first eyes-on render* to where the screen
+is written.
+
 **DEPLOYMENT closes the cycle (Sprint 42).** DEPLOYMENT is terminal — there is no
 phase after it. When its exit criteria are satisfied (`release.decision.go` =
 GO + `deployment.verified` + `consensus.deployment.approved`), the **cycle is

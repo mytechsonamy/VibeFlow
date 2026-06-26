@@ -16,10 +16,23 @@ the screen."
 
 ## Phase Contract
 
-Runs in **TESTING**, **web UI increments only** — **stack-agnostic** (Sprint 66).
-Read `vibeflow.config.json` → `platform` (`web`/`all`). Classify the UI with the
-read-only detector (don't assume a JS framework — a server-rendered app is still
-a web UI to render):
+Runs in **DEVELOPMENT** (render-as-you-build) **and TESTING**, **web UI increments
+only** — **stack-agnostic** (Sprint 66). Read `vibeflow.config.json` → `platform`
+(`web`/`all`). Classify the UI with the read-only detector (don't assume a JS
+framework — a server-rendered app is still a web UI to render):
+
+**DEVELOPMENT mode (render-as-you-build, Sprint 67).** When invoked during
+DEVELOPMENT (by phase-runner, on a UI-facing increment), scope the render to the
+**screens this increment built/changed** (resolve from the diff + `design-spec`),
+render them with mock data, capture + **surface** the screenshots, and run the
+visual-conformance pass — so every new screen/function is SEEN as it's built
+instead of deferred to TESTING. In DEVELOPMENT this is a **proportionate gate**:
+a `BLOCKED` verdict (won't render / skinless / no relation to the design) **stops**
+with a fix breadcrumb; cosmetic drift is surfaced as findings and does **not**
+block iteration. **Do NOT arm the consensus marker in DEVELOPMENT** — arm-on-pass
+(the Final Step) is a TESTING-only act; DEVELOPMENT gates through `quality.gates`
++ `code.reviewed` as before. The full battery (+visual-ai-analyzer, input
+validation, integration-verifier) still runs in TESTING.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/ui-styling-check.sh" .   # or: vf_web_ui_kind
@@ -155,13 +168,17 @@ and `uat-executor` is the **deployed staging** walk in DEPLOYMENT. Note in the
 report that conformance here was verified against mocks, and that
 `integration-verifier` is what proves the UI actually talks to a real backend.
 
-## Final Step: Auto-Consensus Marker (only on PASS — Sprint 43 arm-on-pass)
+## Final Step: Auto-Consensus Marker (TESTING + only on PASS — Sprint 43 arm-on-pass)
 
-Write `.vibeflow/state/consensus-needed.json` (primaryArtifact
+**TESTING only.** Write `.vibeflow/state/consensus-needed.json` (primaryArtifact
 `.vibeflow/reports/frontend-conformance.md`, createdBy `frontend-render-check`)
-**only if `VERDICT == "PASS"`**. On `NEEDS_REVISION`/`BLOCKED`, do **not** write
-the marker — surface the screenshots + the named divergences + a `▶ Next:` (fix
-the boot error / rebuild the screen against the design), and stop.
+**only if the current phase is TESTING AND `VERDICT == "PASS"`**. On
+`NEEDS_REVISION`/`BLOCKED`, do **not** write the marker — surface the screenshots
++ the named divergences + a `▶ Next:` (fix the boot error / rebuild the screen
+against the design), and stop. **In DEVELOPMENT (render-as-you-build) never arm
+the marker** regardless of verdict — DEVELOPMENT gates through `quality.gates` +
+`code.reviewed`, and arming the consensus gate mid-DEVELOPMENT would block the
+very iteration that fixes the screen (the Sprint-43 lesson).
 
 ## Output
 

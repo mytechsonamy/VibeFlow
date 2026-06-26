@@ -132,3 +132,23 @@ It's part of the one-command walk:
 
 Or invoke a lane directly, e.g. `/vibeflow:input-validation-matrix` or
 `/vibeflow:visual-ai-analyzer`.
+
+## Render-as-you-build in DEVELOPMENT (Sprint 67)
+
+The full battery is a TESTING gate — but waiting until TESTING to first *render* a
+screen means a whole increment of UI can be built before anyone sees it. So
+`frontend-render-check` now also runs in **DEVELOPMENT** (driven by phase-runner
+when the increment is UI-facing), scoped to the **screens the increment changed**:
+each new screen is booted, screenshotted, **shown**, and visually checked **while
+it's written**.
+
+- It's a **proportionate gate**: a `BLOCKED` verdict (won't render / skinless / no
+  relation to the design) **stops** with a fix breadcrumb; cosmetic drift is
+  surfaced as findings and does not block iteration.
+- It **never arms the consensus marker** in DEVELOPMENT (arm-on-pass is a TESTING
+  act) — so it can't block the very iteration that fixes the screen. DEVELOPMENT
+  still gates through `quality.gates` + `code.reviewed`.
+- The full UI-conditional battery (+ visual-ai-analyzer + input-validation +
+  integration-verifier) and the hard arm-on-pass gate still run in TESTING. This
+  just moves the *first eyes-on render* to where the screen is built — so visual
+  defects are caught per-screen, not discovered manually after the fact.
