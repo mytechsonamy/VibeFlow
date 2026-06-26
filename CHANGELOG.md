@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.56.0] — 2026-06-26
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Added — Product Bible Part B: intake/ingestion (Sprint 69)
+- New **`/vibeflow:bible-intake`** reviews the input documents you bring INTO a project — a vision doc, Gartner/analyst summaries, competitor decks, an existing PRD/spec/SRS, persona research, an API style guide — and files them into the Product Bible.
+- It discovers candidate inputs (scan repo / point to a path / paste), classifies each into the bible taxonomy, and files it under `docs/product-bible/<category>/` — referencing VibeFlow-produced docs **in place** (never duplicated); merges append headed, provenance-tagged sections and never clobber.
+- It **seeds the living docs** from the corpus: a Glossary (domain terms), a Domain Model seed (entities + relationships + invariants), and Personas where the material supports it — marking inferred content and never inventing terms not grounded in an input. Binary PDF/DOCX are not faked (export to text first).
+- Writes `.vibeflow/reports/bible-intake.md`. Skill + policy + docs only. New `tests/integration/sprint-69.sh` (20/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.55.0] — 2026-06-26
 
 <!-- Notes pre-filled from --notes-file. -->
