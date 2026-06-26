@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.55.0] — 2026-06-26
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Added — Product Bible foundation (Sprint 68)
+- A project should end with a coherent **product bible** — a curated, *living* document corpus spanning business/GTM (vision, competitive intel, Gartner, competitor analysis, AI strategy, roadmap, sales arguments, RFP templates, demo scenarios, pilot guides), product (PRDs, SRSs, personas, glossary, UX principles), and engineering (domain model, API standards, Rule DSL, ADRs, architecture, test strategy, …). Before this, VibeFlow produced *some* of these but they were scattered and there was no curated view or notion of which docs are living vs static.
+- **`hooks/scripts/bible-manifest.json`** — the taxonomy (25 doc-types; each with category / phase / lifecycle [living|static] / source [bible|vibeflow] / path). VibeFlow-produced docs are **referenced in place, never duplicated**; project-overridable via `docs/product-bible/manifest.json`.
+- **`hooks/scripts/bible-status.sh`** — read-only: cross-references the taxonomy against the repo and reports present vs missing per doc + per category.
+- **`/vibeflow:product-bible`** — a status dashboard + scaffolds `docs/product-bible/` with templated stubs for the missing bible-native docs (never overwriting; never scaffolding referenced VibeFlow docs).
+- Docs: `docs/PRODUCT-BIBLE.md`. This is the **foundation** — intake/ingestion of input documents, living-doc growth across phases, and an end-of-project assembly are the planned follow-on parts. Hook + skill + docs only; no engine change.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.54.0] — 2026-06-26
 
 <!-- Notes pre-filled from --notes-file. -->
