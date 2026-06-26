@@ -189,6 +189,57 @@ vf_have_jq() {
   command -v jq >/dev/null 2>&1
 }
 
+# Sprint 66: stack-agnostic web-UI detector. Answers "is there a web UI to
+# RENDER + visually verify, and of what kind?" — broader than a JS-framework
+# check, so SERVER-RENDERED apps (FastAPI/Flask returning HTMLResponse, Jinja/
+# Django/Rails/Razor/Thymeleaf templates, a backend-served static SPA) are no
+# longer invisible to the visual battery. (The Clera gap: a FastAPI app that
+# builds HTML in Python + serves static/index.html read as "no-ui", so
+# frontend-render-check / visual-ai-analyzer self-skipped and the screens shipped
+# with visual defects nobody's tooling ever rendered.)
+#
+# Prints one of:  js | server-rendered | static | none   (stdout).
+# Optional root ($1, default vf_cwd). Never errors (none on any failure).
+# Excludes vendored / design-mockup / artifact trees so design PNG/HTML mockups
+# and node_modules/.venv don't get mistaken for the app UI.
+vf_web_ui_kind() {
+  local root="${1:-$(vf_cwd)}"
+  (
+    cd "$root" 2>/dev/null || { echo none; exit 0; }
+    local EXCL='node_modules|/\.git/|/\.venv/|/venv/|site-packages|/\.vibeflow/|/dist/|/build/|/coverage/|/htmlcov/|/design/|mockups|/docs/'
+
+    # 1) JS web framework (client-rendered SPA): a framework dep, or framework
+    #    source. Either ⇒ "js".
+    if grep -rlqE '"(vite|next|react-scripts|@remix-run/|astro|@vitejs/|vue|svelte|@angular/|nuxt)"' \
+         package.json apps/*/package.json packages/*/package.json 2>/dev/null; then
+      echo js; exit 0
+    fi
+    if find . -maxdepth 5 \( -name '*.tsx' -o -name '*.jsx' -o -name '*.vue' -o -name '*.svelte' \) 2>/dev/null \
+         | grep -vqE "$EXCL"; then echo js; exit 0; fi
+
+    # 2) Server-rendered: the backend emits HTML or uses a templating engine.
+    #    Python (FastAPI/Flask/Django), Rails ERB, .NET Razor, Java Thymeleaf/JSP.
+    if grep -rlE 'HTMLResponse|TemplateResponse|render_template|Jinja2Templates|HttpResponse' \
+         --include='*.py' . 2>/dev/null | grep -vqE "$EXCL"; then echo server-rendered; exit 0; fi
+    if find . -maxdepth 6 -path '*/templates/*' \
+         \( -name '*.html' -o -name '*.j2' -o -name '*.jinja' -o -name '*.jinja2' \) 2>/dev/null \
+         | grep -vqE "$EXCL"; then echo server-rendered; exit 0; fi
+    if find . -maxdepth 6 \( -name '*.cshtml' -o -name '*.razor' -o -name '*.erb' -o -name '*.jsp' \) 2>/dev/null \
+         | grep -vqE "$EXCL"; then echo server-rendered; exit 0; fi
+    # a backend-served static UI (e.g. FastAPI StaticFiles → static/index.html).
+    if find . -maxdepth 6 -path '*/static/*' -name '*.html' 2>/dev/null | grep -vqE "$EXCL"; then
+      echo server-rendered; exit 0
+    fi
+
+    # 3) Plain static site: an index.html app entry that is not a design mockup.
+    if find . -maxdepth 4 -name 'index.html' 2>/dev/null | grep -vqE "$EXCL"; then
+      echo static; exit 0
+    fi
+
+    echo none
+  )
+}
+
 vf_have_sqlite3() {
   command -v sqlite3 >/dev/null 2>&1
 }

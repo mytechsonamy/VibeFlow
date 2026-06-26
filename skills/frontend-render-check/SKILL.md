@@ -1,8 +1,8 @@
 ---
 name: frontend-render-check
-description: Actually stands up the front-end and verifies it RENDERS and MATCHES THE DESIGN — the step that ends the "dark tunnel" where a UI ships unit-tested but never once rendered or compared to the design. Detects the web framework, boots the dev server (catching startup bugs like a broken alias on a path with spaces), serves mock/fixture data so the UI renders with content WITHOUT a backend, captures screenshots of the hero screens, surfaces them to the operator (so you SEE it, not a green checkmark), and runs a design-conformance comparison against the Figma file (design-bridge db_compare_impl) or the design-spec mockups + tokens (colors/fonts/spacing/layout). Use in TESTING for a web UI increment; pairs with visual-ai-analyzer.
+description: Actually stands up the front-end and verifies it RENDERS and MATCHES THE DESIGN — the step that ends the "dark tunnel" where a UI ships unit-tested but never once rendered or compared to the design. Detects the web framework, boots the dev server (catching startup bugs like a broken alias on a path with spaces), serves mock/fixture data so the UI renders with content WITHOUT a backend, captures screenshots of the hero screens, surfaces them to the operator (so you SEE it, not a green checkmark), and runs a design-conformance comparison against the Figma file (design-bridge db_compare_impl) or the design-spec mockups + tokens (colors/fonts/spacing/layout). Stack-agnostic (Sprint 66): a JS SPA boots its dev server with mocked data; a server-rendered app (FastAPI/Flask/Django HTMLResponse·templates, Rails, Razor, a backend-served static SPA — the Clera shape) boots the REAL server and screenshots its routes. Use in TESTING for a web UI increment; pairs with visual-ai-analyzer.
 disable-model-invocation: false
-allowed-tools: AskUserQuestion Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(vite *) Bash(next *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(npx playwright *) Bash(node *) Bash(bash *ui-styling-check.sh*) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_compare_impl mcp__design-bridge__db_extract_tokens
+allowed-tools: AskUserQuestion Read Write Bash(mkdir *) Bash(jq *) Bash(ls *) Bash(cat *) Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *) Bash(vite *) Bash(next *) Bash(curl *) Bash(lsof *) Bash(kill *) Bash(npx playwright *) Bash(node *) Bash(python *) Bash(python3 *) Bash(uvicorn *) Bash(gunicorn *) Bash(flask *) Bash(dotnet *) Bash(go *) Bash(mvn *) Bash(gradle *) Bash(bash *ui-styling-check.sh*) mcp__design-bridge__db_fetch_design mcp__design-bridge__db_compare_impl mcp__design-bridge__db_extract_tokens
 ---
 
 # Front-end Render Check
@@ -16,13 +16,24 @@ the screen."
 
 ## Phase Contract
 
-Runs in **TESTING**, **web UI increments only**. Read `vibeflow.config.json` →
-`platform` (`web`/`all`) and the change-type classification. If the increment
-isn't UI-facing on web, say "no web UI in this increment — skipping" and stop.
+Runs in **TESTING**, **web UI increments only** — **stack-agnostic** (Sprint 66).
+Read `vibeflow.config.json` → `platform` (`web`/`all`). Classify the UI with the
+read-only detector (don't assume a JS framework — a server-rendered app is still
+a web UI to render):
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT:-.}/hooks/scripts/ui-styling-check.sh" .   # or: vf_web_ui_kind
+```
+
+- `no-ui` → say "no web UI in this increment — skipping" and stop.
+- a **JS SPA** (vite/next/react/vue/svelte) → Step 1 (JS) below.
+- a **server-rendered** app (FastAPI/Flask/Django HTMLResponse·templates, Rails
+  ERB, .NET Razor, a backend-served static SPA — the Clera shape) → **Step 1-SR**.
+
 (Mobile crash/visual is `mobile-stability-runner`.) Outputs land in
 `.vibeflow/reports/frontend-render/` + `vibeflow.config.json`/`.vibeflow/**`.
 
-## Step 1: Locate + boot the front-end
+## Step 1: Locate + boot the front-end (JS SPA)
 
 Find the web app (don't assume `apps/web` — detect):
 
@@ -36,9 +47,28 @@ Find the web app (don't assume `apps/web` — detect):
   stop with a BLOCKED verdict naming the error. (This alone catches the class of
   bug that ships when nobody ever ran the app.)
 
-## Step 2: Render with content — mock data, no backend needed
+## Step 1-SR: Boot the real server (server-rendered apps, Sprint 66)
 
-The UI usually needs an API. Don't require a live backend in TESTING:
+A server-rendered UI **is** its backend — the HTML is produced by the server
+(FastAPI `HTMLResponse`/Jinja, Flask/Django templates, Rails, Razor), so there's
+no JS dev server to boot and no backend to mock; you boot the **real app** and
+screenshot the routes it serves. Reuse `integration-verifier`'s Sprint-59
+stack-agnostic boot:
+
+- Resolve the run command manifest-first: Python → `uvicorn <app>:app` /
+  `gunicorn` / `flask run` / `python manage.py runserver`; .NET → `dotnet run`;
+  Rails → `bin/rails server`; Java → `./mvnw spring-boot:run`/`./gradlew bootRun`.
+  Honor `VF_BACKEND_CMD` / `VF_BACKEND_PORT` overrides.
+- A web-UI repo that has **no HTTP server entry at all** (a library that only
+  *builds* HTML strings with no way to serve them) is itself a **BLOCKED** finding
+  — name it, don't fake a render.
+- Seed deterministic data first if the screens need it (`test-data-manager` / a
+  test DB) so the rendered screens show realistic content + the key states.
+- Then go to Step 3 and screenshot the served routes exactly as for a JS app.
+
+## Step 2: Render with content — mock data, no backend needed (JS SPA only)
+
+A JS SPA usually needs an API. Don't require a live backend in TESTING:
 
 - Find the data contract — the API shape from `design/design-spec.md` /
   `packages/*/src` shared types / an existing fixtures dir.
@@ -47,6 +77,8 @@ The UI usually needs an API. Don't require a live backend in TESTING:
   content + the key **states** (loading, empty, error, offline, gated).
 - Record what was mocked in the report — a screen that only renders against a
   mock is a *rendered* screen, clearly labelled.
+- (Server-rendered apps skip this — they render against the real server booted in
+  Step 1-SR, optionally with seeded test data.)
 
 ## Step 3: Capture the hero screens — and SHOW them
 

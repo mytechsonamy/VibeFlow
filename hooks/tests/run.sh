@@ -1706,6 +1706,19 @@ B="$(bash -c "source '$SCRIPTS/_lib.sh'; vf_state_project_dir")"
 [[ "$A" != "$B" ]] && pass "[S60-B] two branches → two isolated state dirs" || fail "[S60-B] two branches → two isolated state dirs (both=$A)"
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
+echo "== _lib.sh vf_web_ui_kind [S66-A] =="
+_uik() { bash -c "source '$SCRIPTS/_lib.sh'; vf_web_ui_kind '$1'"; }
+D="$(mktemp -d)"; echo '{"dependencies":{"vue":"3"}}' > "$D/package.json"
+assert_eq "[S66-A] JS framework → js" "js" "$(_uik "$D")"; rm -rf "$D"
+D="$(mktemp -d)"; echo "from fastapi.responses import HTMLResponse" > "$D/app.py"
+assert_eq "[S66-A] FastAPI HTMLResponse → server-rendered" "server-rendered" "$(_uik "$D")"; rm -rf "$D"
+D="$(mktemp -d)"; mkdir -p "$D/src/static"; touch "$D/src/static/index.html"
+assert_eq "[S66-A] backend-served static/index.html → server-rendered" "server-rendered" "$(_uik "$D")"; rm -rf "$D"
+D="$(mktemp -d)"; echo "import os" > "$D/x.py"
+assert_eq "[S66-A] pure backend → none" "none" "$(_uik "$D")"; rm -rf "$D"
+D="$(mktemp -d)"; mkdir -p "$D/design/mockups"; touch "$D/design/mockups/s.html"
+assert_eq "[S66-A] design mockups only → none" "none" "$(_uik "$D")"; rm -rf "$D"
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

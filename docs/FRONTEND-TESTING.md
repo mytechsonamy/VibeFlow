@@ -1,5 +1,24 @@
 # Front-end testing — the UI-conditional battery
 
+> **Stack-agnostic UI detection (Sprint 66).** The battery used to detect a web
+> UI **only** by a JS framework dependency (vite/next/react/vue/svelte). A
+> **server-rendered** app — FastAPI/Flask returning `HTMLResponse`,
+> Jinja/Django/Rails/Razor/Thymeleaf templates, or a backend-served static SPA —
+> has no such dependency, so it read as `no-ui` and the entire visual battery
+> (`frontend-render-check` + `visual-ai-analyzer`) **silently skipped**; a real
+> screen could ship with broken spacing / a missing glyph / no empty-state and
+> nothing in the SDLC ever rendered it (found live in Clera, a FastAPI app that
+> builds HTML in Python). Detection is now stack-agnostic — `vf_web_ui_kind` in
+> `hooks/scripts/_lib.sh` returns `js` | `server-rendered` | `static` | `none`
+> (used by `ui-styling-check.sh` + `ui-verification-debt.sh`; design-mockup /
+> vendored trees excluded). A **JS SPA** boots its dev server with mocked data; a
+> **server-rendered** app boots the **real** server (`uvicorn`/`flask`/`django`/
+> `dotnet`/`rails`, reusing the Sprint-59 stack-agnostic boot +
+> `VF_BACKEND_CMD`/`VF_BACKEND_PORT`) and screenshots the routes it serves — a
+> web-UI repo with **no HTTP server entry** is itself a BLOCKED finding. Either
+> way the screenshots go to `visual-ai-analyzer`, and `ui-verification-debt` now
+> flags a server-rendered UI that was **never render-verified**.
+
 When an increment touches the UI, "are the tests good?" (coverage + mutation) is
 not enough — you also need "is the **UI** right?": every field matches the
 design, every input is validated, every function works end-to-end and meets its

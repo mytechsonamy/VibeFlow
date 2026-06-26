@@ -11,21 +11,45 @@
 # Read-only, surface-only. Fail-safe: any error / no UI ⇒ {"status":"no-ui"}.
 
 set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./_lib.sh
+source "$SCRIPT_DIR/_lib.sh"
+# _lib.sh enables `set -e`; this reader uses non-zero grep/find as conditionals,
+# so restore errexit-off (keep -u + pipefail).
+set +e
 
 ROOT="${1:-.}"
 cd "$ROOT" 2>/dev/null || { printf '{"status":"no-ui"}\n'; exit 0; }
 
 emit() { printf '{"status":"%s"%s}\n' "$1" "${2:+,\"detail\":\"$2\"}"; exit 0; }
 
-# 1) A web UI = a web-framework dependency + a web entry (same gate as ui-verification-debt).
-grep -rlqE '"(vite|next|react-scripts|@remix-run/|astro|@vitejs/)"' \
-  package.json apps/*/package.json packages/*/package.json 2>/dev/null || emit "no-ui"
-web_entry=0
-for f in index.html apps/*/index.html */index.html next.config.* apps/*/next.config.*; do
-  [ -e "$f" ] && web_entry=1
-done
-[ "$web_entry" = 1 ] || emit "no-ui"
+# 1) Is there a web UI at all? Sprint 66: stack-agnostic (JS SPA / server-rendered
+#    / static), not JS-framework-only.
+UI_KIND="$(vf_web_ui_kind . 2>/dev/null || echo none)"
+[ "$UI_KIND" = "none" ] && emit "no-ui"
 
+# 1b) Server-rendered / static UI (FastAPI/Flask/Django/Rails/Razor templates or a
+#     served static SPA): the "skinless" smell is class= markup with no stylesheet/
+#     style/token anywhere. Scan the HTML/template/static + HTML-emitting sources.
+if [ "$UI_KIND" != "js" ]; then
+  SR_FILES="$(find . -maxdepth 6 \
+      \( -path '*/templates/*' -o -path '*/static/*' -o -name '*.html' -o -name '*.j2' \
+         -o -name '*.jinja' -o -name '*.jinja2' -o -name '*.cshtml' -o -name '*.razor' -o -name '*.erb' \) \
+      -type f 2>/dev/null | grep -vE 'node_modules|/\.git/|/\.venv/|site-packages|/\.vibeflow/|/design/|mockups|/docs/' | head -200)"
+  [ -n "$SR_FILES" ] || emit "styled"   # HTML emitted purely in code → don't guess skinless
+  # uses class= markup?
+  echo "$SR_FILES" | tr '\n' '\0' | xargs -0 grep -lqE 'class=' 2>/dev/null || emit "styled"
+  sr_styled=0
+  # a stylesheet served / linked, a <style> block, inline style=, tailwind cdn, or CSS custom props
+  find . -maxdepth 6 -path '*/static/*' -name '*.css' 2>/dev/null | grep -qvE 'site-packages|node_modules' && sr_styled=1
+  echo "$SR_FILES" | tr '\n' '\0' | xargs -0 grep -lqE "<link[^>]+stylesheet|href=['\"][^'\"]+\.css|<style|style=|tailwind|var\(--|class=['\"][^'\"]*\b(bg-|text-|flex|grid|p-[0-9]|m-[0-9])" 2>/dev/null && sr_styled=1
+  # HTML built in code (e.g. FastAPI HTMLResponse) with an embedded <style>/stylesheet
+  grep -rlqE "<style|stylesheet|\.css" --include='*.py' . 2>/dev/null | grep -vqE 'site-packages|/\.venv/' && sr_styled=1
+  [ "$sr_styled" = 1 ] && emit "styled"
+  emit "skinless" "server-rendered UI uses class= markup but no stylesheet/style/tokens are applied — design specified but never implemented"
+fi
+
+# --- JS SPA path (unchanged) ---
 # 2) The UI source dirs.
 SRCDIRS=()
 for d in src apps/*/src; do [ -d "$d" ] && SRCDIRS+=("$d"); done
