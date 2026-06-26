@@ -3,34 +3,283 @@
   "version": 1,
   "description": "Sprint 68 — the Product Bible taxonomy. The canonical set of living/static documents a project accumulates across its whole lifecycle (business/GTM → product → engineering). Each entry declares its category, the SDLC phase it's authored in, whether it is 'living' (grown each phase/cycle) or 'static' (produced once), where it lives, and its source: 'bible' (a bible-native doc under docs/product-bible/) or 'vibeflow' (already produced by a VibeFlow skill elsewhere — referenced, never duplicated). A project may override this with docs/product-bible/manifest.json. Consumed by bible-status.sh + /vibeflow:product-bible.",
   "root": "docs/product-bible",
-  "phases": ["PRE", "REQUIREMENTS", "DESIGN", "ARCHITECTURE", "PLANNING", "TESTING", "DEPLOYMENT", "ALL"],
+  "phases": [
+    "PRE",
+    "REQUIREMENTS",
+    "DESIGN",
+    "ARCHITECTURE",
+    "PLANNING",
+    "TESTING",
+    "DEPLOYMENT",
+    "ALL"
+  ],
   "docs": {
-    "vision":                  { "title": "Vision",                  "category": "business",    "phase": "PRE",          "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/business/vision.md" },
-    "competitive-intelligence":{ "title": "Competitive Intelligence","category": "business",    "phase": "PRE",          "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/business/competitive-intelligence.md" },
-    "gartner-summaries":       { "title": "Gartner Summaries",       "category": "business",    "phase": "PRE",          "lifecycle": "static", "source": "bible",    "path": "docs/product-bible/business/gartner-summaries.md" },
-    "competitor-analysis":     { "title": "Competitor Analysis",     "category": "business",    "phase": "PRE",          "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/business/competitor-analysis.md" },
-    "ai-strategy":             { "title": "AI Strategy",             "category": "business",    "phase": "ARCHITECTURE", "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/business/ai-strategy.md" },
-    "roadmap":                 { "title": "Roadmap",                 "category": "business",    "phase": "ALL",          "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/business/roadmap.md" },
-    "sales-arguments":         { "title": "Sales Arguments",         "category": "business",    "phase": "DEPLOYMENT",   "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/gtm/sales-arguments.md" },
-    "rfp-templates":           { "title": "RFP Response Templates",  "category": "business",    "phase": "DEPLOYMENT",   "lifecycle": "static", "source": "bible",    "path": "docs/product-bible/gtm/rfp-templates.md" },
-    "demo-scenarios":          { "title": "Demo Scenarios",          "category": "business",    "phase": "DEPLOYMENT",   "lifecycle": "static", "source": "bible",    "path": "docs/product-bible/gtm/demo-scenarios.md" },
-    "pilot-guides":            { "title": "Pilot Setup Guides",      "category": "business",    "phase": "DEPLOYMENT",   "lifecycle": "static", "source": "bible",    "path": "docs/product-bible/gtm/pilot-guides.md" },
-
-    "personas":                { "title": "Personas",                "category": "product",     "phase": "REQUIREMENTS", "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/product/personas.md" },
-    "glossary":                { "title": "Glossary",                "category": "product",     "phase": "REQUIREMENTS", "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/product/glossary.md" },
-    "ux-principles":           { "title": "UX Principles",           "category": "product",     "phase": "DESIGN",       "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/product/ux-principles.md" },
-    "prd":                     { "title": "PRD(s)",                  "category": "product",     "phase": "REQUIREMENTS", "lifecycle": "living", "source": "vibeflow", "path": "docs", "match": "(prd|requirements).*\\.md$", "produces": "prd-quality-analyzer / brownfield-intake" },
-    "srs":                     { "title": "SRS(s)",                  "category": "product",     "phase": "REQUIREMENTS", "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/product/srs.md" },
-
-    "domain-model":            { "title": "Domain Model",            "category": "engineering", "phase": "ARCHITECTURE", "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/engineering/domain-model.md" },
-    "api-standards":           { "title": "API Standards",           "category": "engineering", "phase": "ARCHITECTURE", "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/engineering/api-standards.md" },
-    "rule-dsl":                { "title": "Rule DSL",                "category": "engineering", "phase": "ARCHITECTURE", "lifecycle": "living", "source": "bible",    "path": "docs/product-bible/engineering/rule-dsl.md" },
-    "architecture":            { "title": "Architecture",           "category": "engineering", "phase": "ARCHITECTURE", "lifecycle": "living", "source": "vibeflow", "path": "docs/architecture.md", "produces": "architecture-bootstrap / architecture-validator" },
-    "adr":                     { "title": "ADRs",                    "category": "engineering", "phase": "ARCHITECTURE", "lifecycle": "living", "source": "vibeflow", "path": "docs/adr", "match": "ADR.*\\.md$", "produces": "architecture-bootstrap / adr-author" },
-    "design-spec":             { "title": "Design Spec",            "category": "product",     "phase": "DESIGN",       "lifecycle": "living", "source": "vibeflow", "path": "design/design-spec.md", "produces": "design-bootstrap" },
-    "test-strategy":           { "title": "Test Strategy",          "category": "engineering", "phase": "PLANNING",     "lifecycle": "living", "source": "vibeflow", "path": ".vibeflow/reports/test-strategy.md", "produces": "test-strategy-planner" },
-    "scenario-set":            { "title": "Test Scenario Set",      "category": "engineering", "phase": "PLANNING",     "lifecycle": "living", "source": "vibeflow", "path": ".vibeflow/reports/scenario-set.md", "produces": "test-strategy-planner" },
-    "rtm":                     { "title": "Requirements Traceability Matrix", "category": "engineering", "phase": "PLANNING", "lifecycle": "living", "source": "vibeflow", "path": ".vibeflow/reports/rtm.md", "produces": "traceability-engine" },
-    "release-decision":        { "title": "Release Decision",        "category": "engineering", "phase": "DEPLOYMENT",   "lifecycle": "living", "source": "vibeflow", "path": ".vibeflow/reports/release-decision.md", "produces": "release-decision-engine" }
+    "vision": {
+      "title": "Vision",
+      "category": "business",
+      "phase": "PRE",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/business/vision.md",
+      "growsIn": [
+        "REQUIREMENTS",
+        "ARCHITECTURE",
+        "DEPLOYMENT"
+      ]
+    },
+    "competitive-intelligence": {
+      "title": "Competitive Intelligence",
+      "category": "business",
+      "phase": "PRE",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/business/competitive-intelligence.md",
+      "growsIn": [
+        "REQUIREMENTS",
+        "DEPLOYMENT"
+      ]
+    },
+    "gartner-summaries": {
+      "title": "Gartner Summaries",
+      "category": "business",
+      "phase": "PRE",
+      "lifecycle": "static",
+      "source": "bible",
+      "path": "docs/product-bible/business/gartner-summaries.md"
+    },
+    "competitor-analysis": {
+      "title": "Competitor Analysis",
+      "category": "business",
+      "phase": "PRE",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/business/competitor-analysis.md",
+      "growsIn": [
+        "REQUIREMENTS",
+        "DEPLOYMENT"
+      ]
+    },
+    "ai-strategy": {
+      "title": "AI Strategy",
+      "category": "business",
+      "phase": "ARCHITECTURE",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/business/ai-strategy.md",
+      "growsIn": [
+        "ARCHITECTURE",
+        "DEVELOPMENT"
+      ]
+    },
+    "roadmap": {
+      "title": "Roadmap",
+      "category": "business",
+      "phase": "ALL",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/business/roadmap.md",
+      "growsIn": [
+        "PLANNING",
+        "DEPLOYMENT"
+      ]
+    },
+    "sales-arguments": {
+      "title": "Sales Arguments",
+      "category": "business",
+      "phase": "DEPLOYMENT",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/gtm/sales-arguments.md",
+      "growsIn": [
+        "DEPLOYMENT"
+      ]
+    },
+    "rfp-templates": {
+      "title": "RFP Response Templates",
+      "category": "business",
+      "phase": "DEPLOYMENT",
+      "lifecycle": "static",
+      "source": "bible",
+      "path": "docs/product-bible/gtm/rfp-templates.md"
+    },
+    "demo-scenarios": {
+      "title": "Demo Scenarios",
+      "category": "business",
+      "phase": "DEPLOYMENT",
+      "lifecycle": "static",
+      "source": "bible",
+      "path": "docs/product-bible/gtm/demo-scenarios.md"
+    },
+    "pilot-guides": {
+      "title": "Pilot Setup Guides",
+      "category": "business",
+      "phase": "DEPLOYMENT",
+      "lifecycle": "static",
+      "source": "bible",
+      "path": "docs/product-bible/gtm/pilot-guides.md"
+    },
+    "personas": {
+      "title": "Personas",
+      "category": "product",
+      "phase": "REQUIREMENTS",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/product/personas.md",
+      "growsIn": [
+        "REQUIREMENTS",
+        "DESIGN"
+      ]
+    },
+    "glossary": {
+      "title": "Glossary",
+      "category": "product",
+      "phase": "REQUIREMENTS",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/product/glossary.md",
+      "growsIn": [
+        "REQUIREMENTS",
+        "DESIGN",
+        "ARCHITECTURE",
+        "PLANNING",
+        "DEVELOPMENT",
+        "TESTING",
+        "DEPLOYMENT"
+      ]
+    },
+    "ux-principles": {
+      "title": "UX Principles",
+      "category": "product",
+      "phase": "DESIGN",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/product/ux-principles.md",
+      "growsIn": [
+        "DESIGN"
+      ]
+    },
+    "prd": {
+      "title": "PRD(s)",
+      "category": "product",
+      "phase": "REQUIREMENTS",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": "docs",
+      "match": "(prd|requirements).*\\.md$",
+      "produces": "prd-quality-analyzer / brownfield-intake"
+    },
+    "srs": {
+      "title": "SRS(s)",
+      "category": "product",
+      "phase": "REQUIREMENTS",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/product/srs.md",
+      "growsIn": [
+        "REQUIREMENTS",
+        "ARCHITECTURE"
+      ]
+    },
+    "domain-model": {
+      "title": "Domain Model",
+      "category": "engineering",
+      "phase": "ARCHITECTURE",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/engineering/domain-model.md",
+      "growsIn": [
+        "REQUIREMENTS",
+        "ARCHITECTURE",
+        "DEVELOPMENT"
+      ]
+    },
+    "api-standards": {
+      "title": "API Standards",
+      "category": "engineering",
+      "phase": "ARCHITECTURE",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/engineering/api-standards.md",
+      "growsIn": [
+        "ARCHITECTURE",
+        "DEVELOPMENT"
+      ]
+    },
+    "rule-dsl": {
+      "title": "Rule DSL",
+      "category": "engineering",
+      "phase": "ARCHITECTURE",
+      "lifecycle": "living",
+      "source": "bible",
+      "path": "docs/product-bible/engineering/rule-dsl.md",
+      "growsIn": [
+        "ARCHITECTURE",
+        "DEVELOPMENT"
+      ]
+    },
+    "architecture": {
+      "title": "Architecture",
+      "category": "engineering",
+      "phase": "ARCHITECTURE",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": "docs/architecture.md",
+      "produces": "architecture-bootstrap / architecture-validator"
+    },
+    "adr": {
+      "title": "ADRs",
+      "category": "engineering",
+      "phase": "ARCHITECTURE",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": "docs/adr",
+      "match": "ADR.*\\.md$",
+      "produces": "architecture-bootstrap / adr-author"
+    },
+    "design-spec": {
+      "title": "Design Spec",
+      "category": "product",
+      "phase": "DESIGN",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": "design/design-spec.md",
+      "produces": "design-bootstrap"
+    },
+    "test-strategy": {
+      "title": "Test Strategy",
+      "category": "engineering",
+      "phase": "PLANNING",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": ".vibeflow/reports/test-strategy.md",
+      "produces": "test-strategy-planner"
+    },
+    "scenario-set": {
+      "title": "Test Scenario Set",
+      "category": "engineering",
+      "phase": "PLANNING",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": ".vibeflow/reports/scenario-set.md",
+      "produces": "test-strategy-planner"
+    },
+    "rtm": {
+      "title": "Requirements Traceability Matrix",
+      "category": "engineering",
+      "phase": "PLANNING",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": ".vibeflow/reports/rtm.md",
+      "produces": "traceability-engine"
+    },
+    "release-decision": {
+      "title": "Release Decision",
+      "category": "engineering",
+      "phase": "DEPLOYMENT",
+      "lifecycle": "living",
+      "source": "vibeflow",
+      "path": ".vibeflow/reports/release-decision.md",
+      "produces": "release-decision-engine"
+    }
   }
 }

@@ -626,6 +626,23 @@ edit the primary artifact and need human review. Autonomy stops at the
 verdict; human judgment owns the rewrite. One `phase-runner` invocation
 = analyzers + one consensus verdict + (advance | breadcrumb).
 
+### Step 3.6: Grow the living Product Bible docs (Sprint 70)
+
+After the phase's analyzers ran (regardless of the consensus verdict — growing
+docs is not gated), grow the **living** bible docs this phase feeds, so the
+glossary / domain-model / personas / api-standards / rule-dsl / roadmap accrete
+instead of going stale. Run it **via the Skill tool**, surface-only (never blocks
+the walk):
+
+```
+Skill: vibeflow:bible-update      # folds this phase's artifacts into the living docs that grow now
+```
+
+It reads `bible-manifest.json` `growsIn` to pick the living docs for the current
+phase, folds in only what the phase artifacts support (merge, never clobber,
+never invent), and reports what grew. Skip silently when the project has no
+`docs/product-bible/` yet (run `/vibeflow:bible-intake` first to seed it).
+
 ### Step 4: Record + auto-advance (APPROVED only)
 
 On APPROVED, first **record the verdict** into project state — the

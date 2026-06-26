@@ -179,6 +179,10 @@
       "phases": "ALL",
       "description": "Sprint 30-B. The autonomous-loop dashboard: runs loop-audit.sh and consolidates phase-runner progress + auto-apply outcomes/revert-rates + cooldowns + armed watch + learning findings + cross-project signal into one view; writes .vibeflow/reports/loop-status.md. Read-only."
     },
+    "bible-update": {
+      "phases": "ALL",
+      "description": "Sprint 70. Grows the Product Bible's LIVING docs at a phase boundary: reads the current phase's artifacts and folds what's new into each living bible-native doc the manifest's growsIn marks for this phase (glossary/domain-model/personas/api-standards/rule-dsl/ux-principles/roadmap/…). Merge-never-clobber, deduped, never-invent. phase-runner runs it surface-only near the end of each phase (Step 3.6). Writes living docs + .vibeflow/reports/bible-update.md."
+    },
     "bible-intake": {
       "phases": "ALL",
       "description": "Sprint 69. Product Bible ingestion: reviews the input documents brought into a project (vision/Gartner/competitor/existing-PRD/persona-research/API-style-guide), classifies each into the bible taxonomy, files it under docs/product-bible/<category>/ (referencing VibeFlow-produced docs in place, never duplicated), and SEEDS the living docs (glossary + domain-model + personas) from the corpus. Writes .vibeflow/reports/bible-intake.md. Run near the start + whenever new inputs arrive."

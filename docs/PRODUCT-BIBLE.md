@@ -84,8 +84,10 @@ the bible across the lifecycle:
   under `docs/product-bible/<category>/` (VibeFlow-produced docs referenced in
   place), and **seed the living docs** — glossary, domain model, personas — from
   the corpus. Writes `.vibeflow/reports/bible-intake.md`.
-- **Living-doc growth** — phase-runner + the phase skills update the living docs
-  each phase/cycle so the glossary, domain model, personas, ADRs, roadmap, etc.
-  accrete instead of going stale.
+- **Living-doc growth** ✅ (Sprint 70, `/vibeflow:bible-update`) — at each phase
+  boundary phase-runner folds the phase's artifacts into the living docs the
+  manifest's `growsIn` marks for that phase, so the glossary, domain model,
+  personas, API standards, Rule DSL, roadmap, etc. accrete instead of going
+  stale (merge-never-clobber, deduped, never-invent; surface-only, never gates).
 - **Assembly / curation** — a final coherent export of the whole bible at project
   end.
