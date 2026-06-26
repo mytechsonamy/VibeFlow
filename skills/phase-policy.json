@@ -179,6 +179,10 @@
       "phases": "ALL",
       "description": "Sprint 30-B. The autonomous-loop dashboard: runs loop-audit.sh and consolidates phase-runner progress + auto-apply outcomes/revert-rates + cooldowns + armed watch + learning findings + cross-project signal into one view; writes .vibeflow/reports/loop-status.md. Read-only."
     },
+    "bible-intake": {
+      "phases": "ALL",
+      "description": "Sprint 69. Product Bible ingestion: reviews the input documents brought into a project (vision/Gartner/competitor/existing-PRD/persona-research/API-style-guide), classifies each into the bible taxonomy, files it under docs/product-bible/<category>/ (referencing VibeFlow-produced docs in place, never duplicated), and SEEDS the living docs (glossary + domain-model + personas) from the corpus. Writes .vibeflow/reports/bible-intake.md. Run near the start + whenever new inputs arrive."
+    },
     "product-bible": {
       "phases": "ALL",
       "description": "Sprint 68. The Product Bible foundation: runs bible-status.sh to cross-reference the doc taxonomy (hooks/scripts/bible-manifest.json) against the repo and report which canonical lifecycle docs (vision/personas/glossary/domain-model/ADRs/PRD/test-strategy/roadmap/GTM…) are present vs missing — VibeFlow-produced docs referenced in place, never duplicated; scaffolds docs/product-bible/ with templated stubs for missing bible-native docs. Read-mostly (only writes the scaffold)."

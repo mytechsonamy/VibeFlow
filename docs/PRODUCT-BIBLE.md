@@ -78,9 +78,12 @@ The canonical doc-types + their category / phase / lifecycle / source live in
 Sprint 68 ships the **foundation** — taxonomy, status, structure. The rest grows
 the bible across the lifecycle:
 
-- **Intake / ingestion** — review every input document you bring into a project
-  (vision, Gartner, competitor decks, an existing PRD/spec, …), classify it into
-  the bible, and seed the glossary + domain model from it.
+- **Intake / ingestion** ✅ (Sprint 69, `/vibeflow:bible-intake`) — review every
+  input document you bring into a project (vision, Gartner, competitor decks, an
+  existing PRD/spec, persona research, …), classify it into the bible, file it
+  under `docs/product-bible/<category>/` (VibeFlow-produced docs referenced in
+  place), and **seed the living docs** — glossary, domain model, personas — from
+  the corpus. Writes `.vibeflow/reports/bible-intake.md`.
 - **Living-doc growth** — phase-runner + the phase skills update the living docs
   each phase/cycle so the glossary, domain model, personas, ADRs, roadmap, etc.
   accrete instead of going stale.
