@@ -179,6 +179,10 @@
       "phases": "ALL",
       "description": "Sprint 30-B. The autonomous-loop dashboard: runs loop-audit.sh and consolidates phase-runner progress + auto-apply outcomes/revert-rates + cooldowns + armed watch + learning findings + cross-project signal into one view; writes .vibeflow/reports/loop-status.md. Read-only."
     },
+    "bible-assemble": {
+      "phases": "ALL",
+      "description": "Sprint 71. Assembles the Product Bible into one coherent export at project/cycle end: a curated index (docs/product-bible/README.md) linking every canonical doc (bible-native in place + VibeFlow-produced docs referenced where they live), a single-file export (docs/product-bible/product-bible-export.md), a light cross-consistency curation pass (gaps/stale/coherence — flag-only), and .vibeflow/reports/bible-assembly.md with the completeness rollup. Read-mostly."
+    },
     "bible-update": {
       "phases": "ALL",
       "description": "Sprint 70. Grows the Product Bible's LIVING docs at a phase boundary: reads the current phase's artifacts and folds what's new into each living bible-native doc the manifest's growsIn marks for this phase (glossary/domain-model/personas/api-standards/rule-dsl/ux-principles/roadmap/…). Merge-never-clobber, deduped, never-invent. phase-runner runs it surface-only near the end of each phase (Step 3.6). Writes living docs + .vibeflow/reports/bible-update.md."

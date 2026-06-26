@@ -89,5 +89,13 @@ the bible across the lifecycle:
   manifest's `growsIn` marks for that phase, so the glossary, domain model,
   personas, API standards, Rule DSL, roadmap, etc. accrete instead of going
   stale (merge-never-clobber, deduped, never-invent; surface-only, never gates).
-- **Assembly / curation** — a final coherent export of the whole bible at project
-  end.
+- **Assembly / curation** ✅ (Sprint 71, `/vibeflow:bible-assemble`) — a final
+  coherent export of the whole bible: a curated index
+  (`docs/product-bible/README.md`) linking every canonical doc, a single-file
+  export (`docs/product-bible/product-bible-export.md`), and a light
+  cross-consistency curation pass (gaps / stale living docs / glossary↔domain↔PRD
+  coherence — flag-only). Writes `.vibeflow/reports/bible-assembly.md`.
+
+**The Product Bible is now feature-complete** — foundation (Sprint 68) + intake
+(69) + living-doc growth (70) + assembly (71): ingest your inputs, grow the
+living docs each phase, and assemble the book at the end.
