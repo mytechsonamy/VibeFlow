@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.53.0] — 2026-06-26
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Fixed — the visual battery is now stack-agnostic (Sprint 66)
+- VibeFlow's UI detection was **JS-framework-only**, so a **server-rendered** web app — FastAPI/Flask returning `HTMLResponse`, Jinja/Django/Rails/Razor/Thymeleaf templates, or a backend-served static SPA — read as `no-ui` and the entire visual battery (`frontend-render-check` + `visual-ai-analyzer`) **silently skipped**. A real screen could ship with broken spacing, a missing glyph, no empty-state, or a broken layout and nothing in the SDLC ever rendered it. (Found live in Clera, a FastAPI app that builds HTML in Python.)
+- New `vf_web_ui_kind` (`hooks/scripts/_lib.sh`) detects a web UI as `js` | `server-rendered` | `static` | `none` (design-mockup / vendored trees excluded). `ui-styling-check.sh` + `ui-verification-debt.sh` now use it — a server-rendered UI with no conformance report reports **"never render-verified"** so phase-runner / flow-status surface it.
+- `frontend-render-check` is stack-agnostic: a JS SPA boots its dev server with mocked data; a **server-rendered** app boots the **real** server (`uvicorn`/`flask`/`django`/`dotnet`/`rails`, reusing the Sprint-59 stack-agnostic boot + `VF_BACKEND_CMD`/`VF_BACKEND_PORT`) and screenshots the routes it serves for `visual-ai-analyzer`. A web-UI repo with **no HTTP server entry** is a BLOCKED finding.
+- Hook + skill + docs only; no engine change. New `tests/integration/sprint-66.sh` (26/0); hooks 208→213.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.52.0] — 2026-06-23
 
 <!-- Notes pre-filled from --notes-file. -->
