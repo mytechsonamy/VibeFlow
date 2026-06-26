@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.58.0] — 2026-06-26
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Added — Product Bible Part D: assembly/curation (Sprint 71)
+- New **`/vibeflow:bible-assemble`** turns the corpus into one coherent, navigable, shareable book at project/cycle end: a curated index (`docs/product-bible/README.md`) with a per-category TOC linking every canonical doc (bible-native in place + VibeFlow-produced docs referenced where they live — never copied), a single-file export (`docs/product-bible/product-bible-export.md`), and a completeness rollup.
+- A light **cross-consistency curation pass** flags (never auto-fixes): owed docs, stale living docs, and coherence gaps (a Glossary term with no home in the Domain Model, a Persona never referenced by a PRD, an ADR not reflected in API Standards). Writes `.vibeflow/reports/bible-assembly.md`.
+- Read-mostly — writes only the index + export + report. Skill + policy + docs only. New `tests/integration/sprint-71.sh` (22/0).
+
+### The Product Bible arc is feature-complete
+Foundation (v2.55.0) + intake/ingestion (v2.56.0) + living-doc growth (v2.57.0) + assembly (v2.58.0): ingest the input documents you bring in → grow the living docs (glossary/domain-model/personas/…) at each phase → assemble the whole bible at the end. See `docs/PRODUCT-BIBLE.md`.
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.57.0] — 2026-06-26
 
 <!-- Notes pre-filled from --notes-file. -->
