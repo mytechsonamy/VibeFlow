@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.54.0] — 2026-06-26
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Added — DEVELOPMENT-phase render-as-you-build (Sprint 67)
+- Sprint 66 made the visual battery *fire* in TESTING for any stack; this moves the **first eyes-on render** earlier. `frontend-render-check` now also runs in **DEVELOPMENT** — phase-runner drives it on a UI-facing increment, scoped to the **screens the increment changed** — so every new screen is booted, screenshotted, **shown**, and visually checked **while it's built**, instead of a whole increment of UI shipping before anyone renders it.
+- **Proportionate gate**: a `BLOCKED` verdict (won't render / skinless / no relation to the design) stops with a fix breadcrumb; cosmetic drift is surfaced as findings and does not block iteration.
+- It **never arms the consensus marker** in DEVELOPMENT (arm-on-pass stays a TESTING act) so it can't block the iteration that fixes the screen. DEVELOPMENT still gates through `quality.gates` + `code.reviewed`.
+- The full UI-conditional battery (+ visual-ai-analyzer + input-validation + integration-verifier) and the hard arm-on-pass gate still run in TESTING. Skill + policy + docs only. New `tests/integration/sprint-67.sh` (21/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.53.0] — 2026-06-26
 
 <!-- Notes pre-filled from --notes-file. -->
