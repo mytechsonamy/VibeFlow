@@ -1719,6 +1719,18 @@ assert_eq "[S66-A] pure backend → none" "none" "$(_uik "$D")"; rm -rf "$D"
 D="$(mktemp -d)"; mkdir -p "$D/design/mockups"; touch "$D/design/mockups/s.html"
 assert_eq "[S66-A] design mockups only → none" "none" "$(_uik "$D")"; rm -rf "$D"
 
+echo "== bible-status.sh [S68-A] =="
+D="$(mktemp -d)"; mkdir -p "$D/docs/adr" "$D/docs/product-bible/product"
+echo x > "$D/docs/architecture.md"; echo x > "$D/docs/adr/ADR-001-x.md"
+echo x > "$D/docs/feature-requirements.md"; echo x > "$D/docs/product-bible/product/glossary.md"
+BS_OUT="$(VIBEFLOW_CWD="$D" bash "$SCRIPTS/bible-status.sh" 2>/dev/null)"
+assert_eq "[S68-A] bible-status valid JSON (total 25)" "25" "$(printf '%s' "$BS_OUT" | jq -r '.total' 2>/dev/null)"
+assert_eq "[S68-A] adr (dir+match) → present" "present" "$(printf '%s' "$BS_OUT" | jq -r '.docs[]|select(.key=="adr")|.status')"
+assert_eq "[S68-A] prd (glob+match, @tsv regression) → present" "present" "$(printf '%s' "$BS_OUT" | jq -r '.docs[]|select(.key=="prd")|.status')"
+assert_eq "[S68-A] glossary (bible-native) → present" "present" "$(printf '%s' "$BS_OUT" | jq -r '.docs[]|select(.key=="glossary")|.status')"
+assert_eq "[S68-A] vision (owed) → missing" "missing" "$(printf '%s' "$BS_OUT" | jq -r '.docs[]|select(.key=="vision")|.status')"
+rm -rf "$D"
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then
