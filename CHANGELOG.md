@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.57.0] — 2026-06-26
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Added — Product Bible Part C: living-doc growth (Sprint 70)
+- The bible's **living** docs should grow as the product is built, not go stale after intake. The taxonomy's living bible-native docs now declare a `growsIn` phase list, and new **`/vibeflow:bible-update`** folds each phase's artifacts into the living docs that grow in that phase — glossary (new terms), domain model (new entities/relationships/invariants), personas, API standards, Rule DSL, UX principles, roadmap, …
+- Merge-never-clobber (headed, dated, provenance-tagged sections), deduped, and **never-invent** (only what the phase artifacts support). It does not touch `source: vibeflow` docs (those grow via their own phase skills) or `static` docs.
+- **phase-runner runs it surface-only at each phase boundary** (Step 3.6) — never a gate, so growing docs can't block the SDLC. You can also run it directly. Writes `.vibeflow/reports/bible-update.md`.
+- Skill + manifest + policy + docs only. New `tests/integration/sprint-70.sh` (25/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.56.0] — 2026-06-26
 
 <!-- Notes pre-filled from --notes-file. -->
