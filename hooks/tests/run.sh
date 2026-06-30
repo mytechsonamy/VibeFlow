@@ -1731,6 +1731,25 @@ assert_eq "[S68-A] glossary (bible-native) → present" "present" "$(printf '%s'
 assert_eq "[S68-A] vision (owed) → missing" "missing" "$(printf '%s' "$BS_OUT" | jq -r '.docs[]|select(.key=="vision")|.status')"
 rm -rf "$D"
 
+echo "== phase-write-guard.sh config + out-of-cwd [S72-A] =="
+PWG="$SCRIPTS/phase-write-guard.sh"
+SDIR="$(make_project REQUIREMENTS)"
+# 1) the project's own config is always allowed — even as an absolute path to
+#    ANOTHER location (onboarding from a session rooted elsewhere).
+RC="$(echo '{"tool_input":{"file_path":"/Users/x/Projects/Other/vibeflow.config.json"}}' | VIBEFLOW_CWD="$SDIR" bash "$PWG" >/dev/null 2>&1; echo $?)"
+assert_eq "[S72-A] config write outside cwd → allow (bootstrap)" "0" "$RC"
+RC="$(echo '{"tool_input":{"file_path":"'"$SDIR"'/vibeflow.config.json"}}' | VIBEFLOW_CWD="$SDIR" bash "$PWG" >/dev/null 2>&1; echo $?)"
+assert_eq "[S72-A] config write in-cwd → allow" "0" "$RC"
+# 2) a SOURCE write outside cwd still blocks, but with the cwd-mismatch message.
+OUT_S72="$(echo '{"tool_input":{"file_path":"/Users/x/Projects/Other/src/foo.ts"}}' | VIBEFLOW_CWD="$SDIR" bash "$PWG" 2>&1 >/dev/null)"
+RC="$(echo '{"tool_input":{"file_path":"/Users/x/Projects/Other/src/foo.ts"}}' | VIBEFLOW_CWD="$SDIR" bash "$PWG" >/dev/null 2>&1; echo $?)"
+assert_eq "[S72-A] source write outside cwd → block (exit 2)" "2" "$RC"
+assert_contains "[S72-A] outside-cwd block names the cwd mismatch" "OUTSIDE the session working directory" "$OUT_S72"
+# 3) in-cwd source in REQUIREMENTS still blocks with the generic phase message (no regression).
+OUT_S72="$(echo '{"tool_input":{"file_path":"'"$SDIR"'/src/foo.ts"}}' | VIBEFLOW_CWD="$SDIR" bash "$PWG" 2>&1 >/dev/null)"
+assert_contains "[S72-A] in-cwd block keeps the generic phase message" "REQUIREMENTS phase does not permit" "$OUT_S72"
+rm -rf "$SDIR"
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then

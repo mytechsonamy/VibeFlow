@@ -178,3 +178,23 @@ DEPLOYMENT until `release-decision-engine` records a GO (Sprint 26-A).
 Default **off** so existing consumers are never broken mid-flight;
 `force: true` bypasses both gates (structural rules still hold). See
 [TESTING-READINESS.md](TESTING-READINESS.md).
+
+## The project's own config + the working-directory rule (Sprint 72)
+
+Two refinements to `phase-write-guard`:
+
+- **The project's own `vibeflow.config.json` is always writable**, in any phase.
+  It's the bootstrap / control file (written by `/vibeflow:onboard`, edited to set
+  `currentPhase` / tech stack) — never the source scaffolding the guard exists to
+  stop. (Before this it was only allowed via the phase allow-list, so onboarding a
+  project from a session rooted elsewhere — an absolute
+  `~/Projects/X/vibeflow.config.json` that couldn't be relativized to the bare
+  `vibeflow.config.json` glob — was wrongly blocked.)
+- **Out-of-cwd writes are diagnosed as a working-directory mismatch.** The guard
+  matches its allow-list against paths **relative to the session's working
+  directory**, and VibeFlow resolves config/state/phase from that same cwd. So a
+  write **outside** the session cwd can't be governed (and won't land where the
+  project expects) — the block message now says so explicitly ("OUTSIDE the
+  session working directory — run this session from inside the project") instead
+  of blaming the phase. The fix: run the session from **inside** the project dir
+  (`cd` into it) so onboarding/writes resolve correctly.

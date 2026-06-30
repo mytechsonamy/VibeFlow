@@ -50,6 +50,20 @@ if [[ -z "$FILE" ]]; then
   exit 0
 fi
 
+# Sprint 72: the project's own vibeflow.config.json is its bootstrap / control
+# file — written by /vibeflow:onboard, edited to set currentPhase / tech stack.
+# It is never the "source scaffolding during REQUIREMENTS" this guard exists to
+# stop, so always allow it, regardless of phase or which cwd the path is
+# relativized against. (Fixes the false-block when onboarding a project from a
+# session rooted elsewhere: an absolute ~/Proj/X/vibeflow.config.json can't be
+# relativized to the bare `vibeflow.config.json` allow glob and was denied.)
+case "${FILE##*/}" in
+  vibeflow.config.json)
+    echo '{"continue":true}'
+    exit 0
+    ;;
+esac
+
 # Fail-safe: missing policy file → allow. Framework never bricks a repo.
 POLICY="$(vf_policy_path)"
 if [[ ! -f "$POLICY" ]]; then
@@ -59,6 +73,15 @@ fi
 
 PHASE="$(vf_current_phase)"
 REL="$(vf_relpath "$FILE")"
+
+# Sprint 72: a still-absolute REL means the target is OUTSIDE the session working
+# directory. Phase policy is matched against cwd-relative paths, so an out-of-cwd
+# write matches no allow glob and (correctly) blocks — but the real cause is
+# almost always a session rooted in the wrong dir (e.g. onboarding ~/Proj/X from
+# ~/Proj or another project). Diagnose THAT rather than blaming the phase, since
+# VibeFlow also resolves config/state/phase from the session cwd.
+OUTSIDE_CWD=0
+case "$REL" in /*) OUTSIDE_CWD=1 ;; esac
 
 DECISION="$(vf_phase_decision "$PHASE" "$REL" "$POLICY" 2>/dev/null || echo "allow")"
 
@@ -73,7 +96,11 @@ case "$DECISION" in
     exit 0
     ;;
   block|*)
-    echo "VibeFlow phase-write-guard: $PHASE phase does not permit writes to $REL. Run /vibeflow:advance to progress the SDLC, or set VF_ALLOW_PHASE_WRITE=1 to bypass this single call." >&2
+    if [[ "$OUTSIDE_CWD" == "1" ]]; then
+      echo "VibeFlow phase-write-guard: $FILE is OUTSIDE the session working directory ($(vf_cwd)). VibeFlow resolves config/state/phase from the session cwd, so a write to another location can't be governed and won't land where the project expects. Run this session from inside the project directory (cd into it), or set VF_ALLOW_PHASE_WRITE=1 to bypass this single call." >&2
+    else
+      echo "VibeFlow phase-write-guard: $PHASE phase does not permit writes to $REL. Run /vibeflow:advance to progress the SDLC, or set VF_ALLOW_PHASE_WRITE=1 to bypass this single call." >&2
+    fi
     exit 2
     ;;
 esac
