@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.59.0] — 2026-06-30
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Fixed — phase-write-guard: config always writable + out-of-cwd diagnosis (Sprint 72)
+- Onboarding a project from a session rooted elsewhere — `Write(~/Projects/X/vibeflow.config.json)` — was wrongly blocked: the guard matches its allow-list against **cwd-relative** paths, so an absolute path outside the session cwd couldn't be relativized to the bare `vibeflow.config.json` allow glob and hit default-deny.
+- **The project's own `vibeflow.config.json` is now always writable** — any phase, any cwd. It's the bootstrap / control file (written by `/vibeflow:onboard`, edited to set `currentPhase` / tech stack), never the source-scaffolding the guard exists to stop.
+- **A write outside the session working directory is now diagnosed as a working-directory mismatch** ("OUTSIDE the session working directory — run this session from inside the project") instead of blaming the phase. VibeFlow resolves config/state/phase from the session cwd, so onboard/operate a project **from inside its own directory** (`cd` into it) — out-of-cwd writes also won't land where the project expects.
+- In-cwd behaviour is unchanged (in-cwd `src/` during REQUIREMENTS still blocks; `docs/` allowed). Hook + docs only. New `tests/integration/sprint-72.sh` (17/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.58.0] — 2026-06-26
 
 <!-- Notes pre-filled from --notes-file. -->
