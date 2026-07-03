@@ -341,3 +341,27 @@ design. See [ONBOARDING.md](ONBOARDING.md).
 Both paths feed the identical history.jsonl / reviewer-memory / auto-revert
 machinery (Layer 3), so headless verdicts participate in the slow loop just
 like interactive ones.
+
+## Claude is always a reviewer — even headless (Sprint 73)
+
+The headless path used to depend entirely on the external CLIs: if neither
+`codex` nor `gemini` was on PATH, `consensus-run.sh` exited 3 and phase-runner
+**stalled** — the orchestration stage stopped because there was no reviewer.
+
+Now **Claude is a first-class member of the headless panel too.** Before running
+the CLIs, phase-runner forks the **`claude-reviewer`** agent to review the
+primary artifact **as if a third party wrote it** (a fresh-eyes, adversarial
+lens — it never assumes the authoring reasoning is sound) and passes its verdict
+to the runner via `--claude-verdict <file>` (or `VF_CLAUDE_VERDICT_FILE`). The
+runner records Claude as reviewer `claude` — in the same `history.jsonl` /
+reviewer-memory shape as codex/gemini — and finalises over the whole panel:
+
+- **codex/gemini available** → the panel is Claude + whichever CLIs ran (Claude
+  is always a distinct, independent voice, not a rubber stamp).
+- **neither available** → Claude alone still produces a verdict — **the SDLC
+  never stalls on a missing CLI.** `consensus-run.sh` now exits 3 only when there
+  is *no* reviewer at all (no CLI **and** no Claude verdict supplied).
+
+The interactive `/vibeflow:consensus-orchestrator` already forked claude-reviewer
+(via SubagentStop); this brings the same always-Claude guarantee to the headless
+phase-runner walk.

@@ -27,16 +27,21 @@
 # the caller (phase-runner) reads verdict.json and records consensus +
 # satisfies criteria itself.
 #
-# claude-reviewer is intentionally absent here: a shell script cannot
-# produce a native Claude review. With codex+gemini on PATH this is a
-# real 2-AI panel (the aggregator's documented "2 AIs: both must agree for
-# APPROVED" mode). For the full 3-AI panel + iterative negotiation, use the
-# interactive `/vibeflow:consensus-orchestrator`.
+# Sprint 73: a shell script can't produce a native Claude review, but the CALLER
+# can — phase-runner forks the `claude-reviewer` agent (an independent, fresh-eyes
+# "as if a third party wrote it" review) and passes its verdict via
+# `--claude-verdict <file>` (or VF_CLAUDE_VERDICT_FILE). That makes Claude a
+# first-class panel member: always a distinct voice alongside codex/gemini, AND
+# the fallback that keeps the SDLC moving — with a Claude verdict, this never
+# exits 3 on missing CLIs. For the full interactive 3-AI panel + iterative
+# negotiation (claude-reviewer forked here + SubagentStop), use
+# `/vibeflow:consensus-orchestrator`.
 #
-# Usage: consensus-run.sh <primaryArtifact|markerPath>
+# Usage: consensus-run.sh <primaryArtifact|markerPath> [--claude-verdict <file>]
 # Exit:  0 = verdict.json written (status on stdout), 1 = setup error,
-#        3 = no external reviewer CLI on PATH (caller should fall back to
-#            the interactive orchestrator, which always has claude-reviewer).
+#        3 = NO reviewer at all — no codex/gemini CLI on PATH AND no Claude
+#            reviewer verdict supplied (fork claude-reviewer, or use the
+#            interactive orchestrator).
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,11 +82,30 @@ if [[ ! -f "$PRIMARY" ]]; then
   exit 1
 fi
 
-# Bail early if there is no external reviewer to run — a headless panel
-# needs at least one CLI. The caller falls back to the interactive
-# orchestrator (which always has claude-reviewer).
-if ! command -v codex >/dev/null 2>&1 && ! command -v gemini >/dev/null 2>&1; then
-  echo "consensus-run: no external reviewer CLI (codex/gemini) on PATH" >&2
+# Sprint 73: an independent Claude reviewer verdict supplied by the caller.
+# phase-runner forks the `claude-reviewer` agent to review the primary "as if a
+# third party wrote it" and writes its verdict JSON to VF_CLAUDE_VERDICT_FILE.
+# This makes Claude a FIRST-CLASS member of the headless panel — always a
+# fresh-eyes reviewer alongside codex/gemini, and the fallback that keeps the
+# SDLC moving (a verdict is still produced) when NO external CLI is available.
+CLAUDE_VERDICT=""
+CLAUDE_VERDICT_FILE="${VF_CLAUDE_VERDICT_FILE:-}"
+# Also accept `--claude-verdict <path>` (keeps the command matching the
+# `bash hooks/scripts/consensus-run.sh*` allowlist prefix — no env-var prefix).
+_cv_prev=""
+for _cv_a in "$@"; do
+  [[ "$_cv_prev" == "--claude-verdict" ]] && CLAUDE_VERDICT_FILE="$_cv_a"
+  _cv_prev="$_cv_a"
+done
+if [[ -n "$CLAUDE_VERDICT_FILE" && -f "$CLAUDE_VERDICT_FILE" ]]; then
+  CLAUDE_VERDICT="$(cat "$CLAUDE_VERDICT_FILE" 2>/dev/null)"
+fi
+
+# Bail ONLY if there is no reviewer at all — no codex/gemini CLI on PATH AND no
+# Claude reviewer verdict. With a Claude verdict the panel is at least Claude
+# alone, so headless consensus never stalls on a missing external CLI (Sprint 73).
+if ! command -v codex >/dev/null 2>&1 && ! command -v gemini >/dev/null 2>&1 && [[ -z "$CLAUDE_VERDICT" ]]; then
+  echo "consensus-run: no reviewer available — no codex/gemini CLI on PATH and no Claude reviewer verdict supplied (VF_CLAUDE_VERDICT_FILE). Fork claude-reviewer first, or run /vibeflow:consensus-orchestrator (adds claude-reviewer), or set up a reviewer CLI." >&2
   exit 3
 fi
 
@@ -341,6 +365,14 @@ if command -v gemini >/dev/null 2>&1; then
     append_cli_verdict gemini "$GEMINI_OUT" ""
   fi
   rm -f "$GEMINI_ERR" 2>/dev/null
+fi
+
+# Sprint 73: record the independent Claude reviewer verdict (when supplied). It
+# is a first-class panel member — always present when the caller forked
+# claude-reviewer, and the sole reviewer that keeps the verdict flowing when no
+# external CLI ran. Recorded as reviewer "claude" in the same jsonl shape.
+if [[ -n "$CLAUDE_VERDICT" ]]; then
+  append_cli_verdict claude "$CLAUDE_VERDICT" ""
 fi
 
 # A reviewer counts only if it produced a verdict line. If every present CLI

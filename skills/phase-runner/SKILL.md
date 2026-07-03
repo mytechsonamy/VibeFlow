@@ -562,15 +562,37 @@ deadlocked against its own `consensus-gate` (the analyzer's
 that could drain it was an un-forkable skill). Instead, call the
 headless runner as **plain Bash**:
 
+**Step 3a — Claude reviews first, independently (Sprint 73).** Before running the
+CLIs, fork the **`claude-reviewer` agent** (via the Task tool) to review the
+primary artifact **as if a third party wrote it** — do NOT assume the authoring
+reasoning is sound; a fresh-eyes, adversarial quality/security/maintainability
+lens. Write the agent's **native JSON review** (its normal
+`{ score, verdict, criticalIssues:[…], suggestions:[…], summary }` output — see
+`agents/claude-reviewer.md`) verbatim to
+`.vibeflow/state/consensus/claude-review.json`. The runner's `append_cli_verdict`
+consumes that shape directly (`criticalIssues` may be an array or an int;
+`suggestions[]` flows to the arbiter exactly as codex/gemini's do) — no reshaping
+needed.
+
+**Step 3b — run the panel with Claude in it.** Then call the headless runner,
+passing Claude's verdict so it's a first-class panel member:
+
 ```bash
-bash hooks/scripts/consensus-run.sh .vibeflow/state/consensus-needed.json
+bash hooks/scripts/consensus-run.sh .vibeflow/state/consensus-needed.json \
+  --claude-verdict .vibeflow/state/consensus/claude-review.json
 ```
 
-(If no marker exists — e.g. DESIGN, which has no analyzer — pass the
-primary artifact path directly: `bash hooks/scripts/consensus-run.sh design/spec.md`.)
+(If no marker exists — e.g. DESIGN, which has no analyzer — pass the primary
+artifact path directly: `… consensus-run.sh design/spec.md --claude-verdict …`.)
 
-The runner resolves the primary, runs every external reviewer CLI on
-PATH (codex, gemini), finalises a real `verdict.json` via
+**Claude is ALWAYS in the panel**, so the project never stalls on missing CLIs:
+- codex/gemini available → the panel is Claude + whichever CLIs ran.
+- **neither available → Claude alone still finalises a verdict — no stall, no
+  exit 3.** (This is the fix for "orchestration stopped because codex/gemini
+  weren't usable.")
+
+The runner resolves the primary, records Claude's verdict + runs every external
+reviewer CLI on PATH (codex, gemini), finalises a real `verdict.json` via
 `consensus-aggregator.sh --finalize` (no 600s quorum stall — it knows
 the panel is exactly the CLIs that ran), feeds the same
 history.jsonl / reviewer-memory / auto-revert machinery the interactive
@@ -578,14 +600,10 @@ path uses, and **drains `consensus-needed.json`** so the gate unblocks.
 It prints one JSON line:
 `{sessionId, status, agreement, criticalTotal, reviewers, verdictFile}`.
 
-**Exit 3 — no reviewer CLI on PATH.** A headless panel needs codex or
-gemini (claude-reviewer is model-only). Stop and emit, as the last line:
-
-```
-No external reviewer CLI (codex/gemini) on PATH; headless consensus
-can't run. Use the interactive path — it always has claude-reviewer:
-▶ Next: /vibeflow:consensus-orchestrator <primary-artifact>
-```
+**Exit 3 now only means Claude's review was *also* not supplied** (you skipped
+Step 3a). With the Claude verdict written, the runner never exits 3 — Claude is a
+sufficient panel on its own. If you do hit exit 3, fork `claude-reviewer` (Step
+3a) and retry, or use the interactive `/vibeflow:consensus-orchestrator`.
 
 Read `status` from the runner's output (or `verdictFile`) and branch:
 

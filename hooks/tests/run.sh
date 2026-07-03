@@ -1750,6 +1750,21 @@ OUT_S72="$(echo '{"tool_input":{"file_path":"'"$SDIR"'/src/foo.ts"}}' | VIBEFLOW
 assert_contains "[S72-A] in-cwd block keeps the generic phase message" "REQUIREMENTS phase does not permit" "$OUT_S72"
 rm -rf "$SDIR"
 
+echo "== consensus-run.sh Claude reviewer [S73-A] =="
+CRUN_S73="$SCRIPTS/consensus-run.sh"
+grep -q -- "--claude-verdict" "$CRUN_S73" && pass "[S73-A] consensus-run accepts --claude-verdict" || fail "[S73-A] consensus-run accepts --claude-verdict"
+grep -q "append_cli_verdict claude" "$CRUN_S73" && pass "[S73-A] records the claude reviewer" || fail "[S73-A] records the claude reviewer"
+# no-CLI + claude verdict → verdict (RC 0), via a codex/gemini-free PATH
+S73BIN="$(mktemp -d)"
+for t in bash sh jq date cat mkdir rm grep sed awk find wc tr head tail sort cut basename dirname printf env chmod touch ln mktemp; do p="$(command -v "$t" 2>/dev/null)" && ln -sf "$p" "$S73BIN/$t" 2>/dev/null; done
+S73D="$(mktemp -d)"; mkdir -p "$S73D/docs"; printf '{"project":"t","currentPhase":"REQUIREMENTS"}' > "$S73D/vibeflow.config.json"; printf '# PRD\n' > "$S73D/docs/prd.md"
+printf '{"verdict":"APPROVED","criticalIssues":[],"suggestions":[]}' > "$S73D/cv.json"
+S73RC="$(cd "$S73D" && VIBEFLOW_CWD="$S73D" PATH="$S73BIN" bash "$CRUN_S73" docs/prd.md --claude-verdict cv.json >/dev/null 2>&1; echo $?)"
+assert_eq "[S73-A] no CLI + claude verdict → RC 0 (no stall)" "0" "$S73RC"
+S73RC3="$(cd "$S73D" && VIBEFLOW_CWD="$S73D" PATH="$S73BIN" bash "$CRUN_S73" docs/prd.md >/dev/null 2>&1; echo $?)"
+assert_eq "[S73-A] no CLI + no claude verdict → exit 3" "3" "$S73RC3"
+rm -rf "$S73D" "$S73BIN"
+
 echo
 echo "RESULTS: $PASS passed, $FAIL failed"
 if (( FAIL > 0 )); then
