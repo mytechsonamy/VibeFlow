@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.60.0] — 2026-07-03
+
+<!-- Notes pre-filled from --notes-file. -->
+
+### Changed — Claude is always a reviewer, even in headless consensus (Sprint 73)
+- The headless consensus path used to depend entirely on the external CLIs: if neither `codex` nor `gemini` was on PATH, `consensus-run.sh` exited 3 and phase-runner **stalled** at the orchestration stage.
+- Now **Claude is a first-class member of the panel.** Before running the CLIs, phase-runner forks the **`claude-reviewer`** agent to review the primary artifact **as if a third party wrote it** (independent, fresh-eyes, adversarial — it never assumes the authoring reasoning is sound) and passes its verdict to the runner via `--claude-verdict <file>` (or `VF_CLAUDE_VERDICT_FILE`). It's recorded as reviewer `claude` in the same history.jsonl / reviewer-memory shape as codex/gemini.
+- **codex/gemini available** → the panel is Claude + whichever CLIs ran. **Neither available** → Claude alone still produces a verdict — the SDLC **never stalls** on a missing CLI. `consensus-run.sh` exits 3 only when there is no reviewer at all.
+- `agents/claude-reviewer.md` gained the "review as if someone else wrote it / adversarial" framing, which applies on every path (interactive + headless). Hook + skill + agent + docs; no engine change. New `tests/integration/sprint-73.sh` (23/0).
+
+### Breaking changes
+
+None.
+
+### Migration
+
+N/A.
+
 ## [2.59.0] — 2026-06-30
 
 <!-- Notes pre-filled from --notes-file. -->
