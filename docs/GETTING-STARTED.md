@@ -59,6 +59,49 @@ Either way, verify installation by running `/vibeflow:flow-status` inside a
 Claude Code session — it should respond with a "project not initialized"
 hint.
 
+### Option C — design-guard (optional UI quality gate)
+
+`design-guard` is a **second plugin** shipped from the same repo and
+registered in the same `.claude-plugin/marketplace.json`. It is a
+UI-scoped quality gate — a project-owned terminology glossary, a
+deterministic i18n/terminology lint on every edited UI file
+(`PostToolUse`), and a `design-auditor` `Stop`-gate that blocks
+"declared done" until an audit pass clears its BLOCKER findings. It is
+**independent of the VibeFlow SDLC plugin** — install one, the other, or
+both.
+
+Because it is a separate plugin in the same marketplace, install it by
+its own name (the marketplace name stays `vibeflow`):
+
+```bash
+# marketplace already added? just install the second plugin:
+claude plugin marketplace add github:mytechsonamy/VibeFlow   # skip if already added
+claude plugin install design-guard@vibeflow
+```
+
+Local development install loads it directly from the subfolder:
+
+```bash
+claude --plugin-dir ~/Projects/VibeFlow/design-guard
+```
+
+**Requirements:** `python3` on PATH (the lint + gate hooks are Python).
+design-guard is **inert** in any project that has no
+`.design-guard/rules.json`, so it is safe to enable globally — it only
+acts once a project opts in.
+
+Turn it on for a project by asking Claude:
+
+```
+Initialize design-guard for this project.
+```
+
+The `design-guard-init` skill mines the project's docs / PRDs / i18n
+resources / existing UI and generates `.design-guard/{profile.md,
+glossary.md, rules.json}`. Review the generated glossary — it encodes
+your product's language; treat it like an ADR. Full details:
+[design-guard/README.md](../design-guard/README.md).
+
 ## 3. Initialize your project
 
 From your project's root directory:

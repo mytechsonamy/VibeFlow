@@ -1,0 +1,8 @@
+{
+  "name": "design-guard",
+  "description": "AI-governed UI quality gate: project-specific terminology glossary, deterministic i18n/terminology linting on every edit, and a design-auditor agent enforced by a Stop-gate before work can be declared done.",
+  "version": "0.1.0",
+  "author": { "name": "Mustafa Yildirim" },
+  "license": "Apache-2.0",
+  "keywords": ["design-review", "i18n", "terminology", "quality-gate", "vibeflow"]
+}

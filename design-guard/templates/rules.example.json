@@ -1,0 +1,21 @@
+{
+  "ui_extensions": [".html", ".tsx", ".jsx", ".cshtml", ".razor", ".css"],
+  "ui_path_hints": ["templates/", "components/", "pages/", "i18n/", "wwwroot/"],
+  "rules": [
+    {
+      "pattern": "\\bKan[iı]t yok\\b",
+      "message": "banned variant \"Kanıt yok\" → canonical: \"Kaynak izi yok\" (no_lineage)",
+      "flags": "i"
+    },
+    {
+      "pattern": ">\\s*(Total CTA|NCI net assets)\\s*<",
+      "message": "English metric name in TR view → use glossary report-label table",
+      "flags": "i"
+    },
+    {
+      "pattern": "ondal[iı]klar[iı] nokta ile",
+      "message": "input hint contradicts display locale — TR view formats with comma",
+      "flags": "i"
+    }
+  ]
+}
