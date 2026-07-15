@@ -110,6 +110,24 @@ bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/streams-audit.sh"
 
 This is the quick glance; `/vibeflow:streams` is the full per-stream dashboard.
 
+### 9. UI Quality — design-guard bridge
+
+If the optional **design-guard** plugin is in use, its `design-auditor`
+verdicts are recorded into the same `history.jsonl` as a `design-guard-audit`
+row. Read the latest one and render surface-only (nothing when absent — a
+project without design-guard is unaffected):
+
+```bash
+jq -c 'select(.type=="design-guard-audit")' .vibeflow/state/consensus/history.jsonl 2>/dev/null | tail -1
+```
+
+- no row → render nothing (design-guard not in use, or no audit yet).
+- `verdict == "FIXES_REQUIRED"` → `⚠ design-guard: FIXES REQUIRED (<blockers> blocker(s)) — run the design-auditor agent on the changed UI`.
+- `verdict == "SHIPPABLE"` → one quiet line `UI quality: SHIPPABLE (design-guard, <age>)`.
+
+design-guard is a **separate plugin**; this section only reads a file it may
+have written, so VibeFlow never depends on it being installed.
+
 ## Output
 Display a concise status summary directly in the conversation. Do not create a file.
 

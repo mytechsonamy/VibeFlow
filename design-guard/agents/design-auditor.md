@@ -69,3 +69,20 @@ Group findings by severity (use the project's primary locale for prose):
 Every finding cites file (and line where possible) and gives a concrete fix
 sourced from the glossary. If a dimension is clean, say so in one line.
 End with a one-line verdict: SHIPPABLE / FIXES REQUIRED.
+
+## VibeFlow bridge (only when a `.vibeflow/` directory exists)
+
+You review; you don't run tools. But if this project ALSO uses VibeFlow
+(there is a `.vibeflow/state/consensus/` directory), your verdict should land
+in VibeFlow's history stream so it shows up in `/vibeflow:flow-status`. Since
+you can't run Bash, make it one copy-paste line: as the **very last line** of
+your report, emit the exact command for the main agent to run — filled in with
+your own counts:
+
+```
+▶ Record: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/record_audit.py" <SHIPPABLE|FIXES_REQUIRED> --blockers <B> --majors <M> --minors <N>
+```
+
+The script is a **no-op outside VibeFlow projects**, so emitting the line is
+always safe; the main agent runs it verbatim. Omit the line only if you are
+certain the project is not a VibeFlow project.

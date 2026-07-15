@@ -68,14 +68,32 @@ New term → glossary first, code second. Banned variant discovered →
 rules.json in the same change. The glossary is a reviewed, versioned team
 asset; the lint rules are derived from it.
 
-## VibeFlow integration notes
+## VibeFlow integration
 
-- design-guard is a **risk-proportional quality gate**: the Stop hook plays
-  the same role as VibeFlow's phase-boundary consensus, scoped to UI work.
-- The `design-auditor` verdict line (SHIPPABLE / FIXES REQUIRED) is
-  machine-greppable — it can feed VibeFlow's consensus/history stream so
-  UI-quality outcomes appear in per-project observability alongside
-  reviewer/challenger verdicts.
+design-guard and VibeFlow are **sibling plugins in the same marketplace**, not
+one bundled inside the other — install either, or both. They stay decoupled
+(design-guard's hooks are Python + inert without `.design-guard/rules.json`;
+VibeFlow's are bash), and they compose through one thin, guarded bridge:
+
+- **Audit verdicts feed VibeFlow's history stream.** When a project has a
+  `.vibeflow/state/consensus/` directory, `scripts/record_audit.py` appends the
+  `design-auditor` verdict as a `design-guard-audit` row to VibeFlow's
+  `history.jsonl`:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/record_audit.py" \
+      SHIPPABLE --blockers 0 --majors 2 --minors 3
+  ```
+
+  `/vibeflow:flow-status` surfaces the latest row (a warning on
+  `FIXES_REQUIRED`, a quiet line on `SHIPPABLE`). The `design-auditor` agent
+  emits this exact command as the last line of its report, so the main agent
+  just runs it. **The script is a no-op outside VibeFlow projects**, so
+  design-guard stays fully standalone — nothing hard-depends on VibeFlow being
+  installed, and VibeFlow only reads a file design-guard may have written.
+
+- design-guard is a **risk-proportional quality gate**: the Stop hook plays the
+  same role as VibeFlow's phase-boundary consensus, scoped to UI work.
 - `design-guard-init` is the pattern worth generalizing: *project docs →
   generated governance config*. The same bootstrap shape applies to other
   gates (API naming, log hygiene, accessibility).
