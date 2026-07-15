@@ -3,7 +3,7 @@
 > **Governed, multi-AI software delivery for Claude Code.**
 > Requirements to release as a single, auditable, self-improving loop.
 
-![version](https://img.shields.io/badge/version-v2.60.0-blue)
+![version](https://img.shields.io/badge/version-v2.61.0-blue)
 ![tests](https://img.shields.io/badge/tests-3%2C000%2B%20across%2032%20layers-brightgreen)
 ![state](https://img.shields.io/badge/state-filesystem%20%C2%B7%20event--sourced-informational)
 ![runtime](https://img.shields.io/badge/runtime-Claude%20Code%20plugin-8A2BE2)

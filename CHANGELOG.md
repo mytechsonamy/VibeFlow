@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.61.0] — 2026-07-15
+
+### Fixed — consensus critical-finding dedup is language-agnostic (Sprint 74)
+- The aggregator deduped critical findings so a duplicate flagged by two reviewers wouldn't inflate `criticalTotal` into a false REJECTED — but its title tokeniser used `ascii_downcase | gsub("[^a-z0-9 ]"; " ")`, which **deletes** non-ASCII letters instead of folding them. A Turkish title like `özkaynağına` became the token `zkayna`, and on an agglutinative language the same word under different suffixes became different tokens, so two reviewers' **same** finding scored Jaccard ≈ 0.04–0.25, never deduped, counted as 2 criticals → the `rejected ≥ 1 and criticalTotal ≥ 2` rule fired → a **wrong REJECTED**. Dedup effectively only worked in English (diagnosed in a live Clera consensus round).
+- Dedup now runs in three layers: **structural** (same file + *overlapping* `line_range`, widened from exact-equality), **lexical** (a single-source `VF_JQ_TITLE_SIM` prelude in `hooks/scripts/_lib.sh` that folds diacritics to ASCII instead of deleting them + tolerates suffix drift; the ≥ 0.6 threshold is unchanged and English titles score identically), and a reduce-only **semantic** model pass (phase-runner Step 3b.5 / orchestrator Step 3b.9) that fires **only** on a REJECTED escalated *solely* by the critical count (`escalatedByCriticalCount == true`), collapses reworded duplicate criticals the lexical layer missed, and can only lower REJECTED → NEEDS_REVISION (never raises to APPROVED, never increases `criticalTotal`, never touches a reject-majority REJECTED) — writing a `dedupNote` + a `type:"semantic-dedup"` history row.
+- Lowering the 0.6 threshold is deliberately **not** the fix: on a measured corpus, genuinely distinct findings reach a lexical similarity of 0.5 while reworded duplicates sit as low as 0.2, so a lower cut would merge *different* criticals into one → a **false APPROVED**, which is worse than the false REJECTED it would prevent.
+- Reviewers are now asked to write `criticalIssues[].title` in **English** (≤ 10 words) and always fill `target.file` + `line_range`, so the cheaper structural/lexical layers catch more before the semantic layer is needed. The same prelude also fixes the S21-B reviewer-memory theme compaction, which had the same non-English blind spot.
+- Hook + skill + agent + docs; no engine change. Hook tests 227 → 237; new `tests/integration/sprint-74.sh` (42/0). Docs: `docs/CONSENSUS-ITERATION.md` ("Dedup runs in three layers") + `docs/CONSENSUS-FLOW.md`.
+
+---
+
 ## [2.60.0] — 2026-07-03
 
 <!-- Notes pre-filled from --notes-file. -->
