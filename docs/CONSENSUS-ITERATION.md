@@ -114,15 +114,62 @@ branching.
 ]
 ```
 
-Three reviewers flagging the same `{file, line_range}` (or with
-Jaccard-similar titles ≥ 0.6) deduplicate to **one** `criticalTotal`.
-Before 2.5.0 the aggregator summed these and promoted NEEDS_REVISION
-to REJECTED at 2; unanimous NEEDS_REVISION with overlapping findings
-no longer falsely escalates.
+Reviewers flagging the same underlying finding deduplicate to **one**
+`criticalTotal`. Before 2.5.0 the aggregator summed these and promoted
+NEEDS_REVISION to REJECTED at 2; unanimous NEEDS_REVISION with
+overlapping findings no longer falsely escalates.
 
 Legacy integer form (`"criticalIssues": 3`) still parses — the
 aggregator falls back to summing and logs the `criticalRawCount`
 field for audit.
+
+### Dedup runs in three layers (Sprint 74)
+
+The same finding from two reviewers is collapsed in order:
+
+1. **Structural** — same `target.file` **and** *overlapping* `line_range`
+   (`a.start ≤ b.end and b.start ≤ a.end`). Sprint 74-B widened this from
+   the old exact-range equality: two reviewers pointing at `[12,20]` and
+   `[14,18]` describe the same defect. Language-independent.
+2. **Lexical** — title similarity ≥ **0.6**, computed by the shared
+   `vf_title_sim` (in `hooks/scripts/_lib.sh`). Sprint 74-A made it
+   language-agnostic: diacritics are **folded** to ASCII (ı/İ/ş/ğ/ö/ü/ç →
+   i/s/g/o/u/c), not deleted, and tokens match under suffix drift
+   (`devri`↔`devir`). The old ASCII-only tokeniser deleted non-ASCII
+   letters, so a Turkish title like "özkaynağına" became the token
+   "zkayna" — dedup **only worked in English**. English titles score
+   identically to before; the threshold is unchanged.
+3. **Semantic** — a reduce-only model pass (phase-runner Step 3b.5 /
+   orchestrator Step 3b.9). It fires **only** on a REJECTED that was
+   escalated *solely* by the `rejected≥1 and criticalTotal≥2` rule
+   (`escalatedByCriticalCount == true` in verdict.json). The model groups
+   reworded duplicate criticals the lexical layer missed and, if they
+   collapse to a single defect, lowers **REJECTED → NEEDS_REVISION** and
+   writes a `dedupNote`. It can only *reduce*: never raises to APPROVED,
+   never increases `criticalTotal`, never touches a reject-majority
+   REJECTED.
+
+**Why not just lower the 0.6 threshold?** On a measured corpus, genuinely
+distinct findings reach a lexical similarity of **0.5** while reworded
+duplicates sit as low as **0.2** — the ranges overlap. A lower cut merges
+*different* criticals into one → a **false APPROVED**, which is worse than
+the false REJECTED it would prevent. The lexical layer honestly catches
+only near-identical wordings; the semantic layer owns the rest, and only
+in the reduce-only direction.
+
+`dedupNote` schema (written only when the semantic pass acts):
+
+```json
+{
+  "rawCount": 2, "lexicalCount": 2, "semanticCount": 1,
+  "decidedBy": "claude", "at": "2026-07-14T…Z",
+  "reason": "reworded duplicate criticals collapsed to one defect"
+}
+```
+
+Reviewers are asked to write `criticalIssues[].title` **in English**
+(≤10 words) and always fill `target.file` + `line_range`, so layers 1–2 do
+as much of the work as possible before the semantic layer is needed.
 
 ## HUMAN_APPROVAL_REQUIRED flow (pass-with-audit)
 

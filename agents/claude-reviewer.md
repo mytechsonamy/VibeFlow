@@ -47,7 +47,7 @@ re-reading the original artifact.
         "file": "<repo-relative path>",
         "line_range": [startLine, endLine]
       },
-      "title": "<short, de-duplicable headline — 6-10 words>",
+      "title": "<short, de-duplicable headline in ENGLISH — 6-10 words>",
       "rationale": "<why this is load-bearing>"
     }
   ],
@@ -77,15 +77,30 @@ Each entry is the **minimum** signal the aggregator needs to dedup
 against the same finding from another reviewer. Fields:
 
 - `id` — stable within this review (prefix with reviewer name)
-- `target.file` — repo-relative path the issue is anchored to
-- `target.line_range` — `[start, end]`; if the finding is
-  document-wide, use the file's full line range or omit
-- `title` — **load-bearing for dedup**. Keep it short and
-  descriptive ("Data residency for BDDK BİSY missing", not
-  "Critical gap"). The aggregator dedupes by exact
-  `{file, line_range}` match OR by Jaccard similarity of title
-  words (≥ 0.6 = same finding).
-- `rationale` — one-sentence why, for the audit trail
+- `target.file` — repo-relative path the issue is anchored to.
+  **Always fill it** (dedup layer 1 keys on it).
+- `target.line_range` — `[start, end]`. **Always fill it** when the
+  finding has a location; only omit when the finding is genuinely
+  document-wide. Two reviewers pointing at the same defect with
+  *overlapping* ranges are merged even if their titles differ.
+- `title` — **load-bearing for dedup, and must be written in
+  ENGLISH** (≤ 10 words), even when the reviewed artifact is in
+  another language — keep the language-specific detail in
+  `rationale`. Short and descriptive ("Data residency for BDDK BİSY
+  missing", not "Critical gap"). The aggregator dedupes a finding
+  against the same finding from another reviewer in three layers:
+  1. **structural** — same `file` + *overlapping* `line_range`;
+  2. **lexical** — language-agnostic title similarity ≥ 0.6
+     (diacritics folded, suffix-tolerant); catches near-identical
+     wordings but, by design, NOT full rewordings;
+  3. **semantic** — a reduce-only model pass runs on an escalated
+     REJECTED to collapse reworded duplicates the lexical layer
+     missed (it can only lower REJECTED → NEEDS_REVISION).
+
+  An English title feeds layers 1–2 in one language, so keep it in
+  English to maximise the chance the cheaper layers catch the dup.
+- `rationale` — one-sentence why, for the audit trail (may be in the
+  artifact's language)
 
 Backward compat: `criticalIssues: <integer>` is still accepted
 (pre-Sprint-17 reviewer output). When an integer is emitted, the

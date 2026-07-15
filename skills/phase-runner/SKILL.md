@@ -605,6 +605,58 @@ Step 3a). With the Claude verdict written, the runner never exits 3 — Claude i
 sufficient panel on its own. If you do hit exit 3, fork `claude-reviewer` (Step
 3a) and retry, or use the interactive `/vibeflow:consensus-orchestrator`.
 
+#### Step 3b.5: Semantic dedup — reduce-only (Sprint 74-D)
+
+The aggregator dedups critical findings **structurally** (same file + overlapping
+`line_range`) and **lexically** (language-agnostic title similarity ≥ 0.6). A
+lexical miss is possible — two reviewers describing the SAME defect in *reworded*
+titles (e.g. "Özkaynağına faiz devri hesaplanmıyor" vs "Özkaynağa faiz devir
+hesabı eksik", similarity ≈ 0.44) score below the threshold, so the count stays
+inflated and the `rejected≥1 and criticalTotal≥2` rule can flip an otherwise
+non-rejected verdict to **REJECTED**. You are the semantic layer bash/jq cannot be.
+
+**Run this pass ONLY when the runner's output has BOTH:**
+`status == "REJECTED"` **AND** `escalatedByCriticalCount == true`.
+In every other case (reject-majority REJECTED, APPROVED, NEEDS_REVISION) skip it
+entirely — no cost, no change.
+
+When it fires, read `criticalDeduped[]` from the runner output (title + rationale
++ target per item) and group items that describe the **same underlying defect**.
+
+**Hard guardrails — this pass can only *reduce*:**
+- It may lower **REJECTED → NEEDS_REVISION** only. It may **never** raise to
+  APPROVED, and **never** touch a reject-majority REJECTED (which never triggers
+  this pass — `escalatedByCriticalCount` is false there).
+- It may **never** increase `criticalTotal`.
+- If the distinct-defect count is still ≥ 2 after your grouping, leave REJECTED
+  unchanged (record that you confirmed it).
+
+If (and only if) your grouping collapses the criticals to a **single** distinct
+defect, patch the verdict + append the telemetry row (replace `<sid>`/`<round>`;
+`SEM=1` = your semantic distinct count, `LEX` = `criticalTotal` from the runner):
+
+```bash
+VF=".vibeflow/state/consensus/<sid>.verdict.json"
+RAW=$(jq '.criticalRawCount // 0' "$VF"); LEX=$(jq '.criticalTotal // 0' "$VF"); SEM=1
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq --argjson sem "$SEM" --arg ts "$TS" --arg lex "$LEX" '
+  .criticalTotal = $sem
+  | .status = "NEEDS_REVISION"
+  | .dedupNote = {rawCount:(.criticalRawCount // 0), lexicalCount:($lex|tonumber),
+      semanticCount:$sem, decidedBy:"claude", at:$ts,
+      reason:"reworded duplicate criticals collapsed to one defect"}
+  | (.rounds[-1]) |= (.status = "NEEDS_REVISION" | .criticalTotal = $sem)
+' "$VF" > "$VF.tmp" && mv "$VF.tmp" "$VF"
+printf '%s\n' "$(jq -n -c --arg s "<sid>" --argjson r <round> --argjson raw "$RAW" \
+  --argjson lex "$LEX" --argjson sem "$SEM" --arg ts "$TS" \
+  '{type:"semantic-dedup",sessionId:$s,round:$r,from:"REJECTED",to:"NEEDS_REVISION",
+    rawCount:$raw,lexicalCount:$lex,semanticCount:$sem,recordedAt:$ts}')" \
+  >> .vibeflow/state/consensus/history.jsonl
+```
+
+Then continue with the **patched** `status` (now NEEDS_REVISION) in the branch
+below. If you left it REJECTED, branch on REJECTED as usual.
+
 Read `status` from the runner's output (or `verdictFile`) and branch:
 
 - **APPROVED** → record + advance (Step 4).

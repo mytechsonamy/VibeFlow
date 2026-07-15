@@ -449,3 +449,83 @@ else:
     print("block")
 PY
 }
+
+# ---------------------------------------------------------------------------
+# Sprint 74-A: language-agnostic title similarity (single source of truth).
+#
+# Consumed by consensus-aggregator.sh in TWO places — the critical-finding
+# dedup pass and the reviewer-memory theme compaction — which used to carry
+# two copies of an ASCII-only tokeniser:
+#
+#     ascii_downcase | gsub("[^a-z0-9 ]"; " ")
+#
+# That idiom DELETES non-ASCII letters instead of folding them, so it shredded
+# any non-English title ("özkaynağına" → "zkayna", "işlem" → "lem") and, on an
+# agglutinative language, the same word under a different suffix became a
+# different token (devri / devir). Two reviewers reporting the SAME finding
+# scored J≈0.04-0.25 → never deduped → counted as 2 criticals → the
+# `rejected>=1 and criticalTotal>=2` rule fired → a WRONG REJECTED.
+# (Found in a live Clera consensus round.)
+#
+# The replacement:
+#   fold(t)        diacritics are folded to ASCII, not deleted (TR ı/İ/ş/ğ/ö/ü/ç
+#                  plus common Latin-1), then lowercased, then non-alphanumerics
+#                  become separators.
+#   tmatch(a; b)   two tokens are the same word if identical OR their character
+#                  trigram similarity is >= 0.5 — tolerates suffix drift
+#                  (devri↔devir, oranı↔oranları) without collapsing real words.
+#   vf_title_sim(a; b)  symmetric tmatch-based overlap of the two token sets.
+#
+# The >= 0.6 threshold is UNCHANGED, and English titles score identically to
+# the old function — this is a strict widening, not a re-tuning. Lowering the
+# threshold is deliberately NOT the fix: on a measured corpus, genuinely
+# distinct findings reach 0.5 while reworded duplicates sit as low as 0.2, so a
+# lower cut merges DIFFERENT criticals into one → a false APPROVED, which is
+# worse than the false REJECTED it would prevent. Reworded duplicates are
+# handed to the semantic layer (Sprint 74-D) instead.
+#
+# Usage:  jq -s "$VF_JQ_TITLE_SIM  <your filter using vf_title_sim(a;b)>"
+VF_JQ_TITLE_SIM='
+  def vf_fold(t):
+    (t // "")
+    | gsub("[İIı]"; "i")
+    | gsub("[Şş]"; "s")
+    | gsub("[Ğğ]"; "g")
+    | gsub("[Ö]"; "o") | gsub("[ö]"; "o")
+    | gsub("[Ü]"; "u") | gsub("[ü]"; "u")
+    | gsub("[Çç]"; "c")
+    | gsub("[ÂâÁáÀàÄäÅåÃã]"; "a")
+    | gsub("[ÉéÈèÊêËë]"; "e")
+    | gsub("[ÎîÍíÌìÏï]"; "i")
+    | gsub("[ÔôÓóÒòÕõ]"; "o")
+    | gsub("[ÛûÚúÙù]"; "u")
+    | gsub("[Ññ]"; "n")
+    | gsub("[ß]"; "ss")
+    | ascii_downcase
+    | gsub("[^a-z0-9 ]"; " ");
+
+  def vf_tokens(t):
+    vf_fold(t) | split(" ") | map(select(length > 2)) | unique;
+
+  def vf_grams(w):
+    ("  " + w + "  ") as $p
+    | [range(0; ($p | length) - 2) | $p[.:(. + 3)]] | unique;
+
+  def vf_gram_sim(a; b):
+    (vf_grams(a)) as $x | (vf_grams(b)) as $y
+    | ($x | map(select(. as $g | $y | index($g))) | length) as $i
+    | (($x + $y) | unique | length) as $u
+    | (if $u > 0 then ($i / $u) else 0 end);
+
+  def vf_tmatch(a; b):
+    (a == b) or (vf_gram_sim(a; b) >= 0.5);
+
+  def vf_title_sim(a; b):
+    (vf_tokens(a)) as $x | (vf_tokens(b)) as $y
+    | if ($x | length) == 0 or ($y | length) == 0 then 0
+      else
+        ([ $x[] | . as $w | (if any($y[]; vf_tmatch($w; .)) then 1 else 0 end) ] | add) as $mx
+        | ([ $y[] | . as $w | (if any($x[]; vf_tmatch($w; .)) then 1 else 0 end) ] | add) as $my
+        | (($mx + $my) / (($x | length) + ($y | length)))
+      end;
+'

@@ -251,24 +251,35 @@ fi
 # `total`, `approved`, `criticalTotal`, `agreement`, `status` stay
 # top-level so existing consumers (tests, arbiter, phase-gate) keep
 # working. `rounds[]` accumulates per-round snapshots.
-AGG="$(jq -s --argjson round "$CURRENT_ROUND" '
-  def jaccard_title(a; b):
-    (a | ascii_downcase | gsub("[^a-z0-9 ]"; " ") | split(" ") | map(select(length > 2)) | unique) as $aw
-    | (b | ascii_downcase | gsub("[^a-z0-9 ]"; " ") | split(" ") | map(select(length > 2)) | unique) as $bw
-    | if ($aw | length) == 0 or ($bw | length) == 0 then 0
-      else
-        ([$aw[], $bw[]] | unique | length) as $union
-        | (($aw + $bw) | unique | length) as $u
-        | ($aw | map(select(. as $x | $bw | index($x))) | length) as $i
-        | (if $u > 0 then ($i / $u) else 0 end)
-      end;
+AGG="$(jq -s --argjson round "$CURRENT_ROUND" "$VF_JQ_TITLE_SIM"'
+    # Sprint 74-A: jaccard_title is now the language-agnostic vf_title_sim
+    # from _lib.sh (diacritics folded not deleted + suffix-tolerant token
+    # match). Threshold 0.6 unchanged; English titles score identically.
+    def jaccard_title(a; b): vf_title_sim(a; b);
+
+    # Sprint 74-B: two findings share a location when they are in the same
+    # file AND their line_ranges OVERLAP (a.start <= b.end and b.start <=
+    # a.end), not only when the ranges are byte-identical — two reviewers
+    # pointing at [12,20] and [14,18] describe the same defect. When either
+    # side omits a range we do NOT structural-merge (a file-only match would
+    # swallow distinct findings in the same file); the lexical layer decides.
+    def same_location($a; $b):
+      ($a.target.file // null) as $af | ($b.target.file // null) as $bf
+      | if $af == null or $bf == null or $af != $bf then false
+        else
+          ($a.target.line_range // null) as $ar
+          | ($b.target.line_range // null) as $br
+          | if ($ar | type) != "array" or ($br | type) != "array"
+               or ($ar | length) < 2 or ($br | length) < 2 then false
+            else (($ar[0]) <= ($br[1])) and (($br[0]) <= ($ar[1]))
+            end
+        end;
     # Collect all structured critical items across reviewers (for
     # this round) and dedup.
     def dedup_critical(items):
       reduce items[] as $e ([];
         . as $acc
-        | if any($acc[]; (.target.file // null) == ($e.target.file // null)
-                         and (.target.line_range // null) == ($e.target.line_range // null))
+        | if any($acc[]; same_location(.; $e))
           then $acc
           else
             if any($acc[]; jaccard_title(.title // ""; $e.title // "") >= 0.6)
@@ -318,6 +329,19 @@ AGG="$(jq -s --argjson round "$CURRENT_ROUND" '
         elif .agreement >= 0.9 and .criticalTotal == 0 then "APPROVED"
         else "NEEDS_REVISION"
         end
+      )
+    }
+  # Sprint 74-C: mark when a REJECTED was produced SOLELY by the
+  # `rejected>=1 and criticalTotal>=2` escalation (not by a reject
+  # majority). Only in that case can a lexical dedup miss have flipped the
+  # verdict — so a downstream, reduce-only semantic dedup pass (74-D) is
+  # allowed to run, and never in any other case.
+  | . + {
+      dedupMethod: "structural+lexical",
+      escalatedByCriticalCount: (
+        (.status == "REJECTED")
+        and ((.rejected * 2) <= .total)
+        and (.rejected >= 1 and .criticalTotal >= 2)
       )
     }
 ' < "$REVIEW_LOG")"
@@ -486,14 +510,11 @@ if [[ "$RM_ENABLED" != "false" ]]; then
       # entry dropped past the cap. Titles are matched by Jaccard ≥ 0.6
       # (same tokenisation as the verdict-dedup pass above).
       { cat "$RM_FILE"; printf '%s\n' "$RM_ENTRY"; } \
-        | jq -s -c --argjson n "$RM_CAP" '
-            def norm(t): (t // "") | ascii_downcase | gsub("[^a-z0-9 ]"; " ")
-              | split(" ") | map(select(length > 2)) | unique;
-            def jac(a; b): (norm(a)) as $x | (norm(b)) as $y
-              | if ($x|length)==0 or ($y|length)==0 then 0
-                else (($x | map(select(. as $w | $y | index($w))) | length)) as $i
-                | (($x + $y) | unique | length) as $u
-                | (if $u > 0 then ($i / $u) else 0 end) end;
+        | jq -s -c --argjson n "$RM_CAP" "$VF_JQ_TITLE_SIM"'
+            # Sprint 74-A: jac is now the language-agnostic vf_title_sim from
+            # _lib.sh (same source as the verdict-dedup pass), so recurring
+            # non-English themes fold correctly instead of never matching.
+            def jac(a; b): vf_title_sim(a; b);
             def fold($sum; $c; $ts):
               $sum | (.recurringCriticals // []) as $rc
               | if any($rc[]; jac(.title; $c) >= 0.6)

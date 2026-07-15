@@ -978,6 +978,88 @@ rm -rf "$DIR"
 unset VIBEFLOW_CWD
 
 # ---------------------------------------------------------------------------
+echo "== consensus-aggregator.sh language-agnostic dedup [S74] =="
+
+# Helper: append one reviewer's structured critical item to a session and
+# finalize. Usage: s74_reviewer <dir> <session> <reviewer> <verdict> <item-json>
+s74_reviewer() {
+  local dir="$1" sess="$2" rev="$3" vd="$4" item="$5"
+  local payload
+  payload="$(jq -n --arg sess "$sess" --arg rev "$rev" --arg vd "$vd" --arg item "$item" '{
+    session_id:$sess, subagent_type:$rev,
+    tool_response:{content:[{text:("{\"verdict\":\"" + $vd + "\",\"criticalIssues\":[" + $item + "]}")}]}
+  }')"
+  printf '%s' "$payload" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+}
+
+# [S74-A] Turkish reworded duplicate WITH overlapping line_range → merges
+# via the structural layer (same file + overlap). Two reviewers, 1 REJECTED
+# + 1 NEEDS_REVISION; before Sprint 74 the ASCII-only tokeniser scored the
+# titles J≈0.25 AND exact-range-equality failed → 2 criticals → REJECTED.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus:{quorum:2}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+s74_reviewer "$DIR" tr1 codex-reviewer REJECTED \
+  '{"id":"c1","target":{"file":"src/faiz.py","line_range":[12,20]},"title":"Özkaynağına faiz devri hesaplanmıyor","rationale":"x"}'
+s74_reviewer "$DIR" tr1 gemini-reviewer NEEDS_REVISION \
+  '{"id":"g1","target":{"file":"src/faiz.py","line_range":[14,18]},"title":"Özkaynağa faiz devir hesabı eksik","rationale":"y"}'
+V="$DIR/.vibeflow/state/consensus/tr1.verdict.json"
+if [[ -f "$V" ]]; then
+  assert_eq "[S74-B] overlapping line_range merges TR dup → criticalTotal==1" "1" "$(jq -r '.criticalTotal' "$V")"
+  assert_eq "[S74-B] overlapping-range merge → NEEDS_REVISION not REJECTED" "NEEDS_REVISION" "$(jq -r '.status' "$V")"
+  assert_eq "[S74-C] dedupMethod recorded" "structural+lexical" "$(jq -r '.dedupMethod' "$V")"
+else
+  fail "[S74-B] verdict written for tr1"
+fi
+rm -rf "$DIR"
+
+# [S74-A] Turkish English-titled identical finding merges lexically even
+# with DIFFERENT files (no structural overlap possible) — proves the
+# language-agnostic tokeniser catches near-identical wordings.
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus:{quorum:2}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+s74_reviewer "$DIR" eng1 codex-reviewer REJECTED \
+  '{"id":"c1","target":{"file":"api/user.ts","line_range":[40,55]},"title":"SQL injection risk in user search endpoint","rationale":"x"}'
+s74_reviewer "$DIR" eng1 gemini-reviewer NEEDS_REVISION \
+  '{"id":"g1","target":{"file":"api/auth.ts","line_range":[8,12]},"title":"User search endpoint vulnerable to SQL injection","rationale":"y"}'
+V="$DIR/.vibeflow/state/consensus/eng1.verdict.json"
+assert_eq "[S74-A] English identical finding still merges lexically → criticalTotal==1" "1" "$(jq -r '.criticalTotal' "$V")"
+rm -rf "$DIR"
+
+# [S74-C] Genuinely DISTINCT criticals must NOT merge (false-merge guard):
+# different file, non-overlapping range, low title similarity → stays
+# REJECTED and escalatedByCriticalCount==true (lexical miss is possible →
+# semantic layer eligible, but bash must not silently merge distinct bugs).
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus:{quorum:2}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+s74_reviewer "$DIR" dist1 codex-reviewer REJECTED \
+  '{"id":"c1","target":{"file":"a.py","line_range":[1,5]},"title":"Faiz oranı yanlış yuvarlanıyor","rationale":"x"}'
+s74_reviewer "$DIR" dist1 gemini-reviewer NEEDS_REVISION \
+  '{"id":"g1","target":{"file":"b.py","line_range":[90,99]},"title":"Kullanıcı oturumu kapanmıyor","rationale":"y"}'
+V="$DIR/.vibeflow/state/consensus/dist1.verdict.json"
+assert_eq "[S74-C] distinct criticals NOT merged → criticalTotal==2" "2" "$(jq -r '.criticalTotal' "$V")"
+assert_eq "[S74-C] distinct criticals → status REJECTED" "REJECTED" "$(jq -r '.status' "$V")"
+assert_eq "[S74-C] escalated REJECTED flagged for semantic layer" "true" "$(jq -r '.escalatedByCriticalCount' "$V")"
+rm -rf "$DIR"
+
+# [S74-C] A reject-MAJORITY REJECTED must NOT be flagged escalated (the
+# semantic reduce-only pass must never touch a genuine rejection).
+DIR="$(make_project DEVELOPMENT)"
+export VIBEFLOW_CWD="$DIR"
+jq '. + {consensus:{quorum:2}}' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+s74_reviewer "$DIR" maj1 codex-reviewer REJECTED \
+  '{"id":"c1","target":{"file":"a.py","line_range":[1,5]},"title":"Payment double charge on retry","rationale":"x"}'
+s74_reviewer "$DIR" maj1 gemini-reviewer REJECTED \
+  '{"id":"g1","target":{"file":"b.py","line_range":[9,20]},"title":"Auth bypass on expired token","rationale":"y"}'
+V="$DIR/.vibeflow/state/consensus/maj1.verdict.json"
+assert_eq "[S74-C] reject-majority → status REJECTED" "REJECTED" "$(jq -r '.status' "$V")"
+assert_eq "[S74-C] reject-majority NOT flagged escalated" "false" "$(jq -r '.escalatedByCriticalCount' "$V")"
+rm -rf "$DIR"
+unset VIBEFLOW_CWD
+
+# ---------------------------------------------------------------------------
 echo "== consensus-gate.sh [S16-A] =="
 
 GATE="$SCRIPTS/consensus-gate.sh"
@@ -1347,6 +1429,21 @@ INPUT2='{"session_id":"cmp2","subagent_type":"gemini-reviewer","tool_response":{
 printf '%s' "$INPUT2" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
 RECSUM="$(jq -c 'select(.type=="summary")' "$RM_DIR/gemini.jsonl" 2>/dev/null | wc -l | tr -d ' ')"
 assert_eq "[S21-B] recency mode writes no summary row" "0" "$RECSUM"
+
+# [S74-A] Turkish recurring theme folds via the language-agnostic matcher.
+# Pre-seed 5 details carrying a TR critical, then a reworded TR variant drops
+# in — before Sprint 74 the ASCII-only tokeniser shredded the words so the
+# theme never matched (each drop created a NEW recurringCritical entry).
+jq 'del(.reviewerMemory)' "$DIR/vibeflow.config.json" > "$DIR/c.tmp" && mv "$DIR/c.tmp" "$DIR/vibeflow.config.json"
+echo "docs/TR-PRD.md" > "$CONS_DIR/cmp3.primary.txt"
+echo "1" > "$CONS_DIR/cmp3.current-round.txt"
+for i in 1 2 3 4 5; do
+  echo "{\"recordedAt\":\"z$i\",\"phase\":\"DEVELOPMENT\",\"primaryArtifact\":\"docs/TR-PRD.md\",\"round\":$i,\"status\":\"NEEDS_REVISION\",\"criticals\":[\"Özkaynağına faiz devri hesaplanmıyor\"]}"
+done > "$RM_DIR/codex-reviewer.jsonl"
+INPUT3='{"session_id":"cmp3","subagent_type":"codex-reviewer","tool_response":{"content":[{"text":"{\"verdict\":\"NEEDS_REVISION\",\"criticalIssues\":[{\"title\":\"Özkaynağına faiz devir hesabı\",\"target\":{}}]}"}]}}'
+printf '%s' "$INPUT3" | bash "$SCRIPTS/consensus-aggregator.sh" >/dev/null
+TRSUMN="$(jq -sr 'map(select(.type=="summary"))[0].recurringCriticals | length' "$RM_DIR/codex-reviewer.jsonl" 2>/dev/null)"
+assert_eq "[S74-A] TR recurring theme folds into a SINGLE summary entry" "1" "$TRSUMN"
 rm -rf "$DIR"; unset VIBEFLOW_CWD
 
 # ---------------------------------------------------------------------------

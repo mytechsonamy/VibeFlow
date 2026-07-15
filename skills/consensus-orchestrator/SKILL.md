@@ -398,6 +398,9 @@ Output ONLY valid JSON matching: {verdict:APPROVED|NEEDS_REVISION|REJECTED,
 score:0-100, criticalIssues:[{id, target:{file, line_range:[s,e]}, title, rationale}],
 summary:string, suggestions:[{id, type, target:{file, line_range:[s,e]},
 rationale, proposed_change, priority, phase_relevance:[]}]}
+Write each criticalIssues[].title in ENGLISH (<=10 words) even if the artifact is
+in another language, and always fill target.file + line_range — these key the
+cross-reviewer dedup.
 
 PRIMARY ARTIFACT UNDER REVIEW ($PRIMARY):
 $(excerpt_if_large "$PRIMARY")
@@ -488,6 +491,25 @@ emits nothing, so the subagent prompt is unchanged.
 ### Step 3c: Post-consensus state registration + cleanup (Sprint 15-A, 16-B, 17.2)
 
 Once the aggregator has written `.vibeflow/state/consensus/<session>.verdict.json`:
+
+#### 3b.9 — Semantic dedup, reduce-only (Sprint 74-D)
+
+The aggregator deduped critical findings structurally + lexically
+(language-agnostic title similarity ≥ 0.6). A lexical miss can survive: two
+reviewers describing the **same** defect in *reworded* titles score below 0.6, so
+`criticalTotal` stays inflated and the `rejected≥1 and criticalTotal≥2` rule can
+flip the verdict to REJECTED. Before recording, run the semantic layer bash/jq
+can't — but **only** when the verdict has BOTH
+`status == "REJECTED"` AND `escalatedByCriticalCount == true`
+(read from verdict.json). In every other case skip it — no cost, no change.
+
+When it fires, read `criticalDeduped[]`, group items describing the **same**
+underlying defect, and apply the identical **reduce-only** rule + verdict patch +
+`history.jsonl` `type:"semantic-dedup"` row documented in
+`skills/phase-runner/SKILL.md` Step 3b.5 (lower REJECTED → NEEDS_REVISION **only**
+if the distinct-defect count collapses to one; never raise to APPROVED; never
+increase `criticalTotal`; never touch a reject-majority REJECTED). Write
+`dedupNote` and continue Step 3c.0 with the **patched** status.
 
 #### 3c.0 — Record consensus into project state (Sprint 17.2, MANDATORY)
 
@@ -648,9 +670,17 @@ else:
   status = "NEEDS_REVISION"
 ```
 
-Sprint 17-B: `criticalIssues` across reviewers is now **deduped** by
-`{file, line_range}` equality OR by Jaccard similarity of the title
-words (≥ 0.6). The pre-2.5.0 rule of `agreement < 0.5 → REJECTED`
+Sprint 17-B / 74: `criticalIssues` across reviewers is **deduped** in
+three layers — (1) **structural**: same `file` + *overlapping*
+`line_range` (Sprint 74-B — was exact-equality only); (2) **lexical**:
+language-agnostic title similarity ≥ 0.6 (Sprint 74-A folds diacritics
+instead of deleting them + tolerates suffix drift, so non-English
+titles dedup instead of always scoring ~0); (3) **semantic**: a
+reduce-only model pass (Sprint 74-D, Step 3b.9) that collapses reworded
+duplicate criticals the lexical layer missed, but **only** on a REJECTED
+that was escalated *solely* by the critical count
+(`escalatedByCriticalCount == true`) — it can lower REJECTED →
+NEEDS_REVISION, never raise to APPROVED. The pre-2.5.0 rule of `agreement < 0.5 → REJECTED`
 was retired because it conflated "nobody approved" with "everyone
 rejected" — three reviewers unanimously voting NEEDS_REVISION used
 to fall through to REJECTED, skipping the arbiter. Now REJECTED

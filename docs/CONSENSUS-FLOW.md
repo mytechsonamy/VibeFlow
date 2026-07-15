@@ -365,3 +365,16 @@ reviewer-memory shape as codex/gemini — and finalises over the whole panel:
 The interactive `/vibeflow:consensus-orchestrator` already forked claude-reviewer
 (via SubagentStop); this brings the same always-Claude guarantee to the headless
 phase-runner walk.
+
+## Language-agnostic critical dedup (Sprint 74)
+
+The aggregator collapses the same critical finding from two reviewers so a
+duplicate doesn't inflate `criticalTotal` into a false REJECTED. As of Sprint 74
+this runs in three layers — **structural** (same file + overlapping `line_range`),
+**lexical** (language-agnostic title similarity ≥ 0.6, diacritics folded not
+deleted), and a reduce-only **semantic** model pass for reworded duplicates the
+lexical layer misses. The old ASCII-only tokeniser deleted non-ASCII letters, so
+dedup effectively only worked in English and a Turkish reviewer panel double-counted
+the same finding into a wrong REJECTED (diagnosed in a live Clera round). Full
+detail — including why lowering the threshold is *not* the fix — is in
+`docs/CONSENSUS-ITERATION.md` (“Dedup runs in three layers”).

@@ -205,6 +205,9 @@ Output ONLY valid JSON matching: {verdict:APPROVED|NEEDS_REVISION|REJECTED,
 score:0-100, criticalIssues:[{id, target:{file, line_range:[s,e]}, title, rationale}],
 summary:string, suggestions:[{id, type, target:{file, line_range:[s,e]},
 rationale, proposed_change, priority, phase_relevance:[]}]}
+Write each criticalIssues[].title in ENGLISH (<=10 words) even if the artifact is
+in another language, and always fill target.file + line_range — these key the
+cross-reviewer dedup.
 
 PRIMARY ARTIFACT UNDER REVIEW ($PRIMARY):
 $(excerpt_primary "$PRIMARY")
@@ -412,6 +415,12 @@ fi
 STATUS="$(jq -r '.status // "NEEDS_REVISION"' "$VERDICT_FILE" 2>/dev/null || echo NEEDS_REVISION)"
 AGREEMENT="$(jq -r '.agreement // 0' "$VERDICT_FILE" 2>/dev/null || echo 0)"
 CRITICAL="$(jq -r '.criticalTotal // 0' "$VERDICT_FILE" 2>/dev/null || echo 0)"
+# Sprint 74-C/D: surface whether this REJECTED came SOLELY from the
+# critical-count escalation (a lexical dedup miss could have flipped it),
+# and the deduped critical items, so phase-runner Step 3b can run the
+# reduce-only semantic-dedup pass on exactly the sessions that need it.
+ESCALATED="$(jq -c '.escalatedByCriticalCount // false' "$VERDICT_FILE" 2>/dev/null || echo false)"
+CRITICAL_DEDUPED="$(jq -c '.criticalDeduped // []' "$VERDICT_FILE" 2>/dev/null || echo '[]')"
 
 # --- Step 4: drain the consensus-gate marker so work can continue --------
 # Load-bearing: consensus-gate.sh blocks every Bash/Write/Edit while
@@ -431,6 +440,8 @@ jq -n -c \
   --argjson agreement "$AGREEMENT" \
   --argjson critical "$CRITICAL" \
   --argjson reviewers "$LINES" \
+  --argjson escalated "$ESCALATED" \
+  --argjson criticalDeduped "$CRITICAL_DEDUPED" \
   --arg primary "$PRIMARY" \
-  '{sessionId:$session, status:$status, agreement:$agreement, criticalTotal:$critical, reviewers:$reviewers, primaryArtifact:$primary, verdictFile:$verdictFile}'
+  '{sessionId:$session, status:$status, agreement:$agreement, criticalTotal:$critical, escalatedByCriticalCount:$escalated, criticalDeduped:$criticalDeduped, reviewers:$reviewers, primaryArtifact:$primary, verdictFile:$verdictFile}'
 exit 0
